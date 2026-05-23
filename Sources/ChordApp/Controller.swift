@@ -120,8 +120,50 @@ public final class Controller {
 
     private func installConfigWatcher() {
         let path = ChordConfig.path
+
+        if let src = makeFileWatcher(path: path) {
+            self.configWatcher = src
+            return
+        }
+
+        // File doesn't exist yet — watch the parent directory so we
+        // can attach the file watcher the moment the user creates
+        // it (e.g. first `cp config.toml ~/.config/chord/`). Without
+        // this, a daemon launched before the config exists would
+        // never auto-reload.
+        let dir = (path as NSString).deletingLastPathComponent
+        // Make the directory itself so the parent open succeeds for
+        // a brand-new install. Ignore errors — if it really can't
+        // be created the daemon still runs (just without auto-reload).
+        try? FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true)
+        let dirFD = open(dir, O_EVTONLY)
+        guard dirFD != -1 else {
+            Log.line("config: cannot watch \(dir) — auto-reload disabled")
+            return
+        }
+        let dirSrc = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: dirFD, eventMask: [.write, .rename],
+            queue: .main)
+        dirSrc.setEventHandler { [weak self] in
+            // A file landed in the directory. If it's our config,
+            // swap to the file-level watcher.
+            if FileManager.default.fileExists(atPath: path) {
+                dirSrc.cancel()
+                Task { @MainActor in
+                    self?.reload()
+                    self?.installConfigWatcher()
+                }
+            }
+        }
+        dirSrc.setCancelHandler { close(dirFD) }
+        dirSrc.resume()
+        self.configWatcher = dirSrc
+    }
+
+    private func makeFileWatcher(path: String) -> DispatchSourceFileSystemObject? {
         let fd = open(path, O_EVTONLY)
-        guard fd != -1 else { return }
+        guard fd != -1 else { return nil }
         let src = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd, eventMask: [.write, .rename, .delete],
             queue: .main)
@@ -134,7 +176,7 @@ public final class Controller {
         }
         src.setCancelHandler { close(fd) }
         src.resume()
-        self.configWatcher = src
+        return src
     }
 }
 
