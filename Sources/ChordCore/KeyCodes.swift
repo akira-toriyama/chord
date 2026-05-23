@@ -34,7 +34,7 @@ public enum KeyCodes {
         return "keycode-\(code)"
     }
 
-    nonisolated(unsafe) private static let table: [String: UInt16] = {
+    private static let table: [String: UInt16] = {
         var t: [String: UInt16] = [
             // Letters (US ANSI; physical-position keycodes).
             "a": 0x00, "s": 0x01, "d": 0x02, "f": 0x03, "h": 0x04,
@@ -97,7 +97,7 @@ public enum KeyCodes {
         return t
     }()
 
-    nonisolated(unsafe) private static let reverse: [UInt16: String] = {
+    private static let reverse: [UInt16: String] = {
         var r: [UInt16: String] = [:]
         // Prefer the descriptive name when several aliases map to
         // the same code (e.g. "return" over "enter", "f13" over
