@@ -1,0 +1,83 @@
+name: update-tap
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    if: github.event.release.draft == false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag + tarball SHA-256
+        id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=$(gh api repos/${{ github.repository }}/releases/latest --jq .tag_name)
+          url="https://github.com/${{ github.repository }}/archive/refs/tags/${tag}.tar.gz"
+          sha=$(curl -sL "$url" | shasum -a 256 | awk '{print $1}')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Update homebrew-tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          # The HOMEBREW_TAP_TOKEN must be a fine-grained PAT with
+          # contents:write on akira-toriyama/homebrew-tap. If it's
+          # missing, this job no-ops cleanly — the maintainer can
+          # bump the formula by hand for now.
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_TOKEN missing — skipping tap bump"
+            exit 0
+          fi
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/akira-toriyama/homebrew-tap.git" tap
+          formula="tap/Formula/chord.rb"
+          mkdir -p "$(dirname "$formula")"
+
+          cat > "$formula" <<EOF
+          class Chord < Formula
+            desc "Global keyboard + mouse hotkey daemon for macOS"
+            homepage "https://github.com/akira-toriyama/chord"
+            url "${{ steps.meta.outputs.url }}"
+            sha256 "${{ steps.meta.outputs.sha }}"
+            license "MIT"
+            head "https://github.com/akira-toriyama/chord.git", branch: "main"
+
+            depends_on xcode: ["13.0", :build]
+            depends_on macos: :ventura
+
+            def install
+              system "swift", "build", "-c", "release", "--disable-sandbox"
+              bin.install ".build/release/chord"
+              etc.install "config.toml" => "chord/config.toml.example"
+            end
+
+            service do
+              run [opt_bin/"chord"]
+              keep_alive true
+              log_path var/"log/chord.log"
+              error_log_path var/"log/chord.log"
+            end
+
+            test do
+              assert_match "chord", shell_output("#{bin}/chord --version")
+            end
+          end
+          EOF
+
+          cd tap
+          git config user.name "chord-release-bot"
+          git config user.email "chord-release-bot@users.noreply.github.com"
+          git add Formula/chord.rb
+          git commit -m ":rocket: chore(formula): bump chord to ${{ steps.meta.outputs.tag }}"
+          git push

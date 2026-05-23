@@ -1,0 +1,51 @@
+name: Bug report
+description: Something chord did wrong, or didn't do when it should have.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please run `chord --doctor` and `chord --validate`
+        and include both outputs below.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what chord did instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: chord --doctor output
+      render: shell
+
+  - type: textarea
+    id: validate
+    attributes:
+      label: chord --validate output
+      render: shell
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant lines from /tmp/chord.log
+      render: shell
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "14.5"
+    validations:
+      required: true
+
+  - type: input
+    id: keyboard
+    attributes:
+      label: Keyboard / mouse hardware
+      description: Especially relevant for F21–F24 or side-button bindings.
+      placeholder: "ZSA Moonlander / MX Master 3 / built-in"

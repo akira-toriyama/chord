@@ -1,0 +1,128 @@
+# chord — user configuration
+# https://github.com/akira-toriyama/chord
+#
+# This file is the **single source of truth** for chord's bindings.
+# chord does NOT ship a GUI. Drop your edited copy at
+# ~/.config/chord/config.toml:
+#
+#   curl --create-dirs -o ~/.config/chord/config.toml \
+#     https://raw.githubusercontent.com/akira-toriyama/chord/main/config.toml
+#
+# chord only ever READS this file. Bindings whose `input` or
+# `action-*` fails to parse are *dropped with a warning* rather than
+# rejected — a typo can never break the daemon. Validate explicitly
+# with `chord --validate`.
+
+
+# -----------------------------------------------------------------
+# Global options
+# -----------------------------------------------------------------
+[options]
+
+# Pass unmatched events through to the OS. The default (true) is
+# what you want unless you're using chord as a key-filter layer.
+passthrough-unmatched = true
+
+# Bundle IDs where chord is globally disabled. Useful for apps that
+# already have native gestures (Xcode, video editors, games…).
+# Glob (`*` / `?`) supported.
+exclude-apps = []
+
+
+# -----------------------------------------------------------------
+# Bindings — first match wins, applied to the FRONTMOST app
+# -----------------------------------------------------------------
+# Each `[[bindings]]` block defines one input → action mapping.
+# Bindings are matched in document order; the FIRST one whose
+# (input, modifiers, apps) all match the event fires.
+#
+# `input` grammar (think skhd, extended):
+#
+#   • keys:    "cmd + ctrl - f13"     (any F-key, letter, digit, special)
+#   • mouse:   "mouse.side1"          (left | right | middle | side1 | side2)
+#   • scroll:  "ctrl - scroll.up"     (up | down | left | right)
+#
+# Modifier names: cmd | opt (= alt) | ctrl | shift | fn | hyper
+#   `hyper` is sugar for `cmd + opt + ctrl + shift` (Karabiner usage).
+#
+# F-keys: f1–f24 are all bindable. F13–F20 use the standard macOS
+# virtual keycodes; F21–F24 use the slots Karabiner / firmware
+# remappers conventionally emit (you need a keyboard that actually
+# sends them — most physical F-row keyboards stop at F12).
+#
+# Any unrecognised key falls back to `keycode-NN` (raw CGKeyCode),
+# useful for vendor-specific media keys.
+#
+# `apps` syntax:
+#   omitted or ["*"]    — match every frontmost app
+#   ["com.apple.Safari"] — exact bundle id
+#   ["*chrome*"]         — glob
+#   ["!com.apple.Xcode"] — exclusion (any matching exclusion wins)
+#
+# Exactly ONE action key per binding:
+#   action-shell = "open -a Terminal"        — runs in `/bin/zsh -l -c`
+#   action-keys  = "cmd + shift - 4"         — chord posts these keys
+#   action-noop  = true                       — eats the event
+#
+# Shell actions get these env vars:
+#   CHORD_BINDING_NAME, CHORD_FRONTMOST_BUNDLE_ID
+
+
+# Launch terminal with the F13 key (good for ZSA / Moonlander setups).
+[[bindings]]
+name = "launch terminal"
+input = "f13"
+action-shell = "open -a Terminal"
+
+
+# Side-button screenshot. cmd+shift+4 = "select region".
+[[bindings]]
+name = "screenshot selection"
+input = "mouse.side1"
+action-keys = "cmd + shift - 4"
+
+
+# Hyper + h/j/k/l for vim-style window nav (replace with your WM).
+[[bindings]]
+name = "focus window left"
+input = "hyper - h"
+action-shell = "yabai -m window --focus west 2>/dev/null || true"
+
+[[bindings]]
+name = "focus window down"
+input = "hyper - j"
+action-shell = "yabai -m window --focus south 2>/dev/null || true"
+
+[[bindings]]
+name = "focus window up"
+input = "hyper - k"
+action-shell = "yabai -m window --focus north 2>/dev/null || true"
+
+[[bindings]]
+name = "focus window right"
+input = "hyper - l"
+action-shell = "yabai -m window --focus east 2>/dev/null || true"
+
+
+# Zoom only inside specific apps with ctrl + scroll.up. Other apps
+# pass scroll through normally.
+[[bindings]]
+name = "zoom in (Code / Haystack)"
+input = "ctrl - scroll.up"
+apps = ["com.microsoft.VSCode", "*haystack*"]
+action-keys = "cmd - equal"
+
+[[bindings]]
+name = "zoom out (Code / Haystack)"
+input = "ctrl - scroll.down"
+apps = ["com.microsoft.VSCode", "*haystack*"]
+action-keys = "cmd - minus"
+
+
+# Disable the Caps Lock key entirely (useful if you remapped it via
+# karabiner-elements and want chord to swallow any stray presses).
+# Uncomment to enable.
+# [[bindings]]
+# name = "block caps lock"
+# input = "caps_lock"
+# action-noop = true

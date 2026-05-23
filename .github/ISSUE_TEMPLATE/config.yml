@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How do I bind …?
+    url: https://github.com/akira-toriyama/chord/blob/main/config.toml
+    about: Most questions are answered by the inline comments in the config template.

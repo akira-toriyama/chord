@@ -1,0 +1,32 @@
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Swift / Xcode version
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: swift build
+        run: swift build -c release
+
+      - name: swift test
+        run: swift test
+
+      - name: smoke test --validate
+        run: |
+          ./.build/release/chord --version
+          ./.build/release/chord --validate || true

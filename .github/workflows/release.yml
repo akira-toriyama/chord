@@ -1,0 +1,59 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: swift build (release)
+        run: swift build -c release
+
+      - name: package Chord.app
+        run: ./package.sh
+
+      - name: tar
+        run: |
+          mkdir -p dist
+          tar czf "dist/chord-${GITHUB_SHA::7}.tar.gz" Chord.app
+          shasum -a 256 "dist/chord-${GITHUB_SHA::7}.tar.gz" \
+            > "dist/chord-${GITHUB_SHA::7}.tar.gz.sha256"
+
+      - name: install git-cliff
+        run: brew install git-cliff
+
+      - name: generate changelog
+        run: git-cliff --config cliff.toml --output dist/CHANGELOG.md
+
+      - name: rolling-draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find or create the rolling draft.
+          existing=$(gh release list --limit 5 --json tagName,isDraft \
+            --jq '.[] | select(.isDraft) | .tagName' | head -n1)
+          tag="${existing:-v0.1.0-dev}"
+          if [ -z "$existing" ]; then
+            gh release create "$tag" \
+              --draft --title "$tag" \
+              --notes-file dist/CHANGELOG.md \
+              dist/*.tar.gz dist/*.sha256
+          else
+            gh release upload "$tag" --clobber dist/*.tar.gz dist/*.sha256
+            gh release edit "$tag" --notes-file dist/CHANGELOG.md
+          fi

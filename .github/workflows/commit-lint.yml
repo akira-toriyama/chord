@@ -1,0 +1,37 @@
+name: commit-lint
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate each commit message
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          re='^:[a-z0-9_+-]+:[[:space:]]+(feat|fix|docs|test|refactor|perf|build|ci|chore|revert|security|style)(\([a-z0-9_/-]+\))?(!)?:[[:space:]]+.+$'
+
+          fail=0
+          while read -r sha; do
+            msg=$(git log -n1 --format=%s "$sha")
+            case "$msg" in
+              Merge\ *|Revert\ *|fixup!\ *|squash!\ *) continue ;;
+            esac
+            if [[ ! "$msg" =~ $re ]]; then
+              echo "::error::commit $sha does not match the convention"
+              echo "  $msg"
+              fail=1
+            fi
+          done < <(git rev-list "$base..$head")
+
+          exit "$fail"

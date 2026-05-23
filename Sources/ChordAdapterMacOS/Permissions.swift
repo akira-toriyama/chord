@@ -1,0 +1,36 @@
+import ApplicationServices
+import Foundation
+
+/// CGEventTap installation requires Accessibility (and posting
+/// synthetic keys requires the same). Bundling the prompt + the
+/// status check here so the rest of the adapter doesn't sprout
+/// `kAXTrusted*` references.
+public enum Permissions {
+    /// `kAXTrustedCheckOptionPrompt` is exposed as a `var` in the
+    /// Swift overlay, which Swift 6 strict concurrency rejects.
+    /// The underlying CFStringRef is documented to be the literal
+    /// `"AXTrustedCheckOptionPrompt"`, so we use that directly —
+    /// same workaround facet uses in the same spot.
+    private static var promptOptionKey: CFString {
+        "AXTrustedCheckOptionPrompt" as CFString
+    }
+
+    /// Currently trusted? Pure check — never prompts.
+    public static func isAccessibilityTrusted() -> Bool {
+        let opts: CFDictionary =
+            [promptOptionKey: false] as CFDictionary
+        return AXIsProcessTrustedWithOptions(opts)
+    }
+
+    /// Trigger the system prompt to add chord to Accessibility.
+    /// If already trusted, the prompt is suppressed and this just
+    /// returns true. The prompt's outcome is asynchronous — the
+    /// user grants in System Settings and chord re-checks on next
+    /// launch.
+    @discardableResult
+    public static func promptForAccessibility() -> Bool {
+        let opts: CFDictionary =
+            [promptOptionKey: true] as CFDictionary
+        return AXIsProcessTrustedWithOptions(opts)
+    }
+}
