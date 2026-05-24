@@ -33,6 +33,16 @@ enum ChordApp {
             if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
             print("chord: quit"); exit(0)
         }
+        if args.contains("--pause") {
+            let ok = Control.postAndWait(Control.pause)
+            if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
+            print("chord: paused"); exit(0)
+        }
+        if args.contains("--resume") {
+            let ok = Control.postAndWait(Control.resume)
+            if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
+            print("chord: resumed"); exit(0)
+        }
         if args.contains("--status") {
             if let s = Control.readStatus() { print(s, terminator: "") }
             else { fputs("chord: no status file\n", stderr); exit(3) }
@@ -129,6 +139,8 @@ enum ChordApp {
           chord --doctor       report Accessibility / config / daemon
           chord --reload       tell the running daemon to reload config
           chord --quit         tell the running daemon to exit
+          chord --pause        suspend all bindings (passthrough mode)
+          chord --resume       re-enable bindings
           chord --status       print the last status line
 
           chord --help         this text

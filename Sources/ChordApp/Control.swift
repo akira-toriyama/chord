@@ -13,6 +13,8 @@ public enum Control {
     public static let center = "com.chord.app.control"
     public static let reload = "chord.reload"
     public static let quit   = "chord.quit"
+    public static let pause  = "chord.pause"
+    public static let resume = "chord.resume"
 
     public static let statusPath = "/tmp/chord.status"
 

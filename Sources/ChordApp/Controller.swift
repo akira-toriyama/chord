@@ -53,6 +53,7 @@ public final class Controller {
         // snapshot `matcher` once (assignment is atomic enough at
         // value-type granularity in Swift) and act without
         // bouncing to main — main bounces would deadlock the tap.
+        if isPaused() { return .passthrough }
         let snapshot = matcherSnapshot()
         let me = Matcher.Event(trigger: event.trigger,
                                modifiers: event.modifiers,
@@ -61,6 +62,20 @@ public final class Controller {
         ActionDispatcher.dispatch(binding)
         Control.writeStatus("fired \(binding.name)")
         return .consume
+    }
+
+    nonisolated private func isPaused() -> Bool {
+        pauseLock.lock(); defer { pauseLock.unlock() }
+        return pausedFlag
+    }
+
+    private func setPaused(_ value: Bool) {
+        pauseLock.lock()
+        pausedFlag = value
+        pauseLock.unlock()
+        let status = value ? "paused" : "resumed"
+        Log.line("control: \(status)")
+        Control.writeStatus("\(status) bindings=\(matcher.bindings.count)")
     }
 
     nonisolated private func matcherSnapshot() -> Matcher {
@@ -115,6 +130,18 @@ public final class Controller {
                 NSApp?.terminate(nil)
                 exit(0)
             }
+        })
+        observers.append(center.addObserver(
+            forName: Notification.Name(Control.pause),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.setPaused(true) }
+        })
+        observers.append(center.addObserver(
+            forName: Notification.Name(Control.resume),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.setPaused(false) }
         })
     }
 
@@ -194,3 +221,9 @@ private final class WeakWrap: @unchecked Sendable {
 // class so the static-property isolation rules don't apply.
 nonisolated(unsafe) private var sharedMatcher: Matcher?
 private let matcherLock = NSLock()
+
+// Same shape for the paused flag — the tap callback reads it once
+// per event, the @MainActor controller flips it on
+// `chord --pause` / `--resume`.
+nonisolated(unsafe) private var pausedFlag: Bool = false
+private let pauseLock = NSLock()

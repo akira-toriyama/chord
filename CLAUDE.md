@@ -239,9 +239,16 @@ stray instances before relaunching.
 
 - **Flags**: `--debug` (server, verbose), `--validate` /
   `--doctor` / `--help` / `--version` (standalone),
-  `--reload` / `--quit` / `--status` (client). Any unrecognised
-  flag exits `2` with a stderr message (no silent fallback —
-  *Rule of Repair*).
+  `--reload` / `--quit` / `--pause` / `--resume` / `--status`
+  (client). Any unrecognised flag exits `2` with a stderr message
+  (no silent fallback — *Rule of Repair*).
+- **`--pause` / `--resume`** flip a single `pausedFlag` guarded by
+  `pauseLock`, read from the tap callback's hot path before the
+  matcher snapshot is even consulted. `--pause` returns
+  `.passthrough` for every event without touching the matcher, so
+  the daemon stays AX-granted and the keystroke cost is one bool
+  check + one mutex acquire. Intended for screencasts / games /
+  Zoom screen-sharing where chord shouldn't be eating input.
 - **`--doctor`** reports Accessibility
   (`Permissions.isAccessibilityTrusted()`), config, daemon
   liveness. Exit 1 if any check fails.

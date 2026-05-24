@@ -92,10 +92,17 @@ chord --validate     parse config.toml; exit 0 on clean
 chord --doctor       report Accessibility / config / daemon
 chord --reload       tell the running daemon to reload config
 chord --quit         tell the running daemon to exit
+chord --pause        suspend all bindings (passthrough mode)
+chord --resume       re-enable bindings
 chord --status       print the last status line
 chord --help         this text
 chord --version      print version
 ```
+
+`--pause` is the sane "I'm about to record a screencast / play a
+game / share my screen on Zoom and don't want chord eating my
+keystrokes" lever. The daemon stays loaded and AX-granted; it just
+lets every event through until you `--resume`.
 
 Logs go to `/tmp/chord.log`. `--debug` also mirrors to stderr.
 
