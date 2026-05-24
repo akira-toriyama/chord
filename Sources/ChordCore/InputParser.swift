@@ -93,12 +93,28 @@ public enum InputParser {
             let t = tok.trimmingCharacters(in: .whitespaces).lowercased()
             switch t {
             case "":             continue
-            case "cmd", "⌘", "command":  out.insert(.cmd)
-            case "opt", "⌥", "alt", "option":  out.insert(.opt)
-            case "ctrl", "⌃", "control":  out.insert(.ctrl)
-            case "shift", "⇧":   out.insert(.shift)
-            case "fn":           out.insert(.fn)
-            case "hyper":        out.formUnion(.hyper)
+
+            // Any-side modifiers (most common).
+            case "cmd", "⌘", "command":         out.insert(.cmd)
+            case "opt", "⌥", "alt", "option":   out.insert(.opt)
+            case "ctrl", "⌃", "control":        out.insert(.ctrl)
+            case "shift", "⇧":                  out.insert(.shift)
+            case "fn":                          out.insert(.fn)
+            case "hyper":                       out.formUnion(.hyper)
+
+            // Side-specific modifiers (ZMK ULTRA_LL / MEGA_RM-style
+            // patterns). `r*` = strict right (left must be absent),
+            // `l*` = strict left (right must be absent). Use the
+            // any-side spelling above unless side actually matters.
+            case "lcmd",   "lcommand":          out.insert(.lcmd)
+            case "rcmd",   "rcommand":          out.insert(.rcmd)
+            case "lopt",   "lalt", "loption":   out.insert(.lopt)
+            case "ropt",   "ralt", "roption":   out.insert(.ropt)
+            case "lctrl",  "lcontrol":          out.insert(.lctrl)
+            case "rctrl",  "rcontrol":          out.insert(.rctrl)
+            case "lshift":                      out.insert(.lshift)
+            case "rshift":                      out.insert(.rshift)
+
             default:
                 throw InputParseError.unknownToken(t, context: context)
             }

@@ -41,7 +41,10 @@ public struct Matcher: Sendable {
         }
         for b in bindings {
             guard b.trigger == event.trigger else { continue }
-            guard b.modifiers == event.modifiers else { continue }
+            // Predicate match (NOT ==): the binding constraint may
+            // ask for any-side `ctrl`, the event carries side-
+            // specific `lctrl`/`rctrl`. See `Modifiers.matches`.
+            guard b.modifiers.matches(event: event.modifiers) else { continue }
             if let apps = b.apps {
                 guard let id = event.bundleID else { continue }
                 if !Matcher.appsAllow(id, patterns: apps) { continue }

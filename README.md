@@ -19,6 +19,7 @@ Where `skhd` and friends stop, chord starts:
 | Mouse buttons     | ✗                          | ✓ left/right/middle/side1/side2 |
 | Scroll wheel      | ✗                          | ✓ up/down/left/right  |
 | Modifier chords   | ✓                          | ✓ + `hyper` sugar     |
+| **Left/Right side modifiers** | ✗              | ✓ `rctrl` / `lcmd` / etc. (ZMK ULTRA_LL friendly) |
 | Accessibility     | not required               | required (one-time)   |
 
 `chord` is hexagonal Swift 6 (Core / AdapterMacOS / AdapterTest /

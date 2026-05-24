@@ -19,6 +19,7 @@ macOS 用 グローバルキーボード + マウス ホットキー常駐デー
 | マウスボタン       | ✗                          | ✓ left/right/middle/side1/side2 |
 | スクロール         | ✗                          | ✓ up/down/left/right |
 | 修飾キー連結       | ✓                          | ✓ + `hyper` 糖衣構文 |
+| **左右別修飾子**   | ✗                          | ✓ `rctrl` / `lcmd` 等 (ZMK ULTRA_LL 対応) |
 | アクセシビリティ   | 不要                       | 必要 (初回のみ)      |
 
 `chord` は Swift 6 製のヘキサゴナル構成 (Core / AdapterMacOS /

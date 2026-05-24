@@ -45,6 +45,15 @@ exclude-apps = []
 # Modifier names: cmd | opt (= alt) | ctrl | shift | fn | hyper
 #   `hyper` is sugar for `cmd + opt + ctrl + shift` (Karabiner usage).
 #
+# Side-specific modifiers (ZMK ULTRA_LL / Karabiner-style strict
+# layers):
+#   lcmd / rcmd | lopt / ropt (= lalt / ralt) | lctrl / rctrl |
+#   lshift / rshift
+# These match ONLY when the named side is held *and the other side
+# is absent*. `lctrl + rctrl - x` requires both physically held.
+# Use the any-side spellings (`ctrl`, `cmd`, …) unless the side
+# actually matters — that's almost always what you want.
+#
 # F-keys: f1–f24 are all bindable. F13–F20 use the standard macOS
 # virtual keycodes; F21–F24 use the slots Karabiner / firmware
 # remappers conventionally emit (you need a keyboard that actually

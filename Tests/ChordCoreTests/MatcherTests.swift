@@ -64,4 +64,97 @@ final class MatcherTests: XCTestCase {
         XCTAssertNil(beta)
         _ = m  // silence unused
     }
+
+    // MARK: - L/R modifier semantics (PR1)
+
+    /// `ctrl - x` (any-side) accepts both lctrl-x and rctrl-x.
+    func testAnySideAcceptsBothPhysicalSides() {
+        let m = Matcher(bindings: [
+            b("any", trigger: .key(0x07), mods: .ctrl),  // x
+        ])
+        let left = m.find(.init(trigger: .key(0x07),
+                                modifiers: .lctrl, bundleID: nil))
+        let right = m.find(.init(trigger: .key(0x07),
+                                 modifiers: .rctrl, bundleID: nil))
+        XCTAssertEqual(left?.name,  "any")
+        XCTAssertEqual(right?.name, "any")
+    }
+
+    /// `rctrl - x` requires the right side, rejects the left.
+    func testStrictRightRejectsLeft() {
+        let m = Matcher(bindings: [
+            b("strict-r", trigger: .key(0x07), mods: .rctrl),
+        ])
+        XCTAssertEqual(
+            m.find(.init(trigger: .key(0x07),
+                         modifiers: .rctrl, bundleID: nil))?.name,
+            "strict-r"
+        )
+        XCTAssertNil(
+            m.find(.init(trigger: .key(0x07),
+                         modifiers: .lctrl, bundleID: nil))
+        )
+    }
+
+    /// `lctrl + rctrl - x` requires both sides held.
+    func testRequireBothSides() {
+        let m = Matcher(bindings: [
+            b("both", trigger: .key(0x07), mods: [.lctrl, .rctrl]),
+        ])
+        XCTAssertNil(
+            m.find(.init(trigger: .key(0x07),
+                         modifiers: .lctrl, bundleID: nil))
+        )
+        XCTAssertEqual(
+            m.find(.init(trigger: .key(0x07),
+                         modifiers: [.lctrl, .rctrl], bundleID: nil))?.name,
+            "both"
+        )
+    }
+
+    /// ZMK ULTRA_LL parity: rctrl+ralt+rshift on a key fires only
+    /// when those three right-side keys are held *and no left ones*.
+    func testUltraLLPattern() {
+        let m = Matcher(bindings: [
+            b("ultra_ll", trigger: .key(0x08),  // c
+              mods: [.rctrl, .ropt, .rshift]),
+        ])
+        // Exactly right-side trio → fires.
+        XCTAssertEqual(
+            m.find(.init(trigger: .key(0x08),
+                         modifiers: [.rctrl, .ropt, .rshift],
+                         bundleID: nil))?.name,
+            "ultra_ll"
+        )
+        // One left modifier present → does NOT fire (the bug the
+        // capsule-corp migration is fixing).
+        XCTAssertNil(
+            m.find(.init(trigger: .key(0x08),
+                         modifiers: [.lctrl, .ropt, .rshift],
+                         bundleID: nil))
+        )
+        // Plain left-side ctrl+opt+shift → does NOT fire either.
+        XCTAssertNil(
+            m.find(.init(trigger: .key(0x08),
+                         modifiers: [.lctrl, .lopt, .lshift],
+                         bundleID: nil))
+        )
+    }
+
+    /// A binding with no modifiers must NOT match when modifiers
+    /// are held — the existing exact-match contract holds.
+    func testNoModifierBindingRejectsHeldModifiers() {
+        let m = Matcher(bindings: [
+            b("bare", trigger: .key(0x07)),  // no mods
+        ])
+        XCTAssertEqual(
+            m.find(.init(trigger: .key(0x07),
+                         modifiers: [], bundleID: nil))?.name,
+            "bare"
+        )
+        XCTAssertNil(
+            m.find(.init(trigger: .key(0x07),
+                         modifiers: .lctrl, bundleID: nil))
+        )
+    }
 }

@@ -5,20 +5,78 @@ import Foundation
 /// and unit-testable.
 
 public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
-    public let rawValue: UInt8
-    public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public let rawValue: UInt16
+    public init(rawValue: UInt16) { self.rawValue = rawValue }
 
+    // "Any side" modifiers — match either the left or right physical
+    // key. Used by the legacy `cmd` / `opt` / `ctrl` / `shift` tokens
+    // and by every event when the binding does not care about the
+    // side (the common case).
     public static let cmd   = Modifiers(rawValue: 1 << 0)
     public static let opt   = Modifiers(rawValue: 1 << 1)
     public static let ctrl  = Modifiers(rawValue: 1 << 2)
     public static let shift = Modifiers(rawValue: 1 << 3)
     public static let fn    = Modifiers(rawValue: 1 << 4)
 
+    // Side-specific modifiers. Required to express ZMK-style
+    // `ULTRA_LL = rctrl + ralt + rshift` patterns, where the
+    // strict-right semantics carry the design intent. A binding
+    // that sets, say, `.rctrl` matches when the right Control key
+    // is held AND the left one is NOT. A binding that sets both
+    // `.lctrl` and `.rctrl` matches when both are held.
+    public static let lcmd   = Modifiers(rawValue: 1 << 5)
+    public static let rcmd   = Modifiers(rawValue: 1 << 6)
+    public static let lopt   = Modifiers(rawValue: 1 << 7)
+    public static let ropt   = Modifiers(rawValue: 1 << 8)
+    public static let lctrl  = Modifiers(rawValue: 1 << 9)
+    public static let rctrl  = Modifiers(rawValue: 1 << 10)
+    public static let lshift = Modifiers(rawValue: 1 << 11)
+    public static let rshift = Modifiers(rawValue: 1 << 12)
+
     /// `hyper` is the colloquial name for cmd+ctrl+opt+shift — the
     /// "no-one ever uses this combination" modifier popularised by
-    /// Karabiner-Elements. Treated as a sugar over the four flags
-    /// when parsing config, never as a fifth bit.
+    /// Karabiner-Elements. Treated as a sugar over the four
+    /// any-side flags when parsing config, never as a separate bit.
     public static let hyper: Modifiers = [.cmd, .opt, .ctrl, .shift]
+
+    /// Does this BINDING constraint accept the given EVENT modifier
+    /// set? `event` carries only side-specific bits (lcmd / rcmd /
+    /// etc.) plus `fn` — those are what the tap actually observes.
+    ///
+    /// Per-category logic:
+    ///   • Both `.lX` and `.rX` set on the binding  → both sides
+    ///     must be held on the event.
+    ///   • Only `.lX` set                          → left held,
+    ///                                                right absent.
+    ///   • Only `.rX` set                          → right held,
+    ///                                                left absent.
+    ///   • Only `.X` (any-side) set                → at least one
+    ///                                                side held.
+    ///   • Neither set                             → both sides
+    ///                                                must be absent.
+    ///
+    /// `fn` is symmetric (no L/R variants) and matches strictly.
+    public func matches(event: Modifiers) -> Bool {
+        return matchCategory(any: .cmd,   l: .lcmd,   r: .rcmd,   event: event)
+            && matchCategory(any: .opt,   l: .lopt,   r: .ropt,   event: event)
+            && matchCategory(any: .ctrl,  l: .lctrl,  r: .rctrl,  event: event)
+            && matchCategory(any: .shift, l: .lshift, r: .rshift, event: event)
+            && self.contains(.fn) == event.contains(.fn)
+    }
+
+    private func matchCategory(any: Modifiers, l: Modifiers, r: Modifiers,
+                               event: Modifiers) -> Bool {
+        let eL = event.contains(l)
+        let eR = event.contains(r)
+        let bAny = self.contains(any)
+        let bL = self.contains(l)
+        let bR = self.contains(r)
+        if bL && bR { return eL && eR }
+        if bL       { return eL && !eR }
+        if bR       { return eR && !eL }
+        if bAny     { return eL || eR }
+        return !eL && !eR
+    }
 }
 
 /// What started the chord. Either a physical key (identified by its

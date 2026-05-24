@@ -124,6 +124,40 @@ event. Everything below depends on this contract:
   instead. Don't add an inline-table parser without a real need;
   the dotted-key form keeps the parser inside its budget.
 
+### Modifiers (the L/R question)
+
+- **`Modifiers` is a UInt16 OptionSet with two layers**: the
+  any-side bits (`.cmd` / `.opt` / `.ctrl` / `.shift` / `.fn`)
+  match either physical side; the side-specific bits (`.lcmd` /
+  `.rcmd` / `.lopt` / `.ropt` / `.lctrl` / `.rctrl` / `.lshift` /
+  `.rshift`) require the explicit side.
+- **Events carry ONLY side-specific bits**, never the any-side
+  ones — that's the contract `EventTap.readModifiers` upholds by
+  reading the device-dependent NX_DEVICE\* bits out of the
+  CGEventFlags raw value (`0x00000008` for lcmd, etc., per
+  `IOKit/hidsystem/IOLLEvent.h`). When the OS sets only the
+  abstract mask (rare; some software keyboards), the adapter
+  picks left as the default so any-side bindings still fire
+  without spuriously matching strict-left bindings.
+- **Matching is predicate-based** (`Modifiers.matches(event:)`),
+  NOT `==`. Per category:
+  - both `.lX` and `.rX` on the binding → both sides held
+  - only `.lX` → L held, R absent
+  - only `.rX` → R held, L absent
+  - only `.X` (any) → at least one side held
+  - neither → both must be absent
+
+  Tests pin the contract in
+  [Tests/ChordCoreTests/MatcherTests.swift](Tests/ChordCoreTests/MatcherTests.swift)
+  — especially `testUltraLLPattern`, which encodes the ZMK
+  ULTRA_LL parity the capsule-corp migration is built on.
+- **When posting synthetic keys**, the dispatcher sets the
+  abstract mask (`.maskCommand` etc.) AND the device-dependent
+  bit only when the binding requested a specific side. A plain
+  `action-keys = "cmd - c"` posts with the device-dependent bits
+  clear so receiving apps see "either-side cmd" — the way the
+  user wrote.
+
 ### Keycodes (the F13–F24 question)
 
 - F1–F20 use Apple's documented `kVK_F1…kVK_F20` constants.

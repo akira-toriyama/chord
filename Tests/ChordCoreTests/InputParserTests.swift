@@ -49,4 +49,35 @@ final class InputParserTests: XCTestCase {
     func testUnknownToken() {
         XCTAssertThrowsError(try InputParser.parse("supercmd - a"))
     }
+
+    // MARK: - L/R modifier tokens (PR1)
+
+    func testRightCtrlToken() throws {
+        let p = try InputParser.parse("rctrl - a")
+        XCTAssertEqual(p.modifiers, .rctrl)
+    }
+
+    func testLeftAndRightCtrlTokens() throws {
+        let p = try InputParser.parse("lctrl + rctrl - a")
+        XCTAssertEqual(p.modifiers, [.lctrl, .rctrl])
+    }
+
+    func testRaltIsAliasForRopt() throws {
+        let p = try InputParser.parse("ralt - a")
+        XCTAssertEqual(p.modifiers, .ropt)
+    }
+
+    func testUltraLLChord() throws {
+        // ZMK ULTRA_LL = right-side ctrl + alt + shift modifier set.
+        let p = try InputParser.parse("rctrl + ralt + rshift - c")
+        XCTAssertEqual(p.modifiers, [.rctrl, .ropt, .rshift])
+        XCTAssertEqual(p.trigger, .key(0x08))
+    }
+
+    func testAnySideStillSupported() throws {
+        // Existing tokens still parse to the any-side bits — no
+        // breakage of any user's current config.
+        let p = try InputParser.parse("ctrl + shift - z")
+        XCTAssertEqual(p.modifiers, [.ctrl, .shift])
+    }
 }
