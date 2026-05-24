@@ -104,10 +104,12 @@ public final class Controller {
             self.config = result.config
             self.matcher = Matcher(
                 bindings: result.config.bindings,
+                fallbacks: result.config.fallbacks,
                 excludeApps: result.config.options.excludeApps)
             publishMatcher()
-            Log.line("config \(reason): \(matcher.bindings.count) bindings " +
-                     "loaded, \(result.droppedBindings) dropped")
+            Log.line("config \(reason): \(matcher.bindings.count) bindings, " +
+                     "\(matcher.fallbacks.count) fallbacks, " +
+                     "\(result.droppedBindings) dropped")
         } catch {
             Log.line("config \(reason) error: \(error)")
         }

@@ -67,6 +67,7 @@ public enum Config {
         for (i, row) in rows.enumerated() {
             do {
                 if let b = try makeBinding(from: row, index: i,
+                                           isFallback: false,
                                            warnings: &warnings)
                 {
                     bindings.append(b)
@@ -80,24 +81,47 @@ public enum Config {
             }
         }
 
-        let cfg = ChordConfig(options: options, bindings: bindings)
+        var fallbacks: [Binding] = []
+        let fbRows = root["fallbacks"]?.asArrayOfTables ?? []
+        for (i, row) in fbRows.enumerated() {
+            do {
+                if let b = try makeBinding(from: row, index: i,
+                                           isFallback: true,
+                                           warnings: &warnings)
+                {
+                    fallbacks.append(b)
+                } else {
+                    dropped += 1
+                }
+            } catch {
+                dropped += 1
+                warnings.append(
+                    "[[fallbacks]] #\(i + 1): \(error) — dropped")
+            }
+        }
+
+        let cfg = ChordConfig(options: options, bindings: bindings,
+                              fallbacks: fallbacks)
         return ParseResult(config: cfg, warnings: warnings,
                            droppedBindings: dropped)
     }
 
     private static func makeBinding(
         from row: [String: TOML.Value], index: Int,
+        isFallback: Bool,
         warnings: inout [String]
     ) throws -> Binding? {
+        let section = isFallback ? "[[fallbacks]]" : "[[bindings]]"
         let name = row["name"]?.asString ?? "binding-\(index + 1)"
         guard let inputRaw = row["input"]?.asString else {
-            warnings.append("[[bindings]] '\(name)': missing 'input'")
+            warnings.append("\(section) '\(name)': missing 'input'")
             return nil
         }
         let parsed: InputParser.Parsed
-        do { parsed = try InputParser.parse(inputRaw) }
+        do { parsed = try InputParser.parse(inputRaw,
+                                            allowWildcard: isFallback) }
         catch {
-            warnings.append("[[bindings]] '\(name)': \(error)")
+            warnings.append("\(section) '\(name)': \(error)")
             return nil
         }
 
@@ -111,14 +135,14 @@ public enum Config {
                 action = .keys(mods, code)
             } catch {
                 warnings.append(
-                    "[[bindings]] '\(name)': action-keys: \(error)")
+                    "\(section) '\(name)': action-keys: \(error)")
                 return nil
             }
         } else if row["action-noop"]?.asBool == true {
             action = .noop
         } else {
             warnings.append(
-                "[[bindings]] '\(name)': no action-* key provided")
+                "\(section) '\(name)': no action-* key provided")
             return nil
         }
 

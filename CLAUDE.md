@@ -96,6 +96,27 @@ event. Everything below depends on this contract:
   document order. The matcher is intentionally not "best-match" —
   the user already ordered them.
 
+### Fallbacks (the `[[fallbacks]]` section)
+
+- **Two-stage matching**: `Matcher.find` first walks `[[bindings]]`
+  document-order first-match-wins, then on a miss walks
+  `[[fallbacks]]` the same way. Stage 2 only fires when stage 1
+  produces nothing.
+- **`*` wildcard primary key is legal only in `[[fallbacks]]`**.
+  The parser (`InputParser.parse(_:allowWildcard:)`) refuses `*`
+  in regular `[[bindings]]` rows, so a single binding can never
+  accidentally swallow every key. `Config.parse` flips the flag
+  per-section.
+- **`.anyKey` matches keyboard events only** — mouse and scroll
+  events never satisfy a wildcard. Mouse fallbacks were
+  considered for v1 and explicitly deferred (capsule-corp's
+  v1 use case is keyboard-only).
+- **Use case**: "play a sound when ULTRA_LL fires on an
+  undefined key" — capsule-corp's effect-feedback that was
+  previously hand-enumerated as 4 modsets × ~30 keys against
+  skhd's hard-error dedup; one `[[fallbacks]]` row per modset
+  now suffices.
+
 ### Configuration
 
 - **`config.toml` at the repo root is the source-of-truth

@@ -20,6 +20,7 @@ Where `skhd` and friends stop, chord starts:
 | Scroll wheel      | ✗                          | ✓ up/down/left/right  |
 | Modifier chords   | ✓                          | ✓ + `hyper` sugar     |
 | **Left/Right side modifiers** | ✗              | ✓ `rctrl` / `lcmd` / etc. (ZMK ULTRA_LL friendly) |
+| **Wildcard fallbacks** | ✗                     | ✓ `[[fallbacks]]` + `*` for catch-all rules |
 | Accessibility     | not required               | required (one-time)   |
 
 `chord` is hexagonal Swift 6 (Core / AdapterMacOS / AdapterTest /

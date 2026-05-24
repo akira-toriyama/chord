@@ -39,7 +39,8 @@ public enum InputParser {
         }
     }
 
-    public static func parse(_ raw: String) throws -> Parsed {
+    public static func parse(_ raw: String,
+                             allowWildcard: Bool = false) throws -> Parsed {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { throw InputParseError.empty }
 
@@ -65,7 +66,8 @@ public enum InputParser {
         }
 
         let mods = try parseModifiers(modPart, context: raw)
-        let trigger = try parsePrimary(primaryPart, context: raw)
+        let trigger = try parsePrimary(primaryPart, context: raw,
+                                       allowWildcard: allowWildcard)
         return Parsed(modifiers: mods, trigger: trigger)
     }
 
@@ -122,10 +124,24 @@ public enum InputParser {
         return out
     }
 
-    private static func parsePrimary(_ raw: String, context: String)
+    private static func parsePrimary(_ raw: String, context: String,
+                                     allowWildcard: Bool = false)
         throws -> Trigger
     {
         let t = raw.lowercased()
+        if t == "*" {
+            // `*` is the wildcard primary key — only legal inside a
+            // `[[fallbacks]]` row. Allowing it in `[[bindings]]`
+            // would let a single rule swallow every key, which is
+            // explicitly the surface area `[[fallbacks]]` exists
+            // to keep separated.
+            guard allowWildcard else {
+                throw InputParseError.unknownToken(
+                    "* (wildcard only allowed in [[fallbacks]])",
+                    context: context)
+            }
+            return .anyKey
+        }
         if t.hasPrefix("mouse.") {
             let name = String(t.dropFirst("mouse.".count))
             switch name {

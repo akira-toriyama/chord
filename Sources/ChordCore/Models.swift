@@ -83,10 +83,18 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
 /// CGKeyCode-equivalent UInt16) or a mouse input (button or scroll
 /// direction). String names parse to / from this in
 /// [InputParser](InputParser.swift).
+///
+/// `.anyKey` is the wildcard trigger used by `[[fallbacks]]` rows:
+/// it matches every keyboard keyDown event whose modifier mask
+/// satisfies the binding constraint. By contract, the parser only
+/// produces `.anyKey` when called from the fallback-parsing path —
+/// using `*` inside a regular `[[bindings]]` row is rejected, so
+/// `[[bindings]]` can never accidentally swallow every key.
 public enum Trigger: Hashable, Sendable {
     case key(UInt16)
     case mouseButton(MouseButton)
     case scroll(ScrollDirection)
+    case anyKey
 }
 
 public enum MouseButton: Int, Hashable, Sendable, Codable {
@@ -154,10 +162,18 @@ public struct ChordConfig: Sendable {
 
     public var options: Options
     public var bindings: [Binding]
+    /// Document-ordered fallbacks evaluated AFTER every `[[bindings]]`
+    /// row misses. Same shape as a binding, but the trigger may be
+    /// `.anyKey` (the `*` wildcard). Intended for "play a sound
+    /// when ULTRA_LL fires on an undefined key"-style feedback.
+    public var fallbacks: [Binding]
 
-    public init(options: Options = .init(), bindings: [Binding] = []) {
+    public init(options: Options = .init(),
+                bindings: [Binding] = [],
+                fallbacks: [Binding] = []) {
         self.options = options
         self.bindings = bindings
+        self.fallbacks = fallbacks
     }
 
     /// Conventional config path: `$XDG_CONFIG_HOME/chord/config.toml`

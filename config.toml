@@ -135,3 +135,26 @@ action-keys = "cmd - minus"
 # name = "block caps lock"
 # input = "caps_lock"
 # action-noop = true
+
+
+# -----------------------------------------------------------------
+# Fallbacks — fire only when NO `[[bindings]]` row matched
+# -----------------------------------------------------------------
+# Use `*` as the primary key to match every keyboard key under
+# the given modifier set. `*` is allowed ONLY here — putting it in
+# `[[bindings]]` is rejected so a single binding can never swallow
+# every key by accident.
+#
+# Two-stage matching:
+#   1. document-order first-match-wins through `[[bindings]]`
+#   2. on miss, document-order first-match-wins through `[[fallbacks]]`
+#   3. still no match → passthrough-unmatched setting decides.
+#
+# Mouse and scroll events never satisfy `*` (v1 keyboard-only).
+#
+# Canonical use: "play a sound when a ZMK ULTRA_LL chord fires on an
+# undefined key" — uncomment to enable.
+# [[fallbacks]]
+# name = "ULTRA_LL undefined feedback"
+# input = "rctrl + ralt + rshift - *"
+# action-shell = "afplay /System/Library/Sounds/Pop.aiff"

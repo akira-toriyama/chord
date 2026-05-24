@@ -14,10 +14,18 @@ import Foundation
 ///     allowlist hit when the bundle id matches
 public struct Matcher: Sendable {
     public let bindings: [Binding]
+    /// Document-ordered fallback bindings, consulted only after every
+    /// `bindings` entry misses. Their trigger may be `.anyKey` (the
+    /// `*` wildcard) — the matching path special-cases this so a
+    /// fallback whose modifier constraint accepts the event will
+    /// fire for any keyboard key not already handled above.
+    public let fallbacks: [Binding]
     public let excludeApps: [String]
 
-    public init(bindings: [Binding], excludeApps: [String] = []) {
+    public init(bindings: [Binding], fallbacks: [Binding] = [],
+                excludeApps: [String] = []) {
         self.bindings = bindings
+        self.fallbacks = fallbacks
         self.excludeApps = excludeApps
     }
 
@@ -39,12 +47,23 @@ public struct Matcher: Sendable {
            Matcher.matchesGlobs(id, patterns: excludeApps) {
             return nil
         }
-        for b in bindings {
-            guard b.trigger == event.trigger else { continue }
+        // Stage 1: regular bindings, document order, first-match-wins.
+        if let hit = findIn(bindings, event: event) { return hit }
+        // Stage 2: fallbacks. Only consulted when stage 1 misses.
+        // `.anyKey` triggers match every concrete `.key(_)` event
+        // whose modifier mask satisfies the constraint.
+        return findIn(fallbacks, event: event)
+    }
+
+    private func findIn(_ rules: [Binding], event: Event) -> Binding? {
+        for b in rules {
+            guard triggerMatches(b.trigger, event: event.trigger)
+            else { continue }
             // Predicate match (NOT ==): the binding constraint may
             // ask for any-side `ctrl`, the event carries side-
             // specific `lctrl`/`rctrl`. See `Modifiers.matches`.
-            guard b.modifiers.matches(event: event.modifiers) else { continue }
+            guard b.modifiers.matches(event: event.modifiers)
+            else { continue }
             if let apps = b.apps {
                 guard let id = event.bundleID else { continue }
                 if !Matcher.appsAllow(id, patterns: apps) { continue }
@@ -52,6 +71,19 @@ public struct Matcher: Sendable {
             return b
         }
         return nil
+    }
+
+    private func triggerMatches(_ ruleTrigger: Trigger,
+                                event: Trigger) -> Bool {
+        if case .anyKey = ruleTrigger {
+            // The wildcard fires only for keyboard events, not
+            // mouse / scroll. Mouse fallbacks were considered for
+            // v1 and explicitly deferred (capsule-corp use case
+            // is keyboard-only).
+            if case .key = event { return true }
+            return false
+        }
+        return ruleTrigger == event
     }
 
     // MARK: - glob matching
