@@ -270,6 +270,12 @@ stray instances before relaunching.
   the daemon stays AX-granted and the keystroke cost is one bool
   check + one mutex acquire. Intended for screencasts / games /
   Zoom screen-sharing where chord shouldn't be eating input.
+- **`--toggle`** is sugar: reads the daemon's status file, looks
+  for "paused" / "resumed", and posts the opposite DNC
+  notification. Implemented entirely on the client side — no new
+  IPC channel. The status file is updated by the server on every
+  transition, so a fast `chord --toggle` ↔ `chord --toggle`
+  loop stays consistent.
 - **`--validate` is lenient by default; `--strict` is for CI**.
   Without `--strict`, drops are non-fatal (a typo in one binding
   doesn't fail the pipeline). With `--strict`, any warning or

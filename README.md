@@ -96,6 +96,7 @@ chord --reload       tell the running daemon to reload config
 chord --quit         tell the running daemon to exit
 chord --pause        suspend all bindings (passthrough mode)
 chord --resume       re-enable bindings
+chord --toggle       flip paused ↔ resumed (handy as a hotkey)
 chord --status       print the last status line
 chord --help         this text
 chord --version      print version
@@ -104,7 +105,15 @@ chord --version      print version
 `--pause` is the sane "I'm about to record a screencast / play a
 game / share my screen on Zoom and don't want chord eating my
 keystrokes" lever. The daemon stays loaded and AX-granted; it just
-lets every event through until you `--resume`.
+lets every event through until you `--resume`. Bind `--toggle` to
+a hotkey for one-button suspend / resume:
+
+```toml
+[[bindings]]
+name = "chord pause toggle"
+input = "hyper - p"
+action-shell = "chord --toggle"
+```
 
 Logs go to `/tmp/chord.log`. `--debug` also mirrors to stderr.
 

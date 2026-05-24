@@ -45,6 +45,22 @@ enum ChordApp {
             if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
             print("chord: resumed"); exit(0)
         }
+        if args.contains("--toggle") {
+            // Read the most recent status line and infer pause state.
+            // The daemon writes "paused bindings=N" / "resumed
+            // bindings=N" / "fired …" / "started …" etc.; a line
+            // starting with "paused" is the only signal of paused
+            // state, since `--resume` and `fired` both overwrite it.
+            let status = Control.readStatus() ?? ""
+            let isPaused = status.contains("\tpaused ")
+                         || status.hasPrefix("paused ")
+                         || status.contains("\tpaused\n")
+            let cmd = isPaused ? Control.resume : Control.pause
+            let label = isPaused ? "resumed" : "paused"
+            let ok = Control.postAndWait(cmd)
+            if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
+            print("chord: \(label)"); exit(0)
+        }
         if args.contains("--status") {
             if let s = Control.readStatus() { print(s, terminator: "") }
             else { fputs("chord: no status file\n", stderr); exit(3) }
@@ -162,6 +178,7 @@ enum ChordApp {
           chord --quit         tell the running daemon to exit
           chord --pause        suspend all bindings (passthrough mode)
           chord --resume       re-enable bindings
+          chord --toggle       flip paused ↔ resumed (handy as a hotkey)
           chord --status       print the last status line
 
           chord --help         this text
