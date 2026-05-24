@@ -67,7 +67,8 @@ public enum TOML {
                 currentPath = path.split(separator: ".").map {
                     $0.trimmingCharacters(in: .whitespaces)
                 }
-                appendArrayOfTablesRow(&root, path: currentPath)
+                appendArrayOfTablesRow(&root, path: currentPath,
+                                       lineNo: lineNo)
                 inArrayOfTables = true
                 continue
             }
@@ -222,39 +223,53 @@ public enum TOML {
         table[path[0]] = .table(inner)
     }
 
+    /// Synthetic key injected into each [[X]] row so downstream code
+    /// (notably Config.makeBinding) can attribute warnings to a real
+    /// line number. Users who name a real TOML key `__line__` would
+    /// shadow it — acceptable trade-off; the alternative is changing
+    /// the return type to carry sidecar metadata.
+    static let lineKey = "__line__"
+
     private static func appendArrayOfTablesRow(_ root: inout [String: Value],
-                                               path: [String]) {
+                                               path: [String],
+                                               lineNo: Int) {
         guard !path.isEmpty else { return }
+        let seed: [String: Value] = [lineKey: .int(Int64(lineNo))]
         if path.count == 1 {
             var rows: [[String: Value]]
             if case .arrayOfTables(let existing) = root[path[0]] {
                 rows = existing
             } else { rows = [] }
-            rows.append([:])
+            rows.append(seed)
             root[path[0]] = .arrayOfTables(rows)
             return
         }
         var inner: [String: Value]
         if case .table(let t) = root[path[0]] { inner = t } else { inner = [:] }
-        appendArrayOfTablesRowInner(&inner, path: Array(path.dropFirst()))
+        appendArrayOfTablesRowInner(&inner,
+                                    path: Array(path.dropFirst()),
+                                    lineNo: lineNo)
         root[path[0]] = .table(inner)
     }
 
     private static func appendArrayOfTablesRowInner(
-        _ table: inout [String: Value], path: [String]
+        _ table: inout [String: Value], path: [String], lineNo: Int
     ) {
+        let seed: [String: Value] = [lineKey: .int(Int64(lineNo))]
         if path.count == 1 {
             var rows: [[String: Value]]
             if case .arrayOfTables(let existing) = table[path[0]] {
                 rows = existing
             } else { rows = [] }
-            rows.append([:])
+            rows.append(seed)
             table[path[0]] = .arrayOfTables(rows)
             return
         }
         var inner: [String: Value]
         if case .table(let t) = table[path[0]] { inner = t } else { inner = [:] }
-        appendArrayOfTablesRowInner(&inner, path: Array(path.dropFirst()))
+        appendArrayOfTablesRowInner(&inner,
+                                    path: Array(path.dropFirst()),
+                                    lineNo: lineNo)
         table[path[0]] = .table(inner)
     }
 

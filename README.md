@@ -21,6 +21,7 @@ Where `skhd` and friends stop, chord starts:
 | Modifier chords   | ✓                          | ✓ + `hyper` sugar     |
 | **Left/Right side modifiers** | ✗              | ✓ `rctrl` / `lcmd` / etc. (ZMK ULTRA_LL friendly) |
 | **Wildcard fallbacks** | ✗                     | ✓ `[[fallbacks]]` + `*` for catch-all rules |
+| **Shell-action aliases** | ✗                   | ✓ `[aliases]` + `@name` reuse |
 | Accessibility     | not required               | required (one-time)   |
 
 `chord` is hexagonal Swift 6 (Core / AdapterMacOS / AdapterTest /

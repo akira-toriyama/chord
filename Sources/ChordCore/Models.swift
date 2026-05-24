@@ -167,13 +167,20 @@ public struct ChordConfig: Sendable {
     /// `.anyKey` (the `*` wildcard). Intended for "play a sound
     /// when ULTRA_LL fires on an undefined key"-style feedback.
     public var fallbacks: [Binding]
+    /// Named shell-command snippets. A binding whose `action-shell`
+    /// is the single token `@name` resolves to the body string here.
+    /// Lookup is simple (no recursion, no argument passing — `@name
+    /// arg` syntax is reserved for a future expansion).
+    public var aliases: [String: String]
 
     public init(options: Options = .init(),
                 bindings: [Binding] = [],
-                fallbacks: [Binding] = []) {
+                fallbacks: [Binding] = [],
+                aliases: [String: String] = [:]) {
         self.options = options
         self.bindings = bindings
         self.fallbacks = fallbacks
+        self.aliases = aliases
     }
 
     /// Conventional config path: `$XDG_CONFIG_HOME/chord/config.toml`

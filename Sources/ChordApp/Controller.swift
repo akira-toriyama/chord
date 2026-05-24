@@ -107,9 +107,16 @@ public final class Controller {
                 fallbacks: result.config.fallbacks,
                 excludeApps: result.config.options.excludeApps)
             publishMatcher()
+            let undef = result.warnings.lazy
+                .filter { $0.contains("undefined alias") }
+                .count
+            let hint = (result.droppedBindings > 0 || result.warnings.count > 0)
+                ? " (run --validate --strict for details)" : ""
             Log.line("config \(reason): \(matcher.bindings.count) bindings, " +
                      "\(matcher.fallbacks.count) fallbacks, " +
-                     "\(result.droppedBindings) dropped")
+                     "\(result.config.aliases.count) aliases, " +
+                     "undefined-aliases=\(undef), " +
+                     "dropped=\(result.droppedBindings)\(hint)")
         } catch {
             Log.line("config \(reason) error: \(error)")
         }

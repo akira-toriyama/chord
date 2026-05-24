@@ -96,6 +96,36 @@ event. Everything below depends on this contract:
   document order. The matcher is intentionally not "best-match" —
   the user already ordered them.
 
+### Aliases (the `[aliases]` table)
+
+- **Flat name → command lookup**. The TOML table accepts only
+  `string` values; anything else is dropped with a warning.
+- **Applies to `action-shell` only**. `action-keys` is parsed
+  through `InputParser` and treats `@name` as an unknown token
+  (drops the binding via the existing parse-error path) — by
+  design, capsule-corp confirmed `action-keys` reuse is not a
+  needed case.
+- **Single-token `@name` only**. `@name arg` syntax is reserved
+  for a future expansion; in v1 a value containing whitespace
+  after `@name` falls through as a literal command (so the user
+  who really meant to pass an argument doesn't get a silent
+  malfunction). Document this clearly in any user-facing changes.
+- **Undefined `@name` drops the binding with a warning** in the
+  exact format capsule-corp asked for:
+  ```
+  warning: binding 'NAME' (config.toml:LINE) references undefined alias '@xyz'; binding dropped
+  ```
+  The `(config.toml:LINE)` suffix comes from the synthetic
+  `__line__` value the TOML parser injects into each `[[X]]` row
+  via `appendArrayOfTablesRow(_:path:lineNo:)`. Treat
+  `TOML.lineKey` as reserved — users naming a real TOML key
+  `__line__` would shadow the metadata (acceptable trade; the
+  alternative is changing the parser's return type).
+- The Controller startup / reload log line surfaces alias counts
+  and `undefined-aliases=N` alongside the bindings / fallbacks /
+  dropped totals — so a single `tail -f /tmp/chord.log` shows the
+  full state of the config without re-running `--validate`.
+
 ### Fallbacks (the `[[fallbacks]]` section)
 
 - **Two-stage matching**: `Matcher.find` first walks `[[bindings]]`

@@ -126,9 +126,14 @@ enum ChordApp {
         do {
             let res = try Config.load()
             for w in res.warnings { print("warning: \(w)") }
+            let undef = res.warnings.lazy
+                .filter { $0.contains("undefined alias") }
+                .count
             print("parsed: \(res.config.bindings.count) bindings, " +
-                  "\(res.config.fallbacks.count) fallbacks; " +
+                  "\(res.config.fallbacks.count) fallbacks, " +
+                  "\(res.config.aliases.count) aliases; " +
                   "dropped: \(res.droppedBindings), " +
+                  "undefined-aliases: \(undef), " +
                   "warnings: \(res.warnings.count)")
             if strict && (res.warnings.count > 0 || res.droppedBindings > 0) {
                 fputs("chord: --strict: \(res.warnings.count) warnings, " +

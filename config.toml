@@ -156,6 +156,26 @@ exclude-apps = []
 
 
 # =====================================================================
+# Aliases — named shell snippets, referenced via `@name`
+# =====================================================================
+# Lookup is flat: each entry `name = "command"`. Reference from any
+# `action-shell` via the single token `@name`. v1 is intentionally
+# narrow: no recursion (`alias = "@other"` not supported), no
+# argument passing (the `@name arg` syntax is RESERVED — values
+# containing whitespace after `@name` are treated as literal command
+# strings).
+#
+# An undefined `@name` reference drops the referring binding with a
+# warning of the exact form:
+#   warning: binding 'foo' (config.toml:42) references undefined alias '@bar'; binding dropped
+# so a typo is loud, not silent.
+#
+# [aliases]
+# rift_focus_next  = "rift-cli execute window next"
+# rift_focus_prev  = "rift-cli execute window prev"
+
+
+# =====================================================================
 # Pattern 5 — App-scoped overrides
 # =====================================================================
 # Same chord, different action depending on the frontmost app.

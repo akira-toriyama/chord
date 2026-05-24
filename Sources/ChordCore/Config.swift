@@ -61,6 +61,22 @@ public enum Config {
             }
         }
 
+        // [aliases] — flat `name = "command"` lookup. Validation is
+        // minimal: only string values are accepted; anything else is
+        // dropped with a warning.
+        var aliases: [String: String] = [:]
+        if case .table(let raw)? = root["aliases"] {
+            for (key, value) in raw {
+                if key == TOML.lineKey { continue }
+                if let s = value.asString {
+                    aliases[key] = s
+                } else {
+                    warnings.append(
+                        "[aliases] '\(key)': value must be a string — ignored")
+                }
+            }
+        }
+
         var bindings: [Binding] = []
         var dropped = 0
         let rows = root["bindings"]?.asArrayOfTables ?? []
@@ -68,6 +84,7 @@ public enum Config {
             do {
                 if let b = try makeBinding(from: row, index: i,
                                            isFallback: false,
+                                           aliases: aliases,
                                            warnings: &warnings)
                 {
                     bindings.append(b)
@@ -87,6 +104,7 @@ public enum Config {
             do {
                 if let b = try makeBinding(from: row, index: i,
                                            isFallback: true,
+                                           aliases: aliases,
                                            warnings: &warnings)
                 {
                     fallbacks.append(b)
@@ -101,7 +119,7 @@ public enum Config {
         }
 
         let cfg = ChordConfig(options: options, bindings: bindings,
-                              fallbacks: fallbacks)
+                              fallbacks: fallbacks, aliases: aliases)
         return ParseResult(config: cfg, warnings: warnings,
                            droppedBindings: dropped)
     }
@@ -109,25 +127,37 @@ public enum Config {
     private static func makeBinding(
         from row: [String: TOML.Value], index: Int,
         isFallback: Bool,
+        aliases: [String: String],
         warnings: inout [String]
     ) throws -> Binding? {
         let section = isFallback ? "[[fallbacks]]" : "[[bindings]]"
         let name = row["name"]?.asString ?? "binding-\(index + 1)"
+        let source = sourceTag(row: row)
         guard let inputRaw = row["input"]?.asString else {
-            warnings.append("\(section) '\(name)': missing 'input'")
+            warnings.append(
+                "\(section) '\(name)'\(source): missing 'input'")
             return nil
         }
         let parsed: InputParser.Parsed
         do { parsed = try InputParser.parse(inputRaw,
                                             allowWildcard: isFallback) }
         catch {
-            warnings.append("\(section) '\(name)': \(error)")
+            warnings.append("\(section) '\(name)'\(source): \(error)")
             return nil
         }
 
         let action: Action
         if let shell = row["action-shell"]?.asString {
-            action = .shell(shell)
+            let resolved = resolveAlias(shell, aliases: aliases)
+            switch resolved {
+            case .body(let body):
+                action = .shell(body)
+            case .undefined(let aliasName):
+                warnings.append(
+                    "binding '\(name)'\(source) references undefined " +
+                    "alias '@\(aliasName)'; binding dropped")
+                return nil
+            }
         } else if let keysStr = row["action-keys"]?.asString {
             do {
                 let (mods, code) =
@@ -135,14 +165,14 @@ public enum Config {
                 action = .keys(mods, code)
             } catch {
                 warnings.append(
-                    "\(section) '\(name)': action-keys: \(error)")
+                    "\(section) '\(name)'\(source): action-keys: \(error)")
                 return nil
             }
         } else if row["action-noop"]?.asBool == true {
             action = .noop
         } else {
             warnings.append(
-                "\(section) '\(name)': no action-* key provided")
+                "\(section) '\(name)'\(source): no action-* key provided")
             return nil
         }
 
@@ -155,5 +185,43 @@ public enum Config {
         return Binding(name: name, trigger: parsed.trigger,
                        modifiers: parsed.modifiers, apps: apps,
                        action: action)
+    }
+
+    /// Render the `(config.toml:42)` suffix attached to per-binding
+    /// warnings. Returns the empty string if the parser couldn't
+    /// resolve a line — better to drop the suffix than print
+    /// "config.toml:?".
+    private static func sourceTag(row: [String: TOML.Value]) -> String {
+        guard let line = row[TOML.lineKey]?.asInt else { return "" }
+        return " (config.toml:\(line))"
+    }
+
+    private enum AliasResolution {
+        case body(String)         // `@name` resolved, or no alias used
+        case undefined(String)    // `@name` references an unknown alias
+    }
+
+    /// Resolve a single `@name` token at the start of the value
+    /// against [aliases]. Anything else is passed through unchanged.
+    ///
+    /// `@name arg` syntax is reserved for a future expansion; in v1,
+    /// a value of the form `@name arg` is treated as a literal
+    /// command string (the user wrote it; we don't second-guess).
+    private static func resolveAlias(_ raw: String,
+                                     aliases: [String: String])
+        -> AliasResolution
+    {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("@") else { return .body(raw) }
+        // `@name` only — no whitespace splitting yet (reserved).
+        let name = String(trimmed.dropFirst())
+        guard name.allSatisfy({
+            $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-"
+        }), !name.isEmpty else {
+            // `@foo bar` or `@` alone falls through to literal.
+            return .body(raw)
+        }
+        if let body = aliases[name] { return .body(body) }
+        return .undefined(name)
     }
 }
