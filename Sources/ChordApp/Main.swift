@@ -19,7 +19,9 @@ enum ChordApp {
         if args.contains("--version") {
             print("chord 0.1.0"); exit(0)
         }
-        if args.contains("--validate") { exit(runValidate()) }
+        if args.contains("--validate") {
+            exit(runValidate(strict: args.contains("--strict")))
+        }
         if args.contains("--doctor")   { exit(runDoctor()) }
 
         // Client flags: post + exit.
@@ -93,13 +95,31 @@ enum ChordApp {
 
     // MARK: - standalone subcommands
 
-    private static func runValidate() -> Int32 {
+    /// `--validate` parses `~/.config/chord/config.toml` and prints
+    /// a per-config summary.
+    ///
+    /// Exit codes:
+    ///   0 — clean (no warnings, no dropped bindings)
+    ///   1 — `--strict` tripped: at least one warning OR drop
+    ///   2 — catastrophic (TOML syntax error, IO failure)
+    ///
+    /// Without `--strict` chord stays "lenient by default" (drops a
+    /// bad binding, keeps the rest) — same posture as stroke / facet.
+    /// Add `--strict` in CI to make a typo fail the pipeline.
+    private static func runValidate(strict: Bool) -> Int32 {
         do {
             let res = try Config.load()
             for w in res.warnings { print("warning: \(w)") }
-            print("\(res.config.bindings.count) bindings, " +
-                  "\(res.droppedBindings) dropped")
-            return res.droppedBindings == 0 ? 0 : 2
+            print("parsed: \(res.config.bindings.count) bindings, " +
+                  "\(res.config.fallbacks.count) fallbacks; " +
+                  "dropped: \(res.droppedBindings), " +
+                  "warnings: \(res.warnings.count)")
+            if strict && (res.warnings.count > 0 || res.droppedBindings > 0) {
+                fputs("chord: --strict: \(res.warnings.count) warnings, " +
+                      "\(res.droppedBindings) dropped — failing.\n", stderr)
+                return 1
+            }
+            return res.droppedBindings == 0 ? 0 : (strict ? 1 : 0)
         } catch {
             fputs("chord: \(error)\n", stderr)
             return 2
@@ -135,8 +155,9 @@ enum ChordApp {
           chord                run the daemon (default)
           chord --debug        run the daemon with verbose logging
 
-          chord --validate     parse config.toml; exit 0 on clean
-          chord --doctor       report Accessibility / config / daemon
+          chord --validate          parse config.toml; exit 0 on clean
+          chord --validate --strict warnings + drops fail with exit 1
+          chord --doctor            report Accessibility / config / daemon
           chord --reload       tell the running daemon to reload config
           chord --quit         tell the running daemon to exit
           chord --pause        suspend all bindings (passthrough mode)

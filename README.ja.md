@@ -88,8 +88,9 @@ action-keys = "cmd + shift - 4"
 ```
 chord                デーモンを起動 (デフォルト)
 chord --debug        詳細ログ付きでデーモンを起動
-chord --validate     config.toml を検証 (エラー0で exit 0)
-chord --doctor       アクセシビリティ / 設定 / デーモンの稼働状況を表示
+chord --validate          config.toml を検証 (エラー0で exit 0)
+chord --validate --strict 警告 / drop が 1 件でもあれば exit 1 (CI 用)
+chord --doctor            アクセシビリティ / 設定 / デーモンの稼働状況を表示
 chord --reload       稼働中デーモンに設定再読込を指示
 chord --quit         稼働中デーモンに終了を指示
 chord --pause        全 binding を一時停止（passthrough モード）

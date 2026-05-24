@@ -270,6 +270,13 @@ stray instances before relaunching.
   the daemon stays AX-granted and the keystroke cost is one bool
   check + one mutex acquire. Intended for screencasts / games /
   Zoom screen-sharing where chord shouldn't be eating input.
+- **`--validate` is lenient by default; `--strict` is for CI**.
+  Without `--strict`, drops are non-fatal (a typo in one binding
+  doesn't fail the pipeline). With `--strict`, any warning or
+  drop exits `1`. The summary line always prints
+  `parsed: N bindings, M fallbacks; dropped: K, warnings: W` —
+  machine-readable enough for awk / grep until `--list --json`
+  lands.
 - **`--doctor`** reports Accessibility
   (`Permissions.isAccessibilityTrusted()`), config, daemon
   liveness. Exit 1 if any check fails.

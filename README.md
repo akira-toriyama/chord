@@ -89,8 +89,9 @@ option commented inline.
 ```
 chord                run the daemon (default)
 chord --debug        run the daemon with verbose logging
-chord --validate     parse config.toml; exit 0 on clean
-chord --doctor       report Accessibility / config / daemon
+chord --validate          parse config.toml; exit 0 on clean
+chord --validate --strict warnings + drops fail with exit 1 (for CI)
+chord --doctor            report Accessibility / config / daemon
 chord --reload       tell the running daemon to reload config
 chord --quit         tell the running daemon to exit
 chord --pause        suspend all bindings (passthrough mode)
