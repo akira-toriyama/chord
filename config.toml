@@ -1,4 +1,4 @@
-# chord — user configuration
+# chord — user configuration template
 # https://github.com/akira-toriyama/chord
 #
 # This file is the **single source of truth** for chord's bindings.
@@ -11,65 +11,55 @@
 # chord only ever READS this file. Bindings whose `input` or
 # `action-*` fails to parse are *dropped with a warning* rather than
 # rejected — a typo can never break the daemon. Validate explicitly
-# with `chord --validate`.
+# with `chord --validate` (or `chord --validate --strict` in CI).
+#
+# **Everything below is commented out by design.** The shipped
+# template intentionally fires nothing on first install; uncomment
+# the patterns you want. The examples are grouped by use case —
+# pick the ones that match how you actually work.
 
 
-# -----------------------------------------------------------------
+# =====================================================================
 # Global options
-# -----------------------------------------------------------------
+# =====================================================================
 [options]
 
-# Pass unmatched events through to the OS. The default (true) is
-# what you want unless you're using chord as a key-filter layer.
+# Pass unmatched events through to the OS. The default (true) is what
+# you want unless chord is being used as a key-filter layer.
 passthrough-unmatched = true
 
 # Bundle IDs where chord is globally disabled. Useful for apps that
-# already have native gestures (Xcode, video editors, games…).
+# already have their own gesture engine (Xcode, video editors, games).
 # Glob (`*` / `?`) supported.
 exclude-apps = []
 
 
-# -----------------------------------------------------------------
-# Bindings — first match wins, applied to the FRONTMOST app
-# -----------------------------------------------------------------
-# Each `[[bindings]]` block defines one input → action mapping.
-# Bindings are matched in document order; the FIRST one whose
-# (input, modifiers, apps) all match the event fires.
+# =====================================================================
+# Grammar reference
+# =====================================================================
+# `input` syntax (skhd-style, extended):
 #
-# `input` grammar (think skhd, extended):
+#   • keys:     "cmd + ctrl - f13"
+#   • mouse:    "mouse.side1"               (left | right | middle | side1 | side2)
+#   • scroll:   "ctrl - scroll.up"          (up | down | left | right)
 #
-#   • keys:    "cmd + ctrl - f13"     (any F-key, letter, digit, special)
-#   • mouse:   "mouse.side1"          (left | right | middle | side1 | side2)
-#   • scroll:  "ctrl - scroll.up"     (up | down | left | right)
+# Modifier names:
+#   cmd | opt (= alt) | ctrl | shift | fn | hyper (= cmd+opt+ctrl+shift)
 #
-# Modifier names: cmd | opt (= alt) | ctrl | shift | fn | hyper
-#   `hyper` is sugar for `cmd + opt + ctrl + shift` (Karabiner usage).
-#
-# Side-specific modifiers (ZMK ULTRA_LL / Karabiner-style strict
-# layers):
+# Side-specific (ZMK ULTRA_LL / Karabiner-style strict layers):
 #   lcmd / rcmd | lopt / ropt (= lalt / ralt) | lctrl / rctrl |
 #   lshift / rshift
-# These match ONLY when the named side is held *and the other side
-# is absent*. `lctrl + rctrl - x` requires both physically held.
-# Use the any-side spellings (`ctrl`, `cmd`, …) unless the side
-# actually matters — that's almost always what you want.
+#   Use the any-side spelling (`ctrl`, `cmd`, …) unless the side
+#   actually matters — that's almost always what you want.
 #
-# F-keys: f1–f24 are all bindable. F13–F20 use the standard macOS
-# virtual keycodes; F21–F24 use the slots Karabiner / firmware
-# remappers conventionally emit (you need a keyboard that actually
-# sends them — most physical F-row keyboards stop at F12).
-#
-# Any unrecognised key falls back to `keycode-NN` (raw CGKeyCode),
-# useful for vendor-specific media keys.
-#
-# `apps` syntax:
-#   omitted or ["*"]    — match every frontmost app
-#   ["com.apple.Safari"] — exact bundle id
-#   ["*chrome*"]         — glob
-#   ["!com.apple.Xcode"] — exclusion (any matching exclusion wins)
+# Key names: a-z, 0-9, f1-f24, return, space, esc, tab, backspace,
+#   delete (= backspace), forward_delete (= ⌦), arrow_{up,down,left,right},
+#   page_{up,down}, home, end, caps_lock, kp_0…kp_9 …
+#   See Sources/ChordCore/KeyCodes.swift for the full table.
+#   Anything else: use `keycode-N` (raw CGKeyCode).
 #
 # Exactly ONE action key per binding:
-#   action-shell = "open -a Terminal"        — runs in `/bin/zsh -l -c`
+#   action-shell = "open -a Terminal"        — runs in /bin/zsh -l -c
 #   action-keys  = "cmd + shift - 4"         — chord posts these keys
 #   action-noop  = true                       — eats the event
 #
@@ -77,83 +67,150 @@ exclude-apps = []
 #   CHORD_BINDING_NAME, CHORD_FRONTMOST_BUNDLE_ID
 
 
-# Launch terminal with the F13 key (good for ZSA / Moonlander setups).
-[[bindings]]
-name = "launch terminal"
-input = "f13"
-action-shell = "open -a Terminal"
+# =====================================================================
+# Pattern 1 — F13-F24 as launcher keys
+# =====================================================================
+# Useful if you have a programmable keyboard (ZSA Moonlander, custom
+# QMK, etc.) or a remapper (Karabiner) that sends F13–F24. Most
+# physical F-row keyboards stop at F12.
+#
+# [[bindings]]
+# name = "launch Terminal"
+# input = "f13"
+# action-shell = "open -a Terminal"
+#
+# [[bindings]]
+# name = "launch browser"
+# input = "f14"
+# action-shell = "open -a Safari"
 
 
-# Side-button screenshot. cmd+shift+4 = "select region".
-[[bindings]]
-name = "screenshot selection"
-input = "mouse.side1"
-action-keys = "cmd + shift - 4"
+# =====================================================================
+# Pattern 2 — Side mouse buttons
+# =====================================================================
+# Most ergonomic mice expose `side1` (back) and `side2` (forward).
+#
+# [[bindings]]
+# name = "screenshot selection"
+# input = "mouse.side1"
+# action-keys = "cmd + shift - 4"
+#
+# [[bindings]]
+# name = "screenshot whole screen"
+# input = "shift - mouse.side1"
+# action-keys = "cmd + shift - 3"
 
 
-# Hyper + h/j/k/l for vim-style window nav (replace with your WM).
-[[bindings]]
-name = "focus window left"
-input = "hyper - h"
-action-shell = "yabai -m window --focus west 2>/dev/null || true"
-
-[[bindings]]
-name = "focus window down"
-input = "hyper - j"
-action-shell = "yabai -m window --focus south 2>/dev/null || true"
-
-[[bindings]]
-name = "focus window up"
-input = "hyper - k"
-action-shell = "yabai -m window --focus north 2>/dev/null || true"
-
-[[bindings]]
-name = "focus window right"
-input = "hyper - l"
-action-shell = "yabai -m window --focus east 2>/dev/null || true"
+# =====================================================================
+# Pattern 3 — Hyper key shortcuts (cmd+opt+ctrl+shift)
+# =====================================================================
+# `hyper` is the no-collision modifier popularised by Karabiner.
+# Pair with a remapped Caps Lock for one-finger access.
+#
+# [[bindings]]
+# name = "open dotfiles"
+# input = "hyper - d"
+# action-shell = "code ~/.dotfiles"
+#
+# [[bindings]]
+# name = "lock screen"
+# input = "hyper - l"
+# action-keys = "cmd + ctrl - q"
 
 
-# Zoom only inside specific apps with ctrl + scroll.up. Other apps
-# pass scroll through normally.
-[[bindings]]
-name = "zoom in (Code / Haystack)"
-input = "ctrl - scroll.up"
-apps = ["com.microsoft.VSCode", "*haystack*"]
-action-keys = "cmd - equal"
+# =====================================================================
+# Pattern 4 — Emacs / readline-style Ctrl+key remaps (system-wide)
+# =====================================================================
+# Most apps already have these (Cocoa text fields do); enable here to
+# get them in non-Cocoa apps too (Electron, X11, terminal vims, …).
+#
+# [[bindings]]
+# name = "ctrl-b → ←"
+# input = "ctrl - b"
+# action-keys = "left"
+#
+# [[bindings]]
+# name = "ctrl-f → →"
+# input = "ctrl - f"
+# action-keys = "right"
+#
+# [[bindings]]
+# name = "ctrl-p → ↑"
+# input = "ctrl - p"
+# action-keys = "up"
+#
+# [[bindings]]
+# name = "ctrl-n → ↓"
+# input = "ctrl - n"
+# action-keys = "down"
+#
+# [[bindings]]
+# name = "ctrl-h → backspace"
+# input = "ctrl - h"
+# action-keys = "backspace"
+#
+# [[bindings]]
+# name = "ctrl-d → forward delete"
+# input = "ctrl - d"
+# action-keys = "forward_delete"
 
-[[bindings]]
-name = "zoom out (Code / Haystack)"
-input = "ctrl - scroll.down"
-apps = ["com.microsoft.VSCode", "*haystack*"]
-action-keys = "cmd - minus"
+
+# =====================================================================
+# Pattern 5 — App-scoped overrides
+# =====================================================================
+# Same chord, different action depending on the frontmost app.
+# document order + first-match wins, so put the more-specific
+# `apps = [...]` row before the generic one.
+#
+# [[bindings]]
+# name = "ctrl + scroll → zoom (Code only)"
+# input = "ctrl - scroll.up"
+# apps = ["com.microsoft.VSCode"]
+# action-keys = "cmd - equal"
+#
+# [[bindings]]
+# name = "ctrl + scroll → zoom out (Code only)"
+# input = "ctrl - scroll.down"
+# apps = ["com.microsoft.VSCode"]
+# action-keys = "cmd - minus"
 
 
-# Disable the Caps Lock key entirely (useful if you remapped it via
-# karabiner-elements and want chord to swallow any stray presses).
-# Uncomment to enable.
+# =====================================================================
+# Pattern 6 — ZMK / Karabiner strict-side modifier layers
+# =====================================================================
+# `rctrl + ralt + rshift - x` requires the **right-side** keys held
+# (left-side variants must be released). Encodes ZMK ULTRA_LL-style
+# strict modifier sets the way the firmware intends.
+#
+# [[bindings]]
+# name = "ULTRA_LL → swap window"
+# input = "rctrl + ralt + rshift - tab"
+# action-shell = "yabai -m window --focus next 2>/dev/null || true"
+
+
+# =====================================================================
+# Pattern 7 — Disabling keys entirely
+# =====================================================================
+# Eat an input without posting anything. Common with Caps Lock if you
+# remapped it elsewhere and want to suppress stray presses.
+#
 # [[bindings]]
 # name = "block caps lock"
 # input = "caps_lock"
 # action-noop = true
 
 
-# -----------------------------------------------------------------
-# Fallbacks — fire only when NO `[[bindings]]` row matched
-# -----------------------------------------------------------------
-# Use `*` as the primary key to match every keyboard key under
-# the given modifier set. `*` is allowed ONLY here — putting it in
-# `[[bindings]]` is rejected so a single binding can never swallow
-# every key by accident.
+# =====================================================================
+# Pattern 8 — Fallback feedback ([[fallbacks]] section)
+# =====================================================================
+# `[[fallbacks]]` fires ONLY when no `[[bindings]]` row matched. Use
+# `*` as the primary key to match every keyboard key under the given
+# modifier set. `*` is rejected inside `[[bindings]]` to keep a
+# regular binding from silently swallowing every key.
 #
-# Two-stage matching:
-#   1. document-order first-match-wins through `[[bindings]]`
-#   2. on miss, document-order first-match-wins through `[[fallbacks]]`
-#   3. still no match → passthrough-unmatched setting decides.
+# Canonical use: an audible "no such chord" cue when a layered
+# keyboard fires an undefined key under a strict modifier set.
 #
-# Mouse and scroll events never satisfy `*` (v1 keyboard-only).
-#
-# Canonical use: "play a sound when a ZMK ULTRA_LL chord fires on an
-# undefined key" — uncomment to enable.
 # [[fallbacks]]
 # name = "ULTRA_LL undefined feedback"
 # input = "rctrl + ralt + rshift - *"
