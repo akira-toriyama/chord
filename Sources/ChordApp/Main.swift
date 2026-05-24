@@ -17,7 +17,7 @@ enum ChordApp {
             printHelp(); exit(0)
         }
         if args.contains("--version") {
-            print("chord 0.1.0"); exit(0)
+            print("chord 0.2.0"); exit(0)
         }
         if args.contains("--validate") {
             exit(runValidate(strict: args.contains("--strict")))
