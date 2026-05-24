@@ -57,31 +57,25 @@ public enum ActionDispatcher {
 
     private static func cgFlags(from m: Modifiers) -> CGEventFlags {
         var raw: UInt64 = 0
-        // The abstract masks each app's NSEvent surface reads.
-        if m.contains(.cmd) || m.contains(.lcmd) || m.contains(.rcmd) {
-            raw |= CGEventFlags.maskCommand.rawValue
-        }
-        if m.contains(.opt) || m.contains(.lopt) || m.contains(.ropt) {
-            raw |= CGEventFlags.maskAlternate.rawValue
-        }
-        if m.contains(.ctrl) || m.contains(.lctrl) || m.contains(.rctrl) {
-            raw |= CGEventFlags.maskControl.rawValue
-        }
-        if m.contains(.shift) || m.contains(.lshift) || m.contains(.rshift) {
-            raw |= CGEventFlags.maskShift.rawValue
+        // The abstract masks every app's NSEvent surface reads.
+        // Set when EITHER the any-side bit OR one of the side-
+        // specific bits is requested.
+        for cat in SideMaskTable.categories
+            where m.contains(cat.any)
+               || m.contains(cat.left)
+               || m.contains(cat.right)
+        {
+            raw |= cat.mask.rawValue
         }
         // Device-dependent bits — only set when the binding
-        // explicitly asked for a specific side. Posting a plain
-        // `cmd - c` leaves these clear so the receiving app sees
-        // "either side cmd" the way the user wrote.
-        if m.contains(.lcmd)   { raw |= 0x00000008 }
-        if m.contains(.rcmd)   { raw |= 0x00000010 }
-        if m.contains(.lopt)   { raw |= 0x00000020 }
-        if m.contains(.ropt)   { raw |= 0x00000040 }
-        if m.contains(.lctrl)  { raw |= 0x00000001 }
-        if m.contains(.rctrl)  { raw |= 0x00002000 }
-        if m.contains(.lshift) { raw |= 0x00000002 }
-        if m.contains(.rshift) { raw |= 0x00000004 }
+        // explicitly asked for a specific side. A plain
+        // `action-keys = "cmd - c"` leaves these clear so the
+        // receiving app sees "either side cmd" the way the user
+        // wrote. The bit↔mask table is shared with
+        // EventTap.readModifiers via [SideMaskTable].
+        for (bit, mask) in SideMaskTable.entries where m.contains(bit) {
+            raw |= mask
+        }
         if m.contains(.fn) { raw |= CGEventFlags.maskSecondaryFn.rawValue }
         return CGEventFlags(rawValue: raw)
     }

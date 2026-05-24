@@ -186,37 +186,27 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
     }
 
     private func readModifiers(_ flags: CGEventFlags) -> Modifiers {
-        // We emit ONLY side-specific bits (plus `fn`) — the matcher
+        // Emit ONLY side-specific bits (plus `fn`) — the matcher
         // contract is that events carry concrete L/R info and the
-        // binding's any-side bits are matched predicate-style.
-        // Constants come from `IOKit/hidsystem/IOLLEvent.h`; values
-        // are stable and have been the same since the Carbon era.
+        // binding's any-side bits are matched predicate-style. The
+        // bit↔mask pairs live in [SideMaskTable] so adding a new
+        // modifier only touches that file.
         let raw = flags.rawValue
         var m: Modifiers = []
+        for (bit, mask) in SideMaskTable.entries where raw & mask != 0 {
+            m.insert(bit)
+        }
 
-        //                        IOLLEvent.h constant       hex
-        if raw & 0x00000008 != 0 { m.insert(.lcmd)   }   // NX_DEVICELCMDKEYMASK
-        if raw & 0x00000010 != 0 { m.insert(.rcmd)   }   // NX_DEVICERCMDKEYMASK
-        if raw & 0x00000020 != 0 { m.insert(.lopt)   }   // NX_DEVICELALTKEYMASK
-        if raw & 0x00000040 != 0 { m.insert(.ropt)   }   // NX_DEVICERALTKEYMASK
-        if raw & 0x00000001 != 0 { m.insert(.lctrl)  }   // NX_DEVICELCTLKEYMASK
-        if raw & 0x00002000 != 0 { m.insert(.rctrl)  }   // NX_DEVICERCTLKEYMASK
-        if raw & 0x00000002 != 0 { m.insert(.lshift) }   // NX_DEVICELSHIFTKEYMASK
-        if raw & 0x00000004 != 0 { m.insert(.rshift) }   // NX_DEVICERSHIFTKEYMASK
-
-        // Fallback: a hardware path that doesn't set the device-
-        // dependent bits but DOES set the abstract maskCommand etc.
-        // (rare — some software keyboards). Default the side to
-        // left so the binding's any-side match still works without
-        // spuriously matching `lcmd` strict-left bindings.
-        if !m.contains(.lcmd) && !m.contains(.rcmd)
-            && flags.contains(.maskCommand)   { m.insert(.lcmd) }
-        if !m.contains(.lopt) && !m.contains(.ropt)
-            && flags.contains(.maskAlternate) { m.insert(.lopt) }
-        if !m.contains(.lctrl) && !m.contains(.rctrl)
-            && flags.contains(.maskControl)   { m.insert(.lctrl) }
-        if !m.contains(.lshift) && !m.contains(.rshift)
-            && flags.contains(.maskShift)     { m.insert(.lshift) }
+        // Fallback: a hardware path that sets only the abstract
+        // mask (rare — some software keyboards). Default to the
+        // left bit so the binding's any-side match still works
+        // without spuriously matching `lcmd` strict-left bindings.
+        for cat in SideMaskTable.categories
+            where flags.contains(cat.mask)
+                && !m.contains(cat.left) && !m.contains(cat.right)
+        {
+            m.insert(cat.left)
+        }
 
         if flags.contains(.maskSecondaryFn) { m.insert(.fn) }
         return m
