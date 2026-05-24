@@ -35,13 +35,23 @@ if [[ -f assets/icon/chord.icns ]]; then
   cp assets/icon/chord.icns "$bundle/Contents/Resources/AppIcon.icns"
 fi
 
-# Sign with the persistent self-signed identity if it exists.
-if security find-identity -p codesigning login.keychain-db \
-    2>/dev/null | grep -q '"chord-dev"'; then
-  echo "→ signing with chord-dev identity"
-  codesign --force --options runtime --sign chord-dev "$bundle"
+# Sign with the persistent self-signed identity if it exists. The
+# identity is written to .signing-id by setup-signing-cert.sh.
+# (`find-identity -p codesigning` lists *trusted* identities only;
+# our self-signed cert is intentionally untrusted, so we can't use
+# it as the detection probe — same trap facet documents.)
+identity=""
+if [[ -f .signing-id ]]; then
+  identity="$(cat .signing-id)"
+fi
+if [[ -n "$identity" ]] && \
+   security find-certificate -c "$identity" \
+     "$HOME/Library/Keychains/login.keychain-db" \
+     >/dev/null 2>&1; then
+  echo "→ signing with '$identity' identity"
+  codesign --force --options runtime --sign "$identity" "$bundle"
 else
-  echo "→ no chord-dev identity found; ad-hoc signing"
+  echo "→ no persistent identity found; ad-hoc signing"
   echo "  (run ./setup-signing-cert.sh to make AX grant stable)"
   codesign --force --sign - "$bundle"
 fi

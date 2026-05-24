@@ -5,6 +5,10 @@
 .swiftpm/
 Package.resolved
 
+# setup-signing-cert.sh writes the local identity name here; each
+# developer regenerates their own. Don't commit.
+.signing-id
+
 # Bundles assembled by package.sh
 Chord.app/
 Chord-dev.app/

@@ -8,55 +8,80 @@
 # stable self-signed cert keeps the same identity across rebuilds
 # and `package.sh` runs.
 #
-# This mirrors stroke's / facet's identical script.
+# Same approach as facet/stroke — including the specific OpenSSL 3
+# .p12 export options security(1) requires.
 
 set -euo pipefail
+cd "$(dirname "$0")"
 
 CN="chord-dev"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
-if security find-identity -p codesigning "$KEYCHAIN" \
-    | grep -q "\"$CN\""; then
-  echo "Identity '$CN' already exists. Done."
+# Idempotency: an untrusted self-signed cert does NOT appear in
+# `find-identity -p codesigning` (that lists trusted identities
+# only), so a naive guard there never trips and every re-run adds a
+# duplicate — which then makes `codesign --sign "$CN"` ambiguous.
+# Use `find-certificate` (lists untrusted too) and collapse any
+# duplicates down to one.
+hashes=$(security find-certificate -a -c "$CN" -Z "$KEYCHAIN" \
+  2>/dev/null | awk '/SHA-1 hash:/ { print $3 }' || true)
+hash_count=$(printf '%s\n' "$hashes" | grep -c . || true)
+
+if [[ "$hash_count" -ge 1 ]]; then
+  if [[ "$hash_count" -gt 1 ]]; then
+    echo "found $hash_count duplicate \"$CN\" certs — collapsing to one"
+    # Keep the first hash, delete the rest.
+    skip=true
+    while IFS= read -r h; do
+      [[ -z "$h" ]] && continue
+      if $skip; then skip=false; continue; fi
+      security delete-certificate -Z "$h" "$KEYCHAIN" >/dev/null 2>&1 || true
+    done <<<"$hashes"
+  fi
+  echo "identity already present: $CN"
+  echo -n "$CN" > .signing-id
   exit 0
 fi
 
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 
-cat > "$TMPDIR/openssl.cnf" <<EOF
-[ req ]
-distinguished_name = req_distinguished_name
-prompt             = no
-x509_extensions    = v3_self
-
-[ req_distinguished_name ]
+cat > "$TMP/cert.cnf" <<EOF
+[req]
+distinguished_name = dn
+x509_extensions = v3
+prompt = no
+[dn]
 CN = $CN
-
-[ v3_self ]
-basicConstraints       = critical, CA:FALSE
-keyUsage               = critical, digitalSignature
-extendedKeyUsage       = codeSigning
-subjectKeyIdentifier   = hash
+[v3]
+basicConstraints = critical,CA:false
+keyUsage = critical,digitalSignature
+extendedKeyUsage = critical,codeSigning
 EOF
 
-openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
-  -config "$TMPDIR/openssl.cnf" \
-  -keyout "$TMPDIR/$CN.key" \
-  -out "$TMPDIR/$CN.crt"
+openssl req -x509 -newkey rsa:2048 -nodes \
+  -keyout "$TMP/key.pem" -out "$TMP/cert.pem" \
+  -days 3650 -config "$TMP/cert.cnf" >/dev/null 2>&1
 
-# .p12 bundle so security(1) can import it into the login keychain
-# with the private key intact.
-openssl pkcs12 -export \
-  -inkey "$TMPDIR/$CN.key" -in "$TMPDIR/$CN.crt" \
-  -name "$CN" -passout pass: -out "$TMPDIR/$CN.p12"
+# Legacy PKCS12 (SHA-1 MAC / 3DES) + a password: required for
+# Apple's `security` to import OpenSSL 3 output without "MAC
+# verification failed". Weak crypto but irrelevant — the .p12 lives
+# in a per-run /tmp dir and is removed on exit.
+P12PW="chord"
+openssl pkcs12 -export -legacy -macalg sha1 \
+  -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES \
+  -inkey "$TMP/key.pem" -in "$TMP/cert.pem" \
+  -out "$TMP/id.p12" -passout "pass:$P12PW" -name "$CN" >/dev/null 2>&1
 
-security import "$TMPDIR/$CN.p12" -k "$KEYCHAIN" -P "" \
-  -T /usr/bin/codesign -T /usr/bin/security
+# -A: usable by any app (so /usr/bin/codesign can use the key
+# non-interactively without further prompting).
+security import "$TMP/id.p12" -k "$KEYCHAIN" -P "$P12PW" -A >/dev/null
 
-# Trust the cert for code signing.
-security add-trusted-cert -d -r trustRoot -p codeSign \
-  -k "$KEYCHAIN" "$TMPDIR/$CN.crt" 2>/dev/null || true
-
-echo "Created identity '$CN'. Sign with:"
-echo "  codesign --force --options runtime --sign $CN <target>"
+echo -n "$CN" > .signing-id
+echo "created identity: $CN"
+# Self-signed + untrusted: it won't show under `find-identity -p
+# codesigning` (that lists trusted identities only). codesign still
+# uses it by name.
+security find-certificate -c "$CN" -Z "$KEYCHAIN" 2>/dev/null \
+  | grep 'SHA-1 hash' || true
+echo "next: ./package.sh && ./scripts/install-launchagent.sh"

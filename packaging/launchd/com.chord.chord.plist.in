@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+LaunchAgent template for chord. `scripts/install-launchagent.sh`
+substitutes @@APP@@ with the absolute path to Chord.app (the one
+the user actually installed — /Applications, ~/Applications, or
+a build location) and writes the result to
+~/Library/LaunchAgents/com.chord.chord.plist.
+
+Why a LaunchAgent and not a daemon: chord needs the user's
+Accessibility grant + frontmost-app notifications, both of which
+are session-scoped. A system-wide LaunchDaemon wouldn't get
+either.
+
+EnvironmentVariables/PATH mirrors focusfx's discovery: launchd's
+default PATH lacks Homebrew / asdf / mise, so a `action-shell`
+binding calling brew-installed tools (yabai, fzf, …) would
+silently fail without this. The list is the standard Homebrew /
+system PATH; if the user has things in unusual places, the
+binding can prefix its own `command -v` resolution.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chord.chord</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>@@APP@@/Contents/MacOS/chord</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/chord-launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/chord-launchd.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
