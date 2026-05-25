@@ -145,36 +145,13 @@ public enum Config {
             warnings.append("\(section) '\(name)'\(source): \(error)")
             return nil
         }
-
-        let action: Action
-        if let shell = row["action-shell"]?.asString {
-            let resolved = resolveAlias(shell, aliases: aliases)
-            switch resolved {
-            case .body(let body):
-                action = .shell(body)
-            case .undefined(let aliasName):
-                warnings.append(
-                    "binding '\(name)'\(source) references undefined " +
-                    "alias '@\(aliasName)'; binding dropped")
-                return nil
-            }
-        } else if let keysStr = row["action-keys"]?.asString {
-            do {
-                let (mods, code) =
-                    try InputParser.parseKeyForOutput(keysStr)
-                action = .keys(mods, code)
-            } catch {
-                warnings.append(
-                    "\(section) '\(name)'\(source): action-keys: \(error)")
-                return nil
-            }
-        } else if row["action-noop"]?.asBool == true {
-            action = .noop
-        } else {
-            warnings.append(
-                "\(section) '\(name)'\(source): no action-* key provided")
-            return nil
-        }
+        guard let action = parseAction(row: row,
+                                       section: section,
+                                       name: name,
+                                       source: source,
+                                       aliases: aliases,
+                                       warnings: &warnings)
+        else { return nil }
 
         var apps: [String]?
         if let arr = row["apps"]?.asArray {
@@ -185,6 +162,63 @@ public enum Config {
         return Binding(name: name, trigger: parsed.trigger,
                        modifiers: parsed.modifiers, apps: apps,
                        action: action)
+    }
+
+    /// Pick the binding's [Action] from `action-shell` / `action-keys`
+    /// / `action-noop`, expanding any `@name` alias along the way.
+    ///
+    /// Returns `nil` and appends a warning when:
+    ///   * no `action-*` key was provided
+    ///   * `@name` references an alias not in `[aliases]`
+    ///   * `action-keys` fails to parse
+    ///
+    /// TODO(PR2 / chord.bindings.v1.json): the warning strings here
+    /// are human-readable only. PR2's `--list --json` schema will
+    /// need a structured `kind:` discriminator (e.g.
+    /// `"undefined-alias"` / `"action-keys-parse-error"` /
+    /// `"missing-action"`) so machine consumers can distinguish them
+    /// without grepping the message. Promote `warnings: [String]` to
+    /// `warnings: [ConfigWarning]` (kind + message + source line)
+    /// when PR2 lands.
+    private static func parseAction(
+        row: [String: TOML.Value],
+        section: String,
+        name: String,
+        source: String,
+        aliases: [String: String],
+        warnings: inout [String]
+    ) -> Action? {
+        if let shell = row["action-shell"]?.asString {
+            switch resolveAlias(shell, aliases: aliases) {
+            case .body(let body):
+                return .shell(body)
+            case .undefined(let aliasName):
+                // capsule-corp-specified warning format — kept
+                // separately from the `[[bindings]] '…' (line): …`
+                // format on purpose. See note above re: PR2 schema.
+                warnings.append(
+                    "binding '\(name)'\(source) references undefined " +
+                    "alias '@\(aliasName)'; binding dropped")
+                return nil
+            }
+        }
+        if let keysStr = row["action-keys"]?.asString {
+            do {
+                let (mods, code) =
+                    try InputParser.parseKeyForOutput(keysStr)
+                return .keys(mods, code)
+            } catch {
+                warnings.append(
+                    "\(section) '\(name)'\(source): action-keys: \(error)")
+                return nil
+            }
+        }
+        if row["action-noop"]?.asBool == true {
+            return .noop
+        }
+        warnings.append(
+            "\(section) '\(name)'\(source): no action-* key provided")
+        return nil
     }
 
     /// Render the `(config.toml:42)` suffix attached to per-binding
