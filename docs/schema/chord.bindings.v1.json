@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/akira-toriyama/chord/main/docs/schema/chord.bindings.v1.json",
+  "title": "chord.bindings.v1",
+  "description": "Wire format emitted by `chord --list --json` and `chord --validate --json` (planned). Version chord.bindings.v1. Emitters: chord >= 0.3.0. Breaking changes require a major bump (v2) — consumers should pin the schema and treat unknown fields as forward-compatible additions. See https://github.com/akira-toriyama/chord/blob/main/Sources/ChordCore/Schema.swift for the canonical Swift mappers.",
+  "type": "object",
+  "required": [
+    "schema",
+    "generated_at",
+    "options",
+    "aliases",
+    "bindings",
+    "fallbacks",
+    "dropped"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "chord.bindings.v1",
+      "description": "Schema identifier. A v2 bump means breaking changes; v1.x adds fields without removing or repurposing existing ones."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp with fractional seconds. Informational only; not a stable sort key."
+    },
+    "source_path": {
+      "type": ["string", "null"],
+      "description": "Absolute path the parser read the config from. `null` when chord was given an in-memory string (test paths)."
+    },
+    "options": { "$ref": "#/$defs/options" },
+    "aliases": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "[aliases] table — each key is the alias name (without the leading @), each value is the shell-command body."
+    },
+    "bindings":  { "type": "array", "items": { "$ref": "#/$defs/binding" } },
+    "fallbacks": { "type": "array", "items": { "$ref": "#/$defs/binding" } },
+    "dropped":   { "type": "array", "items": { "$ref": "#/$defs/dropped" } }
+  },
+  "$defs": {
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passthrough_unmatched", "exclude_apps"],
+      "properties": {
+        "passthrough_unmatched": {
+          "type": "boolean",
+          "description": "If true (default), unmatched events flow through to the OS unchanged."
+        },
+        "exclude_apps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Bundle-id glob patterns where chord is globally disabled."
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name", "input", "action"],
+      "properties": {
+        "index":       { "type": "integer", "minimum": 0 },
+        "name":        { "type": "string" },
+        "source_line": { "type": ["integer", "null"], "minimum": 1 },
+        "input":       { "$ref": "#/$defs/input" },
+        "apps": {
+          "type": ["array", "null"],
+          "items": { "type": "string" },
+          "description": "Bundle-id glob patterns. `null` = match every app (the user didn't write `apps`); an empty array means an explicit no-app list."
+        },
+        "action":      { "$ref": "#/$defs/action" }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "modifiers", "modifier_sides", "fn", "trigger"],
+      "properties": {
+        "raw": {
+          "type": "string",
+          "description": "Original `input = \"…\"` user string, verbatim."
+        },
+        "modifiers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/modifier_token" },
+          "uniqueItems": true,
+          "description": "All set modifier bits as canonical tokens — both any-side (`ctrl`) and side-specific (`rctrl`) appear when both bits are set on the binding constraint. Alphabetically sorted."
+        },
+        "modifier_sides": { "$ref": "#/$defs/modifier_sides" },
+        "fn": {
+          "type": "boolean",
+          "description": "Reported separately because `fn` has no left/right variants."
+        },
+        "trigger": { "$ref": "#/$defs/trigger" }
+      }
+    },
+    "modifier_token": {
+      "type": "string",
+      "enum": [
+        "cmd", "opt", "ctrl", "shift", "fn",
+        "lcmd", "rcmd", "lopt", "ropt",
+        "lctrl", "rctrl", "lshift", "rshift"
+      ]
+    },
+    "modifier_sides": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cmd", "opt", "ctrl", "shift"],
+      "description": "Per-logical-modifier side requirement. Decoupling logical modifier from physical side keeps consumer code clean (checking `ctrl` does not need to OR over `ctrl|lctrl|rctrl`).",
+      "properties": {
+        "cmd":   { "$ref": "#/$defs/side_requirement" },
+        "opt":   { "$ref": "#/$defs/side_requirement" },
+        "ctrl":  { "$ref": "#/$defs/side_requirement" },
+        "shift": { "$ref": "#/$defs/side_requirement" }
+      }
+    },
+    "side_requirement": {
+      "type": "string",
+      "enum": ["absent", "any", "left", "right", "both"],
+      "description": "absent = must NOT be held. any = either side OK. left/right = strict side. both = both sides held simultaneously. Matches `Modifiers.matches(event:)` semantics."
+    },
+    "trigger": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "keycode"],
+          "properties": {
+            "kind": { "const": "key" },
+            "name": { "type": "string" },
+            "keycode": { "type": "integer", "minimum": 0, "maximum": 65535 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "keycode"],
+          "properties": {
+            "kind": { "const": "mouseButton" },
+            "name": { "type": "string",
+                       "enum": ["left", "right", "middle",
+                                "side1", "side2",
+                                "other5", "other6", "other7"] },
+            "keycode": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "keycode"],
+          "properties": {
+            "kind": { "const": "scroll" },
+            "name": { "type": "string",
+                       "enum": ["up", "down", "left", "right"] },
+            "keycode": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "keycode"],
+          "description": "Wildcard trigger — fires only inside [[fallbacks]] sections.",
+          "properties": {
+            "kind": { "const": "anyKey" },
+            "name": { "type": "null" },
+            "keycode": { "type": "null" }
+          }
+        }
+      ]
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "raw", "modifiers", "key", "command", "alias"],
+          "properties": {
+            "kind": { "const": "keys" },
+            "raw": { "type": "string" },
+            "modifiers": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/modifier_token" }
+            },
+            "key": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "keycode"],
+              "properties": {
+                "name": { "type": "string" },
+                "keycode": { "type": "integer", "minimum": 0, "maximum": 65535 }
+              }
+            },
+            "command": { "type": "null" },
+            "alias":   { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "raw", "modifiers", "key", "command", "alias"],
+          "properties": {
+            "kind": { "const": "shell" },
+            "raw": { "type": "string", "description": "User-typed value, including a leading `@name` if an alias was used." },
+            "modifiers": { "type": "null" },
+            "key":       { "type": "null" },
+            "command":   { "type": "string", "description": "Resolved command body (post-alias if applicable)." },
+            "alias":     { "type": ["string", "null"], "description": "Alias name (without `@`) when the user wrote `action-shell = \"@name\"`; null otherwise." }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "raw", "modifiers", "key", "command", "alias"],
+          "properties": {
+            "kind": { "const": "noop" },
+            "raw": { "type": "null" },
+            "modifiers": { "type": "null" },
+            "key":       { "type": "null" },
+            "command":   { "type": "null" },
+            "alias":     { "type": "null" }
+          }
+        }
+      ]
+    },
+    "dropped": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["section", "name", "source_line", "kind", "message"],
+      "properties": {
+        "section": {
+          "type": "string",
+          "enum": ["[[bindings]]", "[[fallbacks]]", "[aliases]"],
+          "description": "Literal TOML section header the warning fired in."
+        },
+        "name":        { "type": ["string", "null"] },
+        "source_line": { "type": ["integer", "null"], "minimum": 1 },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "config-not-found",
+            "missing-input",
+            "missing-action",
+            "unknown-input-token",
+            "action-keys-parse-error",
+            "undefined-alias",
+            "alias-non-string",
+            "other"
+          ],
+          "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a v2 schema bump."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable warning line. Format is NOT part of the stable contract — branch on `kind`, display `message`."
+        }
+      }
+    }
+  }
+}
