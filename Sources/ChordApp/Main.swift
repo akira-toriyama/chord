@@ -489,7 +489,13 @@ enum ChordApp {
     private static func findChordApp() -> String? {
         let cellar = "/opt/homebrew/Cellar/chord"
         if let versions = try? FileManager.default.contentsOfDirectory(atPath: cellar) {
-            for v in versions.sorted(by: >) {
+            // `.numeric` makes "1.10.0" > "1.2.0" — a plain string
+            // sort would silently pick the older 1.2.0 as "latest"
+            // once a 1.10 series ships.
+            let sorted = versions.sorted { a, b in
+                a.compare(b, options: .numeric) == .orderedDescending
+            }
+            for v in sorted {
                 let p = "\(cellar)/\(v)/Chord.app"
                 if FileManager.default.fileExists(atPath: p) { return p }
             }
@@ -528,6 +534,11 @@ enum ChordApp {
         return "./setup-signing-cert.sh"
     }
 
+    /// Spawn + wait. Returns the child's exit code on completion,
+    /// or `-1` when `Process.run()` itself failed (executable not
+    /// found, permission denied, etc.) — the catch path also emits
+    /// a stderr line so the caller's generic "exit -1" message
+    /// isn't the only signal.
     @discardableResult
     private static func runProcess(_ executable: String,
                                    args: [String],
@@ -544,6 +555,7 @@ enum ChordApp {
             p.waitUntilExit()
             return p.terminationStatus
         } catch {
+            fputs("chord: couldn't launch \(executable): \(error)\n", stderr)
             return -1
         }
     }
