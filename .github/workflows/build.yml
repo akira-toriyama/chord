@@ -11,7 +11,10 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-14
+    # macos-15 ships Xcode 16+ → Swift 6 toolchain. macos-14 stops at
+    # Xcode 15.4 = Swift 5.10, which can't parse our
+    # `swift-tools-version:6.0` Package.swift and fails immediately.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
