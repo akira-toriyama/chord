@@ -38,8 +38,19 @@ AdapterTest / App) で、
 
 ```sh
 brew install akira-toriyama/tap/chord
+
+# アクセシビリティ許可が upgrade を跨いで維持されるための初回セットアップ
+$(brew --prefix)/share/chord/setup-signing-cert.sh   # chord-dev 識別子作成
+chord --resign                                        # 再署名 + 再起動
+
 brew services start chord
 ```
+
+`brew upgrade chord` のあとは `chord --resign` を 1 回叩いてください。
+Homebrew のビルドサンドボックスは login keychain にアクセスできないため
+install 時は ad-hoc 署名にフォールバック → そのままだと TCC のアクセシビリティ
+許可が upgrade のたびに失われます。`chord --resign` は ad-hoc 署名を持続的な
+`chord-dev` 識別子で上書きし、デーモンを再起動するワンステップコマンドです。
 
 ソースからビルドする場合 (macOS 13+ と Xcode CommandLineTools か Xcode 本体が必要):
 

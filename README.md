@@ -37,8 +37,20 @@ grant is required once.
 
 ```sh
 brew install akira-toriyama/tap/chord
+
+# One-time setup so the Accessibility grant persists across upgrades
+$(brew --prefix)/share/chord/setup-signing-cert.sh   # create chord-dev identity
+chord --resign                                        # re-sign + restart
+
 brew services start chord
 ```
+
+After every subsequent `brew upgrade chord`, run `chord --resign`
+once — Homebrew's build sandbox can't touch your login keychain
+during install, so the bundle is ad-hoc signed and the TCC
+Accessibility grant would otherwise be lost on every upgrade.
+`chord --resign` swaps the ad-hoc signature for the persistent
+`chord-dev` identity and restarts the daemon in one step.
 
 Or build from source — requires macOS 13+ and Xcode CommandLineTools
 (or full Xcode):

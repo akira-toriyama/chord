@@ -319,6 +319,30 @@ Re-grant in System Settings, or use the persistent cert
 `pgrep -lf chord` to see what's running and `./stop.sh` to clear
 stray instances before relaunching.
 
+### `chord --resign` and the brew-sandbox signing trap
+
+- **Homebrew's build sandbox blocks `security` from touching the
+  user's login keychain** — confirmed via brew source spelunk
+  (`Library/Homebrew/sandbox.rb`) + the v0.3.x install logs (sign-id
+  resolved to `-` despite the cert existing in the user's keychain).
+  There is **no per-formula sandbox-bypass DSL** (`allow_network_access!`
+  is the only escape hatch and it's network-only).
+- **Formula installs always ad-hoc-sign.** Don't reintroduce the
+  in-formula `setup-signing-cert.sh` invocation pattern — it fell
+  back to ad-hoc anyway, just silently and confusingly. The current
+  formula intentionally `codesign --force --sign -` and points the
+  user at `chord --resign` for the persistent-identity swap.
+- **`chord --resign` orchestrates** codesign + service restart in
+  one CLI step. Detection order: `/opt/homebrew/Cellar/chord/*/Chord.app`
+  → `/Applications/Chord.app` → `~/Applications/Chord.app`. Picks the
+  highest-versioned Cellar entry when multiple are present
+  (`sorted(by: >)`). Falls back to `launchctl kickstart` if
+  `brew services` fails. Re-sign succeeds with exit 0 even if the
+  restart step fails — re-signing is the load-bearing action.
+- **Cross-app pattern**: stroke / facet hit the same brew sandbox
+  trap. Apply the same `--resign` shape to those repos when
+  ferrying changes.
+
 ### Bundle / signing
 
 - **Bundle id is `com.chord.chord`** (set in
