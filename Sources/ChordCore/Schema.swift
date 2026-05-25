@@ -29,6 +29,14 @@ public enum BindingsSchema {
 
     public static let version = "chord.bindings.v1"
 
+    /// Where the running daemon snapshots its last-loaded state, so
+    /// `chord --reload --dry-run` can diff the on-disk config
+    /// against what would actually change. Volatile (per-boot) by
+    /// design — the daemon refreshes it on every loadConfig, and
+    /// without a running daemon the dry-run treats absent snapshot
+    /// as an empty "before" (every binding shows as "added").
+    public static let snapshotPath = "/tmp/chord-loaded.json"
+
     /// Top-level wire document.
     public struct Document: Codable, Sendable {
         public let schema: String
@@ -92,7 +100,7 @@ public enum BindingsSchema {
         }
     }
 
-    public struct WireBinding: Codable, Sendable {
+    public struct WireBinding: Codable, Sendable, Hashable {
         public let index: Int
         public let name: String
         public let sourceLine: Int?
@@ -106,7 +114,7 @@ public enum BindingsSchema {
         }
     }
 
-    public struct WireInput: Codable, Sendable {
+    public struct WireInput: Codable, Sendable, Hashable {
         /// Original `input = "..."` user string, verbatim.
         public let raw: String
         /// Canonical token list — both any-side (`ctrl`) and
@@ -127,21 +135,21 @@ public enum BindingsSchema {
         }
     }
 
-    public struct ModifierSides: Codable, Sendable {
+    public struct ModifierSides: Codable, Sendable, Hashable {
         public let cmd: String
         public let opt: String
         public let ctrl: String
         public let shift: String
     }
 
-    public struct WireTrigger: Codable, Sendable {
+    public struct WireTrigger: Codable, Sendable, Hashable {
         /// `"key"` | `"mouseButton"` | `"scroll"` | `"anyKey"`.
         public let kind: String
         public let name: String?
         public let keycode: UInt16?
     }
 
-    public struct WireAction: Codable, Sendable {
+    public struct WireAction: Codable, Sendable, Hashable {
         /// `"keys"` | `"shell"` | `"noop"`.
         public let kind: String
         /// `action-shell` / `action-keys` original user string.
@@ -158,7 +166,7 @@ public enum BindingsSchema {
         public let alias: String?
     }
 
-    public struct WireKey: Codable, Sendable {
+    public struct WireKey: Codable, Sendable, Hashable {
         public let name: String
         public let keycode: UInt16
     }
@@ -177,6 +185,111 @@ public enum BindingsSchema {
             case section, name, kind, message
             case sourceLine = "source_line"
         }
+    }
+
+    // MARK: - diff (chord --reload --dry-run)
+
+    /// Outcome of comparing a previously-loaded snapshot against the
+    /// freshly-parsed config. Bindings are matched by `name`; a name
+    /// that exists on both sides is `changed` iff the semantic
+    /// fields differ (line numbers are ignored — they shift when the
+    /// user inserts unrelated rows above). `[[fallbacks]]` are
+    /// compared as their own bucket with the same rules.
+    public struct Diff: Sendable {
+        public struct Change: Sendable {
+            public let old: WireBinding
+            public let new: WireBinding
+        }
+        public var addedBindings:    [WireBinding] = []
+        public var removedBindings:  [WireBinding] = []
+        public var changedBindings:  [Change]      = []
+        public var unchangedBindingCount: Int      = 0
+        public var addedFallbacks:   [WireBinding] = []
+        public var removedFallbacks: [WireBinding] = []
+        public var changedFallbacks: [Change]      = []
+        public var unchangedFallbackCount: Int     = 0
+        public var aliasesAdded:   [String: String] = [:]
+        public var aliasesRemoved: [String: String] = [:]
+        public var aliasesChanged: [(name: String, oldBody: String, newBody: String)] = []
+
+        public var isClean: Bool {
+            addedBindings.isEmpty && removedBindings.isEmpty
+                && changedBindings.isEmpty
+                && addedFallbacks.isEmpty && removedFallbacks.isEmpty
+                && changedFallbacks.isEmpty
+                && aliasesAdded.isEmpty && aliasesRemoved.isEmpty
+                && aliasesChanged.isEmpty
+        }
+    }
+
+    /// Diff two documents by `name`. `old` may be `nil` when no
+    /// snapshot was found — every binding then surfaces as added.
+    public static func diff(old: Document?, new: Document) -> Diff {
+        var d = Diff()
+        diffBucket(old: old?.bindings ?? [], new: new.bindings,
+                   added: &d.addedBindings,
+                   removed: &d.removedBindings,
+                   changed: &d.changedBindings,
+                   unchanged: &d.unchangedBindingCount)
+        diffBucket(old: old?.fallbacks ?? [], new: new.fallbacks,
+                   added: &d.addedFallbacks,
+                   removed: &d.removedFallbacks,
+                   changed: &d.changedFallbacks,
+                   unchanged: &d.unchangedFallbackCount)
+        let oldAliases = old?.aliases ?? [:]
+        for (k, v) in new.aliases where oldAliases[k] == nil {
+            d.aliasesAdded[k] = v
+        }
+        for (k, v) in oldAliases where new.aliases[k] == nil {
+            d.aliasesRemoved[k] = v
+        }
+        for (k, newV) in new.aliases {
+            if let oldV = oldAliases[k], oldV != newV {
+                d.aliasesChanged.append((k, oldV, newV))
+            }
+        }
+        return d
+    }
+
+    private static func diffBucket(
+        old: [WireBinding], new: [WireBinding],
+        added: inout [WireBinding],
+        removed: inout [WireBinding],
+        changed: inout [Diff.Change],
+        unchanged: inout Int
+    ) {
+        let oldByName = Dictionary(uniqueKeysWithValues:
+            old.map { ($0.name, $0) })
+        let newByName = Dictionary(uniqueKeysWithValues:
+            new.map { ($0.name, $0) })
+        for (name, n) in newByName.sorted(by: { $0.key < $1.key }) {
+            if let o = oldByName[name] {
+                if semanticallyEqual(o, n) {
+                    unchanged += 1
+                } else {
+                    changed.append(.init(old: o, new: n))
+                }
+            } else {
+                added.append(n)
+            }
+        }
+        for (name, o) in oldByName.sorted(by: { $0.key < $1.key })
+            where newByName[name] == nil
+        {
+            removed.append(o)
+        }
+    }
+
+    /// Compare two bindings ignoring `index` and `source_line` —
+    /// reordering / re-numbering must NOT show up in the diff or
+    /// the user gets noise every time they insert a row above an
+    /// existing binding.
+    static func semanticallyEqual(_ a: WireBinding,
+                                  _ b: WireBinding) -> Bool {
+        return a.name == b.name
+            && a.input == b.input
+            && a.apps == b.apps
+            && a.action == b.action
     }
 
     // MARK: - encoding

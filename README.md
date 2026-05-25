@@ -114,6 +114,7 @@ chord --list --json       machine-readable (chord.bindings.v1)
 chord --list --include-dropped   also list dropped bindings
 chord --doctor            report Accessibility / config / daemon
 chord --reload       tell the running daemon to reload config
+chord --reload --dry-run   preview what `--reload` would change
 chord --quit         tell the running daemon to exit
 chord --pause        suspend all bindings (passthrough mode)
 chord --resume       re-enable bindings

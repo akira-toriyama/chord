@@ -113,6 +113,7 @@ chord --list --json       機械向け JSON (chord.bindings.v1)
 chord --list --include-dropped  drop された binding も表示
 chord --doctor            アクセシビリティ / 設定 / デーモンの稼働状況を表示
 chord --reload       稼働中デーモンに設定再読込を指示
+chord --reload --dry-run   `--reload` で何が変わるかをプレビュー
 chord --quit         稼働中デーモンに終了を指示
 chord --pause        全 binding を一時停止（passthrough モード）
 chord --resume       binding を再開

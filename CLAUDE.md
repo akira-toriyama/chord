@@ -132,6 +132,17 @@ event. Everything below depends on this contract:
 - **`dropped[]` is populated regardless of `--include-dropped`**;
   the flag only controls text rendering. Machine consumers always
   see drops.
+- **`chord --reload --dry-run` is a pure parser + differ** — it
+  does NOT post the DNC notification, never touches the daemon's
+  state. The diff is computed against the snapshot the running
+  daemon writes to `/tmp/chord-loaded.json` on every
+  `loadConfig`; if no snapshot exists (daemon never ran on this
+  boot), every binding shows as "added" with a `note:` line
+  explaining the situation. Bindings are matched by `name`, so
+  re-numbering (line shifts from inserts above) never surfaces
+  as a change — only semantic field deltas
+  (`BindingsSchema.semanticallyEqual` ignores `index` /
+  `source_line`).
 - **`chord --validate --json` reuses the same Document** and adds
   an optional `validation` block (`ok` / `strict` /
   `parsed_counts` / `dropped_count` / `warning_count` /

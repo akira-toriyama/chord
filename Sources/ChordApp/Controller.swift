@@ -117,8 +117,24 @@ public final class Controller {
                      "\(result.config.aliases.count) aliases, " +
                      "undefined-aliases=\(undef), " +
                      "dropped=\(result.droppedBindings)\(hint)")
+            // Snapshot the loaded state for `chord --reload --dry-run`
+            // to diff against on the next edit. Failures here are
+            // non-fatal — the daemon keeps running, dry-run just
+            // shows everything as "added" until the next reload.
+            saveLoadedSnapshot(result: result)
         } catch {
             Log.line("config \(reason) error: \(error)")
+        }
+    }
+
+    private func saveLoadedSnapshot(result: Config.ParseResult) {
+        let doc = BindingsSchema.makeDocument(from: result)
+        do {
+            let data = try BindingsSchema.encodeJSON(doc)
+            try data.write(to: URL(fileURLWithPath:
+                BindingsSchema.snapshotPath))
+        } catch {
+            Log.line("snapshot: write failed — \(error)")
         }
     }
 
