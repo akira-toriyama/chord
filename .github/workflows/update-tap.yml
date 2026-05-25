@@ -30,6 +30,9 @@ jobs:
       - name: Update homebrew-tap
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          NEW_URL: ${{ steps.meta.outputs.url }}
+          NEW_SHA: ${{ steps.meta.outputs.sha }}
+          NEW_TAG: ${{ steps.meta.outputs.tag }}
         run: |
           # The HOMEBREW_TAP_TOKEN must be a fine-grained PAT with
           # contents:write on akira-toriyama/homebrew-tap. If it's
@@ -42,42 +45,38 @@ jobs:
 
           git clone "https://x-access-token:${GH_TOKEN}@github.com/akira-toriyama/homebrew-tap.git" tap
           formula="tap/Formula/chord.rb"
-          mkdir -p "$(dirname "$formula")"
+          if [ ! -f "$formula" ]; then
+            echo "$formula not found — tap repo missing the formula; aborting"
+            exit 1
+          fi
 
-          cat > "$formula" <<EOF
-          class Chord < Formula
-            desc "Global keyboard + mouse hotkey daemon for macOS"
-            homepage "https://github.com/akira-toriyama/chord"
-            url "${{ steps.meta.outputs.url }}"
-            sha256 "${{ steps.meta.outputs.sha }}"
-            license "MIT"
-            head "https://github.com/akira-toriyama/chord.git", branch: "main"
-
-            depends_on xcode: ["13.0", :build]
-            depends_on macos: :ventura
-
-            def install
-              system "swift", "build", "-c", "release", "--disable-sandbox"
-              bin.install ".build/release/chord"
-              etc.install "config.toml" => "chord/config.toml.example"
-            end
-
-            service do
-              run [opt_bin/"chord"]
-              keep_alive true
-              log_path var/"log/chord.log"
-              error_log_path var/"log/chord.log"
-            end
-
-            test do
-              assert_match "chord", shell_output("#{bin}/chord --version")
-            end
-          end
-          EOF
+          # SURGICAL update: only the `url` and `sha256` lines change.
+          # The rest of the formula (hybrid signing, `service do`,
+          # caveats, `keep_alive successful_exit: true`, etc.) is
+          # maintained by hand in the tap repo; a full-file rewrite
+          # from a heredoc here would silently regress all of it.
+          # Pattern is anchored to the chord-archive URL shape so we
+          # never touch unrelated url/sha256 lines.
+          sed -i -E \
+            -e "s|url \"https://github.com/akira-toriyama/chord/archive/refs/tags/v[0-9.]+\\.tar\\.gz\"|url \"${NEW_URL}\"|" \
+            -e "s|sha256 \"[a-f0-9]{64}\"|sha256 \"${NEW_SHA}\"|" \
+            "$formula"
 
           cd tap
+          if git diff --quiet Formula/chord.rb; then
+            echo "formula already at ${NEW_TAG} — no bump needed"
+            exit 0
+          fi
+          # Sanity-check the diff is exactly url + sha256 (2 changed
+          # lines, 2 removed) so a sed regression can't sneak through.
+          diff_stat=$(git diff --numstat Formula/chord.rb | awk '{print $1"+"$2}')
+          if [ "$diff_stat" != "2+2" ]; then
+            echo "unexpected diff shape ($diff_stat) — aborting to avoid clobbering the formula"
+            git --no-pager diff Formula/chord.rb
+            exit 1
+          fi
           git config user.name "chord-release-bot"
           git config user.email "chord-release-bot@users.noreply.github.com"
           git add Formula/chord.rb
-          git commit -m ":rocket: chore(formula): bump chord to ${{ steps.meta.outputs.tag }}"
+          git commit -m ":rocket: chore(formula): bump chord to ${NEW_TAG}"
           git push
