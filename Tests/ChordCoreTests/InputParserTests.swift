@@ -44,6 +44,17 @@ final class InputParserTests: XCTestCase {
     func testKeycodeEscape() throws {
         let p = try InputParser.parse("keycode-200")
         XCTAssertEqual(p.trigger, .key(200))
+        XCTAssertEqual(p.modifiers, [])
+    }
+
+    /// Regression: `keycode-NNN` contains a `-`, which collides
+    /// with the modifier/primary separator. The parser's fast-path
+    /// (try-primary-first) covers the standalone form. With
+    /// modifiers we still need the separator-based split to work.
+    func testKeycodeWithModifier() throws {
+        let p = try InputParser.parse("ctrl - keycode-200")
+        XCTAssertEqual(p.modifiers, .ctrl)
+        XCTAssertEqual(p.trigger, .key(200))
     }
 
     func testUnknownToken() {

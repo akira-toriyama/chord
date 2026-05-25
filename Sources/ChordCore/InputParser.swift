@@ -44,9 +44,24 @@ public enum InputParser {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { throw InputParseError.empty }
 
-        // Split on '-' first (skhd convention separates modifier
-        // chain from the primary). If absent, treat the whole thing
-        // as a `+`-joined chain whose last segment is the primary.
+        // Fast path: the whole string is a valid primary token
+        // (e.g. `f13`, `mouse.side1`, `keycode-200`, `*`). Treat as
+        // no-modifier binding. This is what disambiguates
+        // `keycode-200` from a `keycode - 200` split that would
+        // mistake the prefix for a modifier — `-` is overloaded as
+        // both a separator and an in-token character.
+        if let trigger = try? parsePrimary(trimmed,
+                                           context: raw,
+                                           allowWildcard: allowWildcard)
+        {
+            return Parsed(modifiers: [], trigger: trigger)
+        }
+
+        // Otherwise, look for a modifier/primary separator. Split
+        // on the first `-` (skhd convention separates modifier
+        // chain from the primary). If absent, treat the whole
+        // thing as a `+`-joined chain whose last segment is the
+        // primary.
         let modPart: String
         let primaryPart: String
         if let dash = trimmed.firstIndex(of: "-") {
