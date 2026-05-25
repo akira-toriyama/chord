@@ -92,7 +92,7 @@ final class DiffTests: XCTestCase {
         let newDoc = try doc("""
         [[bindings]]
         name = "newcomer"
-        input = "f99"
+        input = "f24"
         action-noop = true
 
         [[bindings]]
