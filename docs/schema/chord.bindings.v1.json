@@ -36,7 +36,11 @@
     },
     "bindings":  { "type": "array", "items": { "$ref": "#/$defs/binding" } },
     "fallbacks": { "type": "array", "items": { "$ref": "#/$defs/binding" } },
-    "dropped":   { "type": "array", "items": { "$ref": "#/$defs/dropped" } }
+    "dropped":   { "type": "array", "items": { "$ref": "#/$defs/dropped" } },
+    "validation": {
+      "$ref": "#/$defs/validation",
+      "description": "Populated by `chord --validate --json`, absent on `chord --list --json`. Surfaces validation status structurally so CI consumers can branch without inspecting exit codes alone."
+    }
   },
   "$defs": {
     "options": {
@@ -212,6 +216,36 @@
           }
         }
       ]
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "strict", "parsed_counts",
+                   "dropped_count", "warning_count",
+                   "undefined_aliases"],
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "`true` iff the validate command's exit code would be 0. Independent of `strict` — `ok` already accounts for it."
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "Whether `--strict` was passed. Lets consumers distinguish 'lenient pass (drops allowed)' from 'strict pass (no drops, no warnings)'."
+        },
+        "parsed_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bindings", "fallbacks", "aliases"],
+          "properties": {
+            "bindings":  { "type": "integer", "minimum": 0 },
+            "fallbacks": { "type": "integer", "minimum": 0 },
+            "aliases":   { "type": "integer", "minimum": 0 }
+          }
+        },
+        "dropped_count":     { "type": "integer", "minimum": 0 },
+        "warning_count":     { "type": "integer", "minimum": 0 },
+        "undefined_aliases": { "type": "integer", "minimum": 0 }
+      }
     },
     "dropped": {
       "type": "object",

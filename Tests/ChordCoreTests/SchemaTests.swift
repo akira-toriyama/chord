@@ -149,6 +149,77 @@ final class SchemaTests: XCTestCase {
         XCTAssertNotNil(d["source_line"])
     }
 
+    // MARK: - validation block
+
+    func testValidationBlockAbsentWhenNotRequested() throws {
+        let res = try Config.parse("[[bindings]]\nname=\"x\"\ninput=\"f13\"\naction-noop=true")
+        let doc = BindingsSchema.makeDocument(from: res)  // no validation
+        let data = try BindingsSchema.encodeJSON(doc)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertNil(json["validation"] ?? nil)
+    }
+
+    func testValidationBlockLenientPass() throws {
+        // Lenient mode: a dropped binding doesn't fail (ok=true)
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "ok"
+        input = "f13"
+        action-noop = true
+
+        [[bindings]]
+        name = "bad"
+        input = "ctlr - a"
+        action-noop = true
+        """)
+        let doc = BindingsSchema.makeDocument(from: res, validationStrict: false)
+        XCTAssertNotNil(doc.validation)
+        XCTAssertEqual(doc.validation?.ok, true)
+        XCTAssertEqual(doc.validation?.strict, false)
+        XCTAssertEqual(doc.validation?.droppedCount, 1)
+        XCTAssertEqual(doc.validation?.warningCount, 1)
+        XCTAssertEqual(doc.validation?.parsedCounts.bindings, 1)
+    }
+
+    func testValidationBlockStrictFails() throws {
+        // Strict mode: any warning or drop → ok=false
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "bad"
+        input = "ctlr - a"
+        action-noop = true
+        """)
+        let doc = BindingsSchema.makeDocument(from: res, validationStrict: true)
+        XCTAssertEqual(doc.validation?.ok, false)
+        XCTAssertEqual(doc.validation?.strict, true)
+        XCTAssertEqual(doc.validation?.droppedCount, 1)
+    }
+
+    func testValidationBlockStrictCleanPasses() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "ok"
+        input = "f13"
+        action-noop = true
+        """)
+        let doc = BindingsSchema.makeDocument(from: res, validationStrict: true)
+        XCTAssertEqual(doc.validation?.ok, true)
+        XCTAssertEqual(doc.validation?.strict, true)
+        XCTAssertEqual(doc.validation?.droppedCount, 0)
+        XCTAssertEqual(doc.validation?.warningCount, 0)
+    }
+
+    func testValidationUndefinedAliasCounted() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "needs alias"
+        input = "f13"
+        action-shell = "@nope"
+        """)
+        let doc = BindingsSchema.makeDocument(from: res, validationStrict: false)
+        XCTAssertEqual(doc.validation?.undefinedAliases, 1)
+    }
+
     func testStableSortedKeys() throws {
         // JSONEncoder uses .sortedKeys → top-level keys appear in
         // alphabetical order. Stable diffs / golden tests rely on

@@ -39,12 +39,47 @@ public enum BindingsSchema {
         public let bindings: [WireBinding]
         public let fallbacks: [WireBinding]
         public let dropped: [WireDropped]
+        /// Populated by `chord --validate --json`, absent on
+        /// `chord --list --json`. Lets CI surface validation
+        /// status structurally without re-deriving it from
+        /// `dropped[].length` + exit code.
+        public let validation: WireValidation?
 
         enum CodingKeys: String, CodingKey {
-            case schema, options, aliases, bindings, fallbacks, dropped
+            case schema, options, aliases, bindings, fallbacks, dropped, validation
             case generatedAt = "generated_at"
             case sourcePath  = "source_path"
         }
+    }
+
+    /// Validation summary block, populated only by --validate emitters.
+    public struct WireValidation: Codable, Sendable {
+        /// What the process would exit with: `true` ⇔ exit 0.
+        /// Independent of `strict` — `ok` already accounts for it.
+        public let ok: Bool
+        /// Whether `--strict` was passed. Lets consumers
+        /// distinguish "we ran lenient and it passed because drops
+        /// don't fail by default" from "we ran strict and it
+        /// passed because there were no warnings at all".
+        public let strict: Bool
+        public let parsedCounts: WireParsedCounts
+        public let droppedCount: Int
+        public let warningCount: Int
+        public let undefinedAliases: Int
+
+        enum CodingKeys: String, CodingKey {
+            case ok, strict
+            case parsedCounts     = "parsed_counts"
+            case droppedCount     = "dropped_count"
+            case warningCount     = "warning_count"
+            case undefinedAliases = "undefined_aliases"
+        }
+    }
+
+    public struct WireParsedCounts: Codable, Sendable {
+        public let bindings: Int
+        public let fallbacks: Int
+        public let aliases: Int
     }
 
     public struct WireOptions: Codable, Sendable {
@@ -147,8 +182,16 @@ public enum BindingsSchema {
     // MARK: - encoding
 
     /// Build a [Document] from a parse result.
+    ///
+    /// `validationStrict` controls whether the optional
+    /// `validation` block is included (and computed under strict /
+    /// lenient semantics). `nil` ⇒ block is omitted (the
+    /// `--list --json` path); non-`nil` ⇒ block is populated using
+    /// the same rules as `runValidate(strict:)` (the
+    /// `--validate --json` path).
     public static func makeDocument(
         from result: Config.ParseResult,
+        validationStrict: Bool? = nil,
         generatedAt: Date = Date()
     ) -> Document {
         let formatter = ISO8601DateFormatter()
@@ -164,6 +207,24 @@ public enum BindingsSchema {
             wire(binding: b, index: i)
         }
         let dropped = result.warnings.compactMap(wireDropped(from:))
+        let validation = validationStrict.map { strict in
+            let undef = result.warnings.lazy
+                .filter { $0.kind == .undefinedAlias }
+                .count
+            let ok = strict
+                ? (result.warnings.isEmpty && result.droppedBindings == 0)
+                : true
+            return WireValidation(
+                ok: ok,
+                strict: strict,
+                parsedCounts: WireParsedCounts(
+                    bindings: result.config.bindings.count,
+                    fallbacks: result.config.fallbacks.count,
+                    aliases: result.config.aliases.count),
+                droppedCount: result.droppedBindings,
+                warningCount: result.warnings.count,
+                undefinedAliases: undef)
+        }
         return Document(
             schema: version,
             generatedAt: formatter.string(from: generatedAt),
@@ -172,7 +233,8 @@ public enum BindingsSchema {
             aliases: result.config.aliases,
             bindings: bindings,
             fallbacks: fallbacks,
-            dropped: dropped)
+            dropped: dropped,
+            validation: validation)
     }
 
     /// Encode a [Document] as pretty-printed JSON with sorted keys

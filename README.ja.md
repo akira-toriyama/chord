@@ -90,6 +90,7 @@ chord                デーモンを起動 (デフォルト)
 chord --debug        詳細ログ付きでデーモンを起動
 chord --validate          config.toml を検証 (エラー0で exit 0)
 chord --validate --strict 警告 / drop が 1 件でもあれば exit 1 (CI 用)
+chord --validate --json   chord.bindings.v1 ドキュメント + validation ブロック
 chord --list              パース結果を人間向けテキストで表示
 chord --list --json       機械向け JSON (chord.bindings.v1)
 chord --list --include-dropped  drop された binding も表示

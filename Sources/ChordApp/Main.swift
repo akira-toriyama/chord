@@ -20,7 +20,8 @@ enum ChordApp {
             print("chord 0.3.1"); exit(0)
         }
         if args.contains("--validate") {
-            exit(runValidate(strict: args.contains("--strict")))
+            exit(runValidate(strict: args.contains("--strict"),
+                             json: args.contains("--json")))
         }
         if args.contains("--list") {
             exit(runList(json: args.contains("--json"),
@@ -136,9 +137,21 @@ enum ChordApp {
     /// Without `--strict` chord stays "lenient by default" (drops a
     /// bad binding, keeps the rest) — same posture as stroke / facet.
     /// Add `--strict` in CI to make a typo fail the pipeline.
-    private static func runValidate(strict: Bool) -> Int32 {
+    private static func runValidate(strict: Bool, json: Bool) -> Int32 {
         do {
             let res = try Config.load()
+            if json {
+                // JSON mode: emit document with `validation` block
+                // on stdout, no stderr noise (the JSON has all the
+                // info a CI consumer needs). Exit code unchanged.
+                let doc = BindingsSchema.makeDocument(
+                    from: res, validationStrict: strict)
+                let data = try BindingsSchema.encodeJSON(doc)
+                if let s = String(data: data, encoding: .utf8) {
+                    print(s)
+                }
+                return doc.validation?.ok == true ? 0 : 1
+            }
             for w in res.warnings { print("warning: \(w.message)") }
             let undef = res.warnings.lazy
                 .filter { $0.kind == .undefinedAlias }
@@ -156,6 +169,22 @@ enum ChordApp {
             }
             return res.droppedBindings == 0 ? 0 : (strict ? 1 : 0)
         } catch {
+            if json {
+                // Still emit something parseable so CI consumers
+                // don't choke on empty stdout. Use a minimal
+                // error envelope; the full schema-validation path
+                // doesn't fit (we don't have a parse result).
+                let err = ["schema": BindingsSchema.version,
+                           "error": "\(error)"]
+                if let data = try? JSONSerialization.data(
+                    withJSONObject: err,
+                    options: [.sortedKeys, .prettyPrinted]),
+                   let s = String(data: data, encoding: .utf8)
+                {
+                    print(s)
+                }
+                return 2
+            }
             fputs("chord: \(error)\n", stderr)
             return 2
         }
@@ -284,6 +313,7 @@ enum ChordApp {
 
           chord --validate          parse config.toml; exit 0 on clean
           chord --validate --strict warnings + drops fail with exit 1
+          chord --validate --json   chord.bindings.v1 doc + validation block
           chord --list              human-readable parsed config
           chord --list --json       machine-readable (chord.bindings.v1)
           chord --list --include-dropped   also list dropped bindings

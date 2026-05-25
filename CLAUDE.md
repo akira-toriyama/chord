@@ -132,6 +132,15 @@ event. Everything below depends on this contract:
 - **`dropped[]` is populated regardless of `--include-dropped`**;
   the flag only controls text rendering. Machine consumers always
   see drops.
+- **`chord --validate --json` reuses the same Document** and adds
+  an optional `validation` block (`ok` / `strict` /
+  `parsed_counts` / `dropped_count` / `warning_count` /
+  `undefined_aliases`). `--list --json` does NOT include this
+  block — the field is documented as optional in the schema, so
+  both emitters produce valid v1 documents. The `ok` flag already
+  accounts for `--strict`, so a consumer just branches on
+  `validation.ok` instead of re-computing from counts. Exit code
+  matches `validation.ok` (0 vs 1).
 - **Stable sort**: JSONEncoder uses `.sortedKeys`, so the output
   diff-friendly. Don't switch to insertion order.
 
