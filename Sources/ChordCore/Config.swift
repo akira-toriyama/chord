@@ -9,8 +9,11 @@ import Foundation
 public enum Config {
     public struct ParseResult: Sendable {
         public var config: ChordConfig
-        public var warnings: [String]
+        public var warnings: [ConfigWarning]
         public var droppedBindings: Int
+        /// Absolute path the result was loaded from, or `nil` if
+        /// `parse(_:)` was called directly with an in-memory string.
+        public var sourcePath: String?
     }
 
     public enum LoadError: Error, CustomStringConvertible {
@@ -33,14 +36,20 @@ public enum Config {
     {
         let url = URL(fileURLWithPath: path)
         guard FileManager.default.fileExists(atPath: path) else {
-            return ParseResult(config: .init(),
-                               warnings: ["config not found at \(path)"],
-                               droppedBindings: 0)
+            return ParseResult(
+                config: .init(),
+                warnings: [ConfigWarning(
+                    kind: .configNotFound,
+                    message: "config not found at \(path)")],
+                droppedBindings: 0,
+                sourcePath: path)
         }
         let source: String
         do { source = try String(contentsOf: url, encoding: .utf8) }
         catch { throw LoadError.ioError("read \(path): \(error)") }
-        return try parse(source)
+        var result = try parse(source)
+        result.sourcePath = path
+        return result
     }
 
     public static func parse(_ source: String) throws -> ParseResult {
@@ -49,7 +58,7 @@ public enum Config {
         catch let e as TOML.ParseError { throw LoadError.tomlError(String(describing: e)) }
         catch { throw LoadError.tomlError(String(describing: error)) }
 
-        var warnings: [String] = []
+        var warnings: [ConfigWarning] = []
         var options = ChordConfig.Options()
 
         if case .table(let opts)? = root["options"] {
@@ -71,8 +80,10 @@ public enum Config {
                 if let s = value.asString {
                     aliases[key] = s
                 } else {
-                    warnings.append(
-                        "[aliases] '\(key)': value must be a string — ignored")
+                    warnings.append(ConfigWarning(
+                        kind: .aliasNonString,
+                        message: "[aliases] '\(key)': value must be a string — ignored",
+                        bindingName: key))
                 }
             }
         }
@@ -81,77 +92,72 @@ public enum Config {
         var dropped = 0
         let rows = root["bindings"]?.asArrayOfTables ?? []
         for (i, row) in rows.enumerated() {
-            do {
-                if let b = try makeBinding(from: row, index: i,
-                                           isFallback: false,
-                                           aliases: aliases,
-                                           warnings: &warnings)
-                {
-                    bindings.append(b)
-                } else {
-                    dropped += 1
-                }
-            } catch {
+            if let b = makeBinding(from: row, index: i,
+                                   isFallback: false,
+                                   aliases: aliases,
+                                   warnings: &warnings)
+            {
+                bindings.append(b)
+            } else {
                 dropped += 1
-                warnings.append(
-                    "[[bindings]] #\(i + 1): \(error) — dropped")
             }
         }
 
         var fallbacks: [Binding] = []
         let fbRows = root["fallbacks"]?.asArrayOfTables ?? []
         for (i, row) in fbRows.enumerated() {
-            do {
-                if let b = try makeBinding(from: row, index: i,
-                                           isFallback: true,
-                                           aliases: aliases,
-                                           warnings: &warnings)
-                {
-                    fallbacks.append(b)
-                } else {
-                    dropped += 1
-                }
-            } catch {
+            if let b = makeBinding(from: row, index: i,
+                                   isFallback: true,
+                                   aliases: aliases,
+                                   warnings: &warnings)
+            {
+                fallbacks.append(b)
+            } else {
                 dropped += 1
-                warnings.append(
-                    "[[fallbacks]] #\(i + 1): \(error) — dropped")
             }
         }
 
         let cfg = ChordConfig(options: options, bindings: bindings,
                               fallbacks: fallbacks, aliases: aliases)
         return ParseResult(config: cfg, warnings: warnings,
-                           droppedBindings: dropped)
+                           droppedBindings: dropped, sourcePath: nil)
     }
 
     private static func makeBinding(
         from row: [String: TOML.Value], index: Int,
         isFallback: Bool,
         aliases: [String: String],
-        warnings: inout [String]
-    ) throws -> Binding? {
+        warnings: inout [ConfigWarning]
+    ) -> Binding? {
         let section = isFallback ? "[[fallbacks]]" : "[[bindings]]"
         let name = row["name"]?.asString ?? "binding-\(index + 1)"
-        let source = sourceTag(row: row)
+        let line = row[TOML.lineKey]?.asInt.map { Int($0) }
+        let source = sourceTag(line: line)
         guard let inputRaw = row["input"]?.asString else {
-            warnings.append(
-                "\(section) '\(name)'\(source): missing 'input'")
+            warnings.append(ConfigWarning(
+                kind: .missingInput,
+                message: "\(section) '\(name)'\(source): missing 'input'",
+                sourceLine: line, bindingName: name))
             return nil
         }
         let parsed: InputParser.Parsed
         do { parsed = try InputParser.parse(inputRaw,
                                             allowWildcard: isFallback) }
         catch {
-            warnings.append("\(section) '\(name)'\(source): \(error)")
+            warnings.append(ConfigWarning(
+                kind: .unknownInputToken,
+                message: "\(section) '\(name)'\(source): \(error)",
+                sourceLine: line, bindingName: name))
             return nil
         }
-        guard let action = parseAction(row: row,
+        let actionResult = parseAction(row: row,
                                        section: section,
                                        name: name,
                                        source: source,
+                                       sourceLine: line,
                                        aliases: aliases,
                                        warnings: &warnings)
-        else { return nil }
+        guard let parsedAction = actionResult else { return nil }
 
         var apps: [String]?
         if let arr = row["apps"]?.asArray {
@@ -159,9 +165,14 @@ public enum Config {
             apps = strs.isEmpty || strs == ["*"] ? nil : strs
         }
 
-        return Binding(name: name, trigger: parsed.trigger,
-                       modifiers: parsed.modifiers, apps: apps,
-                       action: action)
+        return Binding(
+            name: name, trigger: parsed.trigger,
+            modifiers: parsed.modifiers, apps: apps,
+            action: parsedAction.action,
+            inputRaw: inputRaw,
+            actionRaw: parsedAction.raw,
+            aliasName: parsedAction.aliasName,
+            sourceLine: line)
     }
 
     /// Pick the binding's [Action] from `action-shell` / `action-keys`
@@ -185,20 +196,27 @@ public enum Config {
         section: String,
         name: String,
         source: String,
+        sourceLine: Int?,
         aliases: [String: String],
-        warnings: inout [String]
-    ) -> Action? {
+        warnings: inout [ConfigWarning]
+    ) -> ParsedAction? {
         if let shell = row["action-shell"]?.asString {
             switch resolveAlias(shell, aliases: aliases) {
-            case .body(let body):
-                return .shell(body)
+            case .body(let body, let aliasName):
+                return ParsedAction(action: .shell(body),
+                                    raw: shell,
+                                    aliasName: aliasName)
             case .undefined(let aliasName):
                 // capsule-corp-specified warning format — kept
                 // separately from the `[[bindings]] '…' (line): …`
-                // format on purpose. See note above re: PR2 schema.
-                warnings.append(
-                    "binding '\(name)'\(source) references undefined " +
-                    "alias '@\(aliasName)'; binding dropped")
+                // format on purpose. The structured `.undefinedAlias`
+                // kind lets machine consumers disambiguate.
+                warnings.append(ConfigWarning(
+                    kind: .undefinedAlias,
+                    message:
+                        "binding '\(name)'\(source) references undefined " +
+                        "alias '@\(aliasName)'; binding dropped",
+                    sourceLine: sourceLine, bindingName: name))
                 return nil
             }
         }
@@ -206,33 +224,51 @@ public enum Config {
             do {
                 let (mods, code) =
                     try InputParser.parseKeyForOutput(keysStr)
-                return .keys(mods, code)
+                return ParsedAction(action: .keys(mods, code),
+                                    raw: keysStr,
+                                    aliasName: nil)
             } catch {
-                warnings.append(
-                    "\(section) '\(name)'\(source): action-keys: \(error)")
+                warnings.append(ConfigWarning(
+                    kind: .actionKeysParseError,
+                    message:
+                        "\(section) '\(name)'\(source): action-keys: \(error)",
+                    sourceLine: sourceLine, bindingName: name))
                 return nil
             }
         }
         if row["action-noop"]?.asBool == true {
-            return .noop
+            return ParsedAction(action: .noop, raw: nil, aliasName: nil)
         }
-        warnings.append(
-            "\(section) '\(name)'\(source): no action-* key provided")
+        warnings.append(ConfigWarning(
+            kind: .missingAction,
+            message: "\(section) '\(name)'\(source): no action-* key provided",
+            sourceLine: sourceLine, bindingName: name))
         return nil
     }
 
     /// Render the `(config.toml:42)` suffix attached to per-binding
-    /// warnings. Returns the empty string if the parser couldn't
+    /// warnings. Returns the empty string when the parser couldn't
     /// resolve a line — better to drop the suffix than print
     /// "config.toml:?".
-    private static func sourceTag(row: [String: TOML.Value]) -> String {
-        guard let line = row[TOML.lineKey]?.asInt else { return "" }
+    private static func sourceTag(line: Int?) -> String {
+        guard let line else { return "" }
         return " (config.toml:\(line))"
     }
 
+    /// What `parseAction` hands back: the runtime `Action`, plus the
+    /// raw user string (`action-shell` body or `action-keys` body)
+    /// and the alias name when `@name` resolved successfully.
+    private struct ParsedAction {
+        let action: Action
+        let raw: String?
+        let aliasName: String?
+    }
+
     private enum AliasResolution {
-        case body(String)         // `@name` resolved, or no alias used
-        case undefined(String)    // `@name` references an unknown alias
+        /// Either no `@name` was used (`aliasName == nil`) or it
+        /// resolved successfully (`aliasName == "rift_focus_next"`).
+        case body(String, aliasName: String?)
+        case undefined(String)
     }
 
     /// Resolve a single `@name` token at the start of the value
@@ -246,16 +282,15 @@ public enum Config {
         -> AliasResolution
     {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("@") else { return .body(raw) }
-        // `@name` only — no whitespace splitting yet (reserved).
+        guard trimmed.hasPrefix("@") else { return .body(raw, aliasName: nil) }
         let name = String(trimmed.dropFirst())
         guard name.allSatisfy({
             $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-"
         }), !name.isEmpty else {
             // `@foo bar` or `@` alone falls through to literal.
-            return .body(raw)
+            return .body(raw, aliasName: nil)
         }
-        if let body = aliases[name] { return .body(body) }
+        if let body = aliases[name] { return .body(body, aliasName: name) }
         return .undefined(name)
     }
 }

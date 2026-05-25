@@ -100,7 +100,7 @@ public final class Controller {
     private func loadConfig(reason: String) {
         do {
             let result = try Config.load()
-            for w in result.warnings { Log.line("config: \(w)") }
+            for w in result.warnings { Log.line("config: \(w.message)") }
             self.config = result.config
             self.matcher = Matcher(
                 bindings: result.config.bindings,
@@ -108,7 +108,7 @@ public final class Controller {
                 excludeApps: result.config.options.excludeApps)
             publishMatcher()
             let undef = result.warnings.lazy
-                .filter { $0.contains("undefined alias") }
+                .filter { $0.kind == .undefinedAlias }
                 .count
             let hint = (result.droppedBindings > 0 || result.warnings.count > 0)
                 ? " (run --validate --strict for details)" : ""

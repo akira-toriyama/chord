@@ -49,17 +49,20 @@ final class AliasTests: XCTestCase {
         XCTAssertEqual(res.droppedBindings, 1)
         // The capsule-corp-specified warning format: binding name +
         // (config.toml:LINE) + the alias name + "binding dropped".
-        let w = res.warnings.first { $0.contains("undefined alias") }
+        let w = res.warnings.first { $0.kind == .undefinedAlias }
         XCTAssertNotNil(w)
         if let warning = w {
-            XCTAssertTrue(warning.contains("'uses undefined'"),
-                          "want binding name in warning: \(warning)")
-            XCTAssertTrue(warning.contains("@no_such_alias"),
-                          "want alias name in warning: \(warning)")
-            XCTAssertTrue(warning.contains("binding dropped"),
-                          "want explicit outcome in warning: \(warning)")
-            XCTAssertTrue(warning.contains("config.toml:"),
-                          "want source line tag: \(warning)")
+            XCTAssertEqual(warning.bindingName, "uses undefined")
+            XCTAssertTrue(warning.message.contains("'uses undefined'"),
+                          "want binding name in warning: \(warning.message)")
+            XCTAssertTrue(warning.message.contains("@no_such_alias"),
+                          "want alias name in warning: \(warning.message)")
+            XCTAssertTrue(warning.message.contains("binding dropped"),
+                          "want explicit outcome in warning: \(warning.message)")
+            XCTAssertTrue(warning.message.contains("config.toml:"),
+                          "want source line tag: \(warning.message)")
+            XCTAssertNotNil(warning.sourceLine,
+                            "structured sourceLine should be populated")
         }
     }
 
@@ -81,9 +84,7 @@ final class AliasTests: XCTestCase {
         // The drop reason is InputParser's unknown-token, NOT the
         // alias resolver. Make sure no "undefined alias" warning
         // leaks through that path.
-        XCTAssertFalse(res.warnings.contains {
-            $0.contains("undefined alias")
-        })
+        XCTAssertFalse(res.warnings.contains { $0.kind == .undefinedAlias })
     }
 
     func testLiteralAtSignPassesThrough() throws {
@@ -113,7 +114,7 @@ final class AliasTests: XCTestCase {
         """)
         XCTAssertEqual(res.config.aliases, ["good": "echo yes"])
         XCTAssertTrue(res.warnings.contains {
-            $0.contains("'bad'") && $0.contains("must be a string")
+            $0.kind == .aliasNonString && $0.message.contains("'bad'")
         })
     }
 }

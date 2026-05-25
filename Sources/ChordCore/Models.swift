@@ -127,6 +127,13 @@ public enum Action: Hashable, Sendable {
 }
 
 /// One binding: trigger + modifiers + optional app scope → action.
+///
+/// Carries `inputRaw` / `actionRaw` / `aliasName` / `sourceLine`
+/// metadata alongside the runtime fields. The matcher ignores
+/// them; the `chord --list --json` serialiser
+/// ([Schema.swift](Schema.swift)) needs them to round-trip a config
+/// faithfully (preserve user-typed strings, attribute warnings to
+/// source lines, surface alias usage).
 public struct Binding: Hashable, Sendable {
     public var name: String
     public var trigger: Trigger
@@ -137,13 +144,39 @@ public struct Binding: Hashable, Sendable {
     public var apps: [String]?
     public var action: Action
 
+    // — metadata (read by Schema.swift, not by Matcher) —
+
+    /// Original `input = "..."` string as the user wrote it. Kept
+    /// verbatim so the JSON form can expose `input.raw` for human
+    /// display and so `--list` text output mirrors the file.
+    public var inputRaw: String
+    /// Original `action-shell = "..."` / `action-keys = "..."`
+    /// string. `nil` for `action-noop`.
+    public var actionRaw: String?
+    /// When the user wrote `action-shell = "@name"`, this is `name`
+    /// (without the `@`) and `action` holds the resolved body. `nil`
+    /// when no alias was used.
+    public var aliasName: String?
+    /// 1-based line of the row's `[[bindings]]` / `[[fallbacks]]`
+    /// header in the source config, when the TOML parser tracked
+    /// it. `nil` if unavailable.
+    public var sourceLine: Int?
+
     public init(name: String, trigger: Trigger, modifiers: Modifiers,
-                apps: [String]?, action: Action) {
+                apps: [String]?, action: Action,
+                inputRaw: String = "",
+                actionRaw: String? = nil,
+                aliasName: String? = nil,
+                sourceLine: Int? = nil) {
         self.name = name
         self.trigger = trigger
         self.modifiers = modifiers
         self.apps = apps
         self.action = action
+        self.inputRaw = inputRaw
+        self.actionRaw = actionRaw
+        self.aliasName = aliasName
+        self.sourceLine = sourceLine
     }
 }
 

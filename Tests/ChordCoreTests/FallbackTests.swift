@@ -133,6 +133,8 @@ final class FallbackTests: XCTestCase {
         XCTAssertEqual(res.config.bindings.count, 1)
         XCTAssertEqual(res.config.bindings[0].name, "good")
         XCTAssertEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains { $0.contains("oops-wildcard") })
+        XCTAssertTrue(res.warnings.contains {
+            $0.message.contains("oops-wildcard")
+        })
     }
 }
