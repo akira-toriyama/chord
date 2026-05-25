@@ -27,6 +27,33 @@ else
 fi
 APP_PARENT="$(dirname "$APP_DEST")"
 
+# 0) Coexistence guard. If `brew install akira-toriyama/tap/chord`
+#    is also installed, both LaunchAgents would race for the event
+#    tap and the user gets two chord daemons fighting over input.
+#    Refuse and explain — the user can `brew uninstall chord` or
+#    pick one path explicitly via CHORD_ALLOW_BREW_COEXIST=1.
+if command -v brew >/dev/null 2>&1 \
+    && brew list --formula chord >/dev/null 2>&1 \
+    && [[ "${CHORD_ALLOW_BREW_COEXIST:-0}" != "1" ]]; then
+  cat >&2 <<EOF
+chord: refusing to install — a brew-managed chord is also present.
+       Two LaunchAgents (com.chord.chord + homebrew.mxcl.chord) would
+       compete for the event tap.
+
+       Pick ONE path:
+         A) Stay with brew (recommended for general use):
+              brew services stop chord       # if started
+              # then nothing else to do — brew already manages it.
+         B) Switch to the in-repo install:
+              brew services stop chord && brew uninstall chord
+              ./scripts/install-launchagent.sh
+
+       Bypass this guard at your own risk:
+         CHORD_ALLOW_BREW_COEXIST=1 ./scripts/install-launchagent.sh
+EOF
+  exit 2
+fi
+
 # 1) Ensure Chord.app exists in the repo. If not, build + package it.
 if [[ ! -d Chord.app ]]; then
   echo "→ no Chord.app in repo — running ./package.sh"
@@ -42,8 +69,12 @@ if launchctl list 2>/dev/null | awk '{print $3}' | grep -q "^${LABEL}\$"; then
   echo "→ unloading existing LaunchAgent"
   launchctl bootout "gui/$UID_/${LABEL}" 2>/dev/null || true
 fi
-pkill -f "Chord\.app/Contents/MacOS/chord"   2>/dev/null || true
-pkill -f "\.build/(debug|release)/chord"    2>/dev/null || true
+# Scoped kill — see uninstall-launchagent.sh for the brew-coexist
+# rationale. We only target THIS install's process family.
+pkill -f "(/Applications|$HOME/Applications)/Chord(-dev)?\.app/Contents/MacOS/chord" \
+  2>/dev/null || true
+pkill -f "/Users/.*/dev/chord/\.build/(debug|release)/chord" \
+  2>/dev/null || true
 sleep 0.3
 
 # 3) Install the .app bundle to its destination.

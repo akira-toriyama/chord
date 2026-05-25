@@ -23,10 +23,16 @@ if [[ -f "$PLIST" ]]; then
   rm -f "$PLIST"
 fi
 
-# Kill any stragglers (release binary, dev bundle, app bundle).
-pkill -f "Chord(-dev)?\.app/Contents/MacOS/chord" 2>/dev/null || true
-pkill -f "\.build/(debug|release)/chord"          2>/dev/null || true
-pkill -x "chord"                                  2>/dev/null || true
+# Kill any stragglers — scoped to THIS install path family only, so a
+# coexisting `brew install chord` (which lives under
+# /opt/homebrew/Cellar/chord/*/Chord.app) is left alone. We learned
+# the hard way on 2026-05-24: a broad `pkill -f Chord\.app/...`
+# matched the brew binary too, and brew's KeepAlive then respawned
+# it mid-uninstall, masking the real shutdown.
+pkill -f "(/Applications|$HOME/Applications)/Chord(-dev)?\.app/Contents/MacOS/chord" \
+  2>/dev/null || true
+pkill -f "/Users/.*/dev/chord/\.build/(debug|release)/chord" \
+  2>/dev/null || true
 
 case "${1:-}" in
   --purge|--purge-all)
