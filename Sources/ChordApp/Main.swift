@@ -22,6 +22,10 @@ enum ChordApp {
         if args.contains("--validate") {
             exit(runValidate(strict: args.contains("--strict")))
         }
+        if args.contains("--list") {
+            exit(runList(json: args.contains("--json"),
+                         includeDropped: args.contains("--include-dropped")))
+        }
         if args.contains("--doctor")   { exit(runDoctor()) }
 
         // Client flags: post + exit.
@@ -72,9 +76,19 @@ enum ChordApp {
 
         // Anything else unrecognised → exit 2 (Rule of Repair).
         for a in args {
-            if a == "--debug" { continue }
-            fputs("chord: unknown flag '\(a)'. See --help.\n", stderr)
-            exit(2)
+            // Flags consumed by handlers above this point may
+            // re-appear here for the same invocation (e.g.
+            // `--validate --strict`); silently accept them.
+            switch a {
+            case "--debug",
+                 "--strict",
+                 "--json",
+                 "--include-dropped":
+                continue
+            default:
+                fputs("chord: unknown flag '\(a)'. See --help.\n", stderr)
+                exit(2)
+            }
         }
 
         runServer()
@@ -125,9 +139,9 @@ enum ChordApp {
     private static func runValidate(strict: Bool) -> Int32 {
         do {
             let res = try Config.load()
-            for w in res.warnings { print("warning: \(w)") }
+            for w in res.warnings { print("warning: \(w.message)") }
             let undef = res.warnings.lazy
-                .filter { $0.contains("undefined alias") }
+                .filter { $0.kind == .undefinedAlias }
                 .count
             print("parsed: \(res.config.bindings.count) bindings, " +
                   "\(res.config.fallbacks.count) fallbacks, " +
@@ -144,6 +158,84 @@ enum ChordApp {
         } catch {
             fputs("chord: \(error)\n", stderr)
             return 2
+        }
+    }
+
+    /// `chord --list [--json] [--include-dropped]`
+    ///
+    /// Default is a human-readable text table. `--json` emits the
+    /// `chord.bindings.v1` schema document on stdout (machine-
+    /// readable). `--include-dropped` adds a `DROPPED` section to
+    /// the text output or populates `dropped[]` in JSON (it's
+    /// populated regardless of the flag, actually — the flag only
+    /// controls text display).
+    ///
+    /// Exit codes:
+    ///   0 — listed successfully
+    ///   2 — catastrophic (TOML syntax / IO failure)
+    private static func runList(json: Bool, includeDropped: Bool) -> Int32 {
+        do {
+            let res = try Config.load()
+            if json {
+                let doc = BindingsSchema.makeDocument(from: res)
+                let data = try BindingsSchema.encodeJSON(doc)
+                if let s = String(data: data, encoding: .utf8) {
+                    print(s)
+                }
+            } else {
+                printListText(res, includeDropped: includeDropped)
+            }
+            return 0
+        } catch {
+            fputs("chord: \(error)\n", stderr)
+            return 2
+        }
+    }
+
+    /// Plain-text rendering of the parse result. Same information
+    /// as `--list --json`, formatted for a human terminal.
+    private static func printListText(_ res: Config.ParseResult,
+                                      includeDropped: Bool) {
+        if let p = res.sourcePath { print("source: \(p)") }
+        print("options:")
+        print("  passthrough_unmatched: \(res.config.options.passthroughUnmatched)")
+        print("  exclude_apps: \(res.config.options.excludeApps)")
+        if !res.config.aliases.isEmpty {
+            print("aliases (\(res.config.aliases.count)):")
+            for k in res.config.aliases.keys.sorted() {
+                print("  @\(k) → \(res.config.aliases[k] ?? "")")
+            }
+        }
+        printBindingSection("bindings", rows: res.config.bindings)
+        if !res.config.fallbacks.isEmpty {
+            printBindingSection("fallbacks", rows: res.config.fallbacks)
+        }
+        if includeDropped && !res.warnings.isEmpty {
+            print("dropped / warnings (\(res.warnings.count)):")
+            for w in res.warnings {
+                let lineTag = w.sourceLine.map { ":\($0)" } ?? ""
+                print("  [\(w.kind.rawValue)\(lineTag)] \(w.message)")
+            }
+        }
+    }
+
+    private static func printBindingSection(_ label: String,
+                                            rows: [Binding]) {
+        print("\(label) (\(rows.count)):")
+        for b in rows {
+            let lineTag = b.sourceLine.map { ":L\($0)" } ?? ""
+            let appsTag = b.apps.map { " apps=\($0)" } ?? ""
+            let actionDesc: String
+            switch b.action {
+            case .keys: actionDesc = "keys → \(b.actionRaw ?? "")"
+            case .shell:
+                let aliasTag = b.aliasName.map { " (alias @\($0))" } ?? ""
+                actionDesc = "shell → \(b.actionRaw ?? "")\(aliasTag)"
+            case .noop: actionDesc = "noop"
+            }
+            print("  \(b.name)\(lineTag)")
+            print("    input:  \(b.inputRaw)")
+            print("    action: \(actionDesc)\(appsTag)")
         }
     }
 
@@ -192,6 +284,9 @@ enum ChordApp {
 
           chord --validate          parse config.toml; exit 0 on clean
           chord --validate --strict warnings + drops fail with exit 1
+          chord --list              human-readable parsed config
+          chord --list --json       machine-readable (chord.bindings.v1)
+          chord --list --include-dropped   also list dropped bindings
           chord --doctor            report Accessibility / config / daemon
           chord --reload       tell the running daemon to reload config
           chord --quit         tell the running daemon to exit

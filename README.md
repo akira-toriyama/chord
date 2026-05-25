@@ -92,6 +92,9 @@ chord                run the daemon (default)
 chord --debug        run the daemon with verbose logging
 chord --validate          parse config.toml; exit 0 on clean
 chord --validate --strict warnings + drops fail with exit 1 (for CI)
+chord --list              human-readable parsed config
+chord --list --json       machine-readable (chord.bindings.v1)
+chord --list --include-dropped   also list dropped bindings
 chord --doctor            report Accessibility / config / daemon
 chord --reload       tell the running daemon to reload config
 chord --quit         tell the running daemon to exit

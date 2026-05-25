@@ -96,6 +96,38 @@ event. Everything below depends on this contract:
   document order. The matcher is intentionally not "best-match" —
   the user already ordered them.
 
+### `chord --list` and the chord.bindings.v1 schema
+
+- **JSON output is the contract**, plain-text output is just for
+  humans. The schema lives at
+  [docs/schema/chord.bindings.v1.json](docs/schema/chord.bindings.v1.json)
+  and is the authority — any wire-format change must update both
+  [Sources/ChordCore/Schema.swift](Sources/ChordCore/Schema.swift)
+  AND the schema file in the same commit, OR the consumer-facing
+  contract drifts silently.
+- **Renaming any `ConfigWarning.Kind` raw value or any enum
+  value in the schema (trigger.kind, action.kind, dropped.kind,
+  side_requirement, modifier_token) is a v2 bump**. Adding new
+  values to those enums is forward-compatible if existing
+  consumers treat unknown values gracefully — schema docs say so;
+  honour it.
+- **stdout vs stderr separation is strict**: `--list --json` puts
+  JSON on stdout, every warning / log line on stderr.
+  `chord --list --json | jq …` must never break because chord
+  printed a warning to the same stream.
+- **`modifier_sides` is per-logical-modifier, not flat**. Reason:
+  capsule-corp Q1-2 — keeps consumer code clean (checking "ctrl
+  is held" is one field lookup, not an OR over `ctrl|lctrl|rctrl`).
+  Don't flatten.
+- **`apps: null` vs `apps: []` is meaningful**. `null` = user did
+  not write `apps` (matches every app). `[]` is reserved / future.
+  Today the parser folds `["*"]` to `null`.
+- **`dropped[]` is populated regardless of `--include-dropped`**;
+  the flag only controls text rendering. Machine consumers always
+  see drops.
+- **Stable sort**: JSONEncoder uses `.sortedKeys`, so the output
+  diff-friendly. Don't switch to insertion order.
+
 ### Aliases (the `[aliases]` table)
 
 - **Flat name → command lookup**. The TOML table accepts only
