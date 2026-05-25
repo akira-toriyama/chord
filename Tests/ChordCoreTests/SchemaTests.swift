@@ -85,8 +85,12 @@ final class SchemaTests: XCTestCase {
         let fb = (json["fallbacks"] as! [[String: Any]])[0]
         let trigger = ((fb["input"] as! [String: Any])["trigger"]) as! [String: Any]
         XCTAssertEqual(trigger["kind"] as? String, "anyKey")
-        XCTAssertTrue(trigger["name"] is NSNull)
-        XCTAssertTrue(trigger["keycode"] is NSNull)
+        // `trigger["name"]` returns `Optional<Any>` wrapping the value
+        // `NSNull` (set by JSONSerialization for JSON `null`). The
+        // `is NSNull` check fails on the Optional itself, so unwrap
+        // first.
+        XCTAssertTrue(trigger["name"]! is NSNull)
+        XCTAssertTrue(trigger["keycode"]! is NSNull)
     }
 
     func testAppsNullVsEmpty() throws {
@@ -103,7 +107,7 @@ final class SchemaTests: XCTestCase {
         action-noop = true
         """)
         let bindings = json["bindings"] as! [[String: Any]]
-        XCTAssertTrue(bindings[0]["apps"] is NSNull)
+        XCTAssertTrue(bindings[0]["apps"]! is NSNull)
         XCTAssertEqual(bindings[1]["apps"] as? [String], ["com.example.app"])
     }
 
