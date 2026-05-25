@@ -6,7 +6,7 @@ import Foundation
 /// Grammar (whitespace tolerant):
 ///
 ///     INPUT      := MODIFIERS? PRIMARY
-///     MODIFIERS  := MOD ('+' MOD)* '-'    // skhd-style 'mod1 + mod2 - key'
+///     MODIFIERS  := MOD ('+' MOD)* '-'    // canonical: 'mod1 + mod2 - key'
 ///                 | MOD ('+' MOD)*        // pure modifier+primary works too
 ///     MOD        := 'cmd' | 'opt' | 'alt' | 'ctrl' | 'shift' | 'fn' | 'hyper'
 ///     PRIMARY    := KEY_NAME | 'mouse.' MOUSE_BTN | 'scroll.' SCROLL_DIR
@@ -58,8 +58,8 @@ public enum InputParser {
         }
 
         // Otherwise, look for a modifier/primary separator. Split
-        // on the first `-` (skhd convention separates modifier
-        // chain from the primary). If absent, treat the whole
+        // on the first `-` (canonical form separates modifier
+        // chain from the primary key). If absent, treat the whole
         // thing as a `+`-joined chain whose last segment is the
         // primary.
         let modPart: String

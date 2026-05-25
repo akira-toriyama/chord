@@ -10,34 +10,38 @@ Global keyboard + mouse hotkey daemon for macOS.
 [ ctrl - scroll.up           ] → "zoom in (only inside Code)"
 ```
 
-Where `skhd` and friends stop, chord starts:
+Capabilities:
 
-| capability        | skhd / skhd.zig (Carbon)   | chord (CGEventTap) |
-|-------------------|---------------------------|-----------------------|
-| F1 – F20          | ✓                          | ✓                     |
-| **F21 – F24**     | ✗ (no `kVK_*` constant)   | ✓                     |
-| Mouse buttons     | ✗                          | ✓ left/right/middle/side1/side2 |
-| Scroll wheel      | ✗                          | ✓ up/down/left/right  |
-| Modifier chords   | ✓                          | ✓ + `hyper` sugar     |
-| **Left/Right side modifiers** | ✗              | ✓ `rctrl` / `lcmd` / etc. (ZMK ULTRA_LL friendly) |
-| **Wildcard fallbacks** | ✗                     | ✓ `[[fallbacks]]` + `*` for catch-all rules |
-| **Shell-action aliases** | ✗                   | ✓ `[aliases]` + `@name` reuse |
-| Accessibility     | not required               | required (one-time)   |
+- **F1 – F24** (F21–F24 via Karabiner-compatible HID slots)
+- **Mouse buttons**: left / right / middle / side1 / side2
+- **Scroll wheel**: up / down / left / right
+- **Modifier chords** with `hyper` sugar (= cmd+opt+ctrl+shift)
+- **Left/Right side modifiers**: `rctrl`, `lcmd`, etc. — strict
+  per-side matching for ZMK ULTRA_LL-style layered keyboards
+- **`[[fallbacks]]` + `*` wildcard** for catch-all rules
+  (per-modifier-set "unmapped key" feedback sounds, etc.)
+- **`[aliases]` + `@name`** to DRY repeated shell actions
+- **`chord --list --json` / `chord --validate --json`** for CI
+  consumption, both conforming to a versioned
+  [`chord.bindings.v1` JSON Schema](docs/schema/chord.bindings.v1.json)
 
 `chord` is hexagonal Swift 6 (Core / AdapterMacOS / AdapterTest /
 App), the same shape as
 [stroke](https://github.com/akira-toriyama/stroke) and
 [facet](https://github.com/akira-toriyama/facet). One TOML file
 is the only thing you have to look at to know what it'll do — no
-GUI, no settings panel, no persisted state.
+GUI, no settings panel, no persisted state. macOS Accessibility
+grant is required once.
 
-## Status
+## Install
 
-⚠️ Pre-1.0. Not yet released on Homebrew; build from source.
+```sh
+brew install akira-toriyama/tap/chord
+brew services start chord
+```
 
-## Install (from source)
-
-Requires macOS 13+ and Xcode CommandLineTools (or full Xcode).
+Or build from source — requires macOS 13+ and Xcode CommandLineTools
+(or full Xcode):
 
 ```sh
 git clone https://github.com/akira-toriyama/chord

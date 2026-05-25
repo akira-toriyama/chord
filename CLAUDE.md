@@ -17,11 +17,11 @@ macOS 13+, three-layer hexagonal split. Difference from stroke is
 the trigger: chord is *discrete events* (one key-down / button-down
 fires immediately), stroke is *gesture sequences*.
 
-Difference from [skhd](https://github.com/koekeishiya/skhd) and its
-forks: chord uses **CGEventTap**, not Carbon `RegisterEventHotKey`.
-That's what gives us F21–F24 (no Carbon virtual keycodes exist for
-those), mouse buttons, and scroll — none of which skhd can bind.
-Cost: Accessibility grant required.
+Implementation: chord uses **CGEventTap** rather than the older
+Carbon `RegisterEventHotKey` API. That's what makes F21–F24 (no
+Carbon virtual keycodes exist for those), mouse buttons, and
+scroll-wheel events all bindable at the OS level. The cost is a
+one-time Accessibility grant.
 
 ## Build / run
 
@@ -191,9 +191,9 @@ event. Everything below depends on this contract:
   v1 use case is keyboard-only).
 - **Use case**: "play a sound when ULTRA_LL fires on an
   undefined key" — capsule-corp's effect-feedback that was
-  previously hand-enumerated as 4 modsets × ~30 keys against
-  skhd's hard-error dedup; one `[[fallbacks]]` row per modset
-  now suffices.
+  previously hand-enumerated as 4 modsets × ~30 keys against an
+  upstream daemon's hard-error dedup; one `[[fallbacks]]` row
+  per modset now suffices.
 
 ### Configuration
 
@@ -454,19 +454,6 @@ re-confirmation.
 
 ### Prior art
 
-- [skhd (koekeishiya)](https://github.com/koekeishiya/skhd)
-  *(reviewed 2026-05-24)* — the canonical macOS keyboard hotkey
-  daemon. Built on Carbon `RegisterEventHotKey`, which gives it
-  zero-permission install but blocks F21–F24 (no kVK constants),
-  mouse, and scroll. chord's name for `input =` follows skhd's
-  `mod1 + mod2 - key` shape so the rules feel familiar; the
-  capabilities go further. Reference for syntax feel, not for
-  code.
-- [skhd.zig (jackielii)](https://github.com/jackielii/skhd.zig)
-  *(reviewed 2026-05-24)* — Zig port the user is already using.
-  Same Carbon constraint as upstream skhd. Looked at for `.skhdrc`
-  parsing detail and modifier-naming conventions when designing
-  chord's `InputParser`.
 - [Hammerspoon](https://www.hammerspoon.org/)
   *(reviewed 2026-05-24)* — the Lua-scripted CGEventTap workhorse
   on macOS. chord's `.cghidEventTap` post + sentinel-tagging via

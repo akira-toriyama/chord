@@ -10,32 +10,38 @@ macOS 用 グローバルキーボード + マウス ホットキー常駐デー
 [ ctrl - scroll.up           ] → VS Code 内でだけズームイン
 ```
 
-`skhd` 系が止まるところから chord が始まります:
+機能:
 
-| 機能              | skhd / skhd.zig (Carbon) | chord (CGEventTap) |
-|-------------------|---------------------------|----------------------|
-| F1 – F20          | ✓                          | ✓                    |
-| **F21 – F24**     | ✗ (`kVK_*` 未定義)        | ✓                    |
-| マウスボタン       | ✗                          | ✓ left/right/middle/side1/side2 |
-| スクロール         | ✗                          | ✓ up/down/left/right |
-| 修飾キー連結       | ✓                          | ✓ + `hyper` 糖衣構文 |
-| **左右別修飾子**   | ✗                          | ✓ `rctrl` / `lcmd` 等 (ZMK ULTRA_LL 対応) |
-| アクセシビリティ   | 不要                       | 必要 (初回のみ)      |
+- **F1 – F24** (F21–F24 は Karabiner 互換 HID スロット経由)
+- **マウスボタン**: left / right / middle / side1 / side2
+- **スクロール**: up / down / left / right
+- **修飾キー連結** + `hyper` 糖衣構文 (= cmd+opt+ctrl+shift)
+- **左右別修飾子**: `rctrl` / `lcmd` 等 — ZMK ULTRA_LL のような
+  片側専用レイヤを厳密に表現可能
+- **`[[fallbacks]]` + `*` ワイルドカード** — modset 単位の「未割当
+  キー時にだけ発火」ルール（効果音フィードバック等）
+- **`[aliases]` + `@name`** — 繰り返す shell action の DRY
+- **`chord --list --json` / `chord --validate --json`** — CI 消費用、
+  バージョン管理された
+  [`chord.bindings.v1` JSON Schema](docs/schema/chord.bindings.v1.json)
+  準拠
 
 `chord` は Swift 6 製のヘキサゴナル構成 (Core / AdapterMacOS /
 AdapterTest / App) で、
 [stroke](https://github.com/akira-toriyama/stroke) や
 [facet](https://github.com/akira-toriyama/facet) と同型です。
 **1 枚の TOML ファイル** だけが挙動を決め、GUI も設定パネルも
-永続化された状態もありません。
+永続化された状態もありません。macOS のアクセシビリティ許可は初回のみ
+必要です。
 
-## ステータス
+## インストール
 
-⚠️ 1.0 未満です。Homebrew 配布はまだ。ソースからビルドしてください。
+```sh
+brew install akira-toriyama/tap/chord
+brew services start chord
+```
 
-## インストール (ソースから)
-
-macOS 13+ と Xcode CommandLineTools (または Xcode 本体) が必要です。
+ソースからビルドする場合 (macOS 13+ と Xcode CommandLineTools か Xcode 本体が必要):
 
 ```sh
 git clone https://github.com/akira-toriyama/chord

@@ -37,7 +37,7 @@ exclude-apps = []
 # =====================================================================
 # Grammar reference
 # =====================================================================
-# `input` syntax (skhd-style, extended):
+# `input` syntax:
 #
 #   • keys:     "cmd + ctrl - f13"
 #   • mouse:    "mouse.side1"               (left | right | middle | side1 | side2)
