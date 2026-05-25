@@ -154,12 +154,26 @@ enum ChordApp {
         if !ax { bad = true }
 
         let cfgPath = ChordConfig.path
+        let cfgPresent = FileManager.default.fileExists(atPath: cfgPath)
         print("config: \(cfgPath) — " +
-              (FileManager.default.fileExists(atPath: cfgPath)
-               ? "present" : "MISSING"))
+              (cfgPresent ? "present" : "MISSING"))
         if let res = try? Config.load() {
             print("bindings: \(res.config.bindings.count) loaded, " +
+                  "\(res.config.fallbacks.count) fallbacks, " +
+                  "\(res.config.aliases.count) aliases, " +
                   "\(res.droppedBindings) dropped")
+            // The shipped template is all-commented by design — a
+            // brand-new install would otherwise look broken when
+            // --doctor reports `bindings: 0 loaded`. Surface the
+            // expected next step instead of letting the user guess.
+            if cfgPresent && res.config.bindings.count == 0
+                && res.config.fallbacks.count == 0
+                && res.droppedBindings == 0
+            {
+                print("note: config has no active bindings — the " +
+                      "shipped template is all-commented. Uncomment " +
+                      "patterns in \(cfgPath) and run `chord --reload`.")
+            }
             if res.droppedBindings > 0 { bad = true }
         }
 
