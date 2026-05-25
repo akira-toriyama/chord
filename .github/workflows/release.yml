@@ -18,7 +18,7 @@ jobs:
     # macos-15 ships Xcode 16+ → Swift 6. Same reason as build.yml.
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
