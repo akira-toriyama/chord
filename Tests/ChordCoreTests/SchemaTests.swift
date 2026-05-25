@@ -85,12 +85,13 @@ final class SchemaTests: XCTestCase {
         let fb = (json["fallbacks"] as! [[String: Any]])[0]
         let trigger = ((fb["input"] as! [String: Any])["trigger"]) as! [String: Any]
         XCTAssertEqual(trigger["kind"] as? String, "anyKey")
-        // `trigger["name"]` returns `Optional<Any>` wrapping the value
-        // `NSNull` (set by JSONSerialization for JSON `null`). The
-        // `is NSNull` check fails on the Optional itself, so unwrap
-        // first.
-        XCTAssertTrue(trigger["name"]! is NSNull)
-        XCTAssertTrue(trigger["keycode"]! is NSNull)
+        // Per chord.bindings.v1 schema: for the `anyKey` trigger
+        // branch, `name` and `keycode` are absent (chord's
+        // JSONEncoder omits nil-Optional fields). Consumers
+        // treating absent and explicit-null equivalently (jq's
+        // `.name` returns null for both) don't care which.
+        XCTAssertNil(trigger["name"] ?? nil)
+        XCTAssertNil(trigger["keycode"] ?? nil)
     }
 
     func testAppsNullVsEmpty() throws {
@@ -107,7 +108,10 @@ final class SchemaTests: XCTestCase {
         action-noop = true
         """)
         let bindings = json["bindings"] as! [[String: Any]]
-        XCTAssertTrue(bindings[0]["apps"]! is NSNull)
+        // Unscoped binding omits `apps`; scoped binding emits the
+        // array. Test the contract: unscoped → absent, scoped →
+        // present-array.
+        XCTAssertNil(bindings[0]["apps"] ?? nil)
         XCTAssertEqual(bindings[1]["apps"] as? [String], ["com.example.app"])
     }
 

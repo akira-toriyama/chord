@@ -11,9 +11,14 @@ import Foundation
 ///   {"ctrl": "right"}`), not as a flat array mixing `ctrl` and
 ///   `rctrl`. capsule-corp's Q1-2: consuming-side code stays clean
 ///   when "logical modifier" and "physical side" are orthogonal.
-/// * **`apps: null` vs `apps: []`** — `null` means "any app" (the
+/// * **`apps` absent vs `apps: []`** — absent means "any app" (the
 ///   user didn't write `apps`); `[]` means "explicitly empty list".
-///   The TOML parser folds `["*"]` to `null`.
+///   The TOML parser folds `["*"]` to nil (→ omitted by encoder).
+/// * **Nil-Optional fields are OMITTED** from the JSON output, not
+///   emitted as explicit `null`. This is JSONEncoder's default
+///   behaviour. The schema's required[] lists reflect this — a
+///   consumer treating absent and null as equivalent (jq's `.field`
+///   returns `null` for both) doesn't need to care.
 /// * **`dropped[].kind`** is a stable string drawn from
 ///   [ConfigWarning.Kind] so machine consumers can branch without
 ///   grepping the message.

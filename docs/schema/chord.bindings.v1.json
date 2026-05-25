@@ -59,15 +59,16 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["index", "name", "input", "action"],
+      "description": "`source_line` is absent when the TOML parser couldn't track it. `apps` is absent (== unscoped) or an array of bundle-id glob patterns.",
       "properties": {
         "index":       { "type": "integer", "minimum": 0 },
         "name":        { "type": "string" },
-        "source_line": { "type": ["integer", "null"], "minimum": 1 },
+        "source_line": { "type": "integer", "minimum": 1 },
         "input":       { "$ref": "#/$defs/input" },
         "apps": {
-          "type": ["array", "null"],
+          "type": "array",
           "items": { "type": "string" },
-          "description": "Bundle-id glob patterns. `null` = match every app (the user didn't write `apps`); an empty array means an explicit no-app list."
+          "description": "Bundle-id glob patterns. Absent = match every app (the user didn't write `apps`); present = explicit allow/deny list."
         },
         "action":      { "$ref": "#/$defs/action" }
       }
@@ -121,6 +122,7 @@
       "description": "absent = must NOT be held. any = either side OK. left/right = strict side. both = both sides held simultaneously. Matches `Modifiers.matches(event:)` semantics."
     },
     "trigger": {
+      "description": "Discriminated by `kind`. Fields not relevant to the kind (`keycode` for non-key triggers, etc.) are OMITTED by the chord emitter — the schema does not require them.",
       "oneOf": [
         {
           "type": "object",
@@ -135,46 +137,43 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "name", "keycode"],
+          "required": ["kind", "name"],
           "properties": {
             "kind": { "const": "mouseButton" },
             "name": { "type": "string",
                        "enum": ["left", "right", "middle",
                                 "side1", "side2",
-                                "other5", "other6", "other7"] },
-            "keycode": { "type": "null" }
+                                "other5", "other6", "other7"] }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "name", "keycode"],
+          "required": ["kind", "name"],
           "properties": {
             "kind": { "const": "scroll" },
             "name": { "type": "string",
-                       "enum": ["up", "down", "left", "right"] },
-            "keycode": { "type": "null" }
+                       "enum": ["up", "down", "left", "right"] }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "name", "keycode"],
-          "description": "Wildcard trigger — fires only inside [[fallbacks]] sections.",
+          "required": ["kind"],
+          "description": "Wildcard trigger — fires only inside [[fallbacks]] sections. `name` and `keycode` are absent.",
           "properties": {
-            "kind": { "const": "anyKey" },
-            "name": { "type": "null" },
-            "keycode": { "type": "null" }
+            "kind": { "const": "anyKey" }
           }
         }
       ]
     },
     "action": {
+      "description": "Discriminated by `kind`. Fields irrelevant to the kind are OMITTED by the chord emitter — the schema requires only the fields actually populated per kind.",
       "oneOf": [
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "raw", "modifiers", "key", "command", "alias"],
+          "required": ["kind", "raw", "modifiers", "key"],
           "properties": {
             "kind": { "const": "keys" },
             "raw": { "type": "string" },
@@ -190,35 +189,26 @@
                 "name": { "type": "string" },
                 "keycode": { "type": "integer", "minimum": 0, "maximum": 65535 }
               }
-            },
-            "command": { "type": "null" },
-            "alias":   { "type": "null" }
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "raw", "modifiers", "key", "command", "alias"],
+          "required": ["kind", "raw", "command"],
           "properties": {
             "kind": { "const": "shell" },
             "raw": { "type": "string", "description": "User-typed value, including a leading `@name` if an alias was used." },
-            "modifiers": { "type": "null" },
-            "key":       { "type": "null" },
-            "command":   { "type": "string", "description": "Resolved command body (post-alias if applicable)." },
-            "alias":     { "type": ["string", "null"], "description": "Alias name (without `@`) when the user wrote `action-shell = \"@name\"`; null otherwise." }
+            "command": { "type": "string", "description": "Resolved command body (post-alias if applicable)." },
+            "alias":   { "type": "string", "description": "Alias name (without `@`) when the user wrote `action-shell = \"@name\"`; absent otherwise." }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "raw", "modifiers", "key", "command", "alias"],
+          "required": ["kind"],
           "properties": {
-            "kind": { "const": "noop" },
-            "raw": { "type": "null" },
-            "modifiers": { "type": "null" },
-            "key":       { "type": "null" },
-            "command":   { "type": "null" },
-            "alias":     { "type": "null" }
+            "kind": { "const": "noop" }
           }
         }
       ]
@@ -226,15 +216,16 @@
     "dropped": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["section", "name", "source_line", "kind", "message"],
+      "required": ["section", "kind", "message"],
+      "description": "`name` and `source_line` are absent when chord couldn't attribute the warning to a single binding row.",
       "properties": {
         "section": {
           "type": "string",
           "enum": ["[[bindings]]", "[[fallbacks]]", "[aliases]"],
           "description": "Literal TOML section header the warning fired in."
         },
-        "name":        { "type": ["string", "null"] },
-        "source_line": { "type": ["integer", "null"], "minimum": 1 },
+        "name":        { "type": "string" },
+        "source_line": { "type": "integer", "minimum": 1 },
         "kind": {
           "type": "string",
           "enum": [
