@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/akira-toriyama/chord/main/docs/schema/chord.bindings.v1.json",
   "title": "chord.bindings.v1",
-  "description": "Wire format emitted by `chord --list --json` and `chord --validate --json` (planned). Version chord.bindings.v1. Emitters: chord >= 0.3.0. Breaking changes require a major bump (v2) — consumers should pin the schema and treat unknown fields as forward-compatible additions. See https://github.com/akira-toriyama/chord/blob/main/Sources/ChordCore/Schema.swift for the canonical Swift mappers.",
+  "description": "Wire format emitted by `chord --list --json` and `chord --validate --json` (planned). Version chord.bindings.v1. Emitters: chord >= 0.3.0. Breaking changes require a major bump (v2) — consumers should pin the schema and treat unknown fields as forward-compatible additions. **Consumer pinning guidance**: prefer a tagged URL (e.g. `https://raw.githubusercontent.com/akira-toriyama/chord/v0.3.1/docs/schema/chord.bindings.v1.json`) over `…/main/…` for reproducibility — `main` is a moving reference. The strongest option is to vendor this file into the consumer repo (e.g. `docs/external/chord.bindings.v1.json`), giving network-independence and explicit diff review when chord ships a new schema version. See https://github.com/akira-toriyama/chord/blob/main/Sources/ChordCore/Schema.swift for the canonical Swift mappers.",
   "type": "object",
   "required": [
     "schema",

@@ -105,6 +105,13 @@ event. Everything below depends on this contract:
   [Sources/ChordCore/Schema.swift](Sources/ChordCore/Schema.swift)
   AND the schema file in the same commit, OR the consumer-facing
   contract drifts silently.
+- **Consumer pinning guidance**: external repos integrating this
+  schema should pin to a **tagged URL** (`…/v0.3.1/…`), not
+  `…/main/…` — `main` moves under their feet, a tag does not.
+  Stronger still: vendor the file into the consumer repo
+  (`docs/external/chord.bindings.v1.json`). Mirror this advice in
+  the schema's `description` field too (single source of truth
+  for future consumers reading the schema cold).
 - **Renaming any `ConfigWarning.Kind` raw value or any enum
   value in the schema (trigger.kind, action.kind, dropped.kind,
   side_requirement, modifier_token) is a v2 bump**. Adding new
