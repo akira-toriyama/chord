@@ -2,7 +2,7 @@ import XCTest
 @testable import ChordCore
 
 /// Coverage for `[[fallbacks]]` (PR5) — wildcard primary key in
-/// fallback section, 2-stage matching, capsule-corp ULTRA_LL
+/// fallback section, 2-stage matching, canon ULTRA_LL
 /// effect-sound use case.
 final class FallbackTests: XCTestCase {
 
@@ -57,7 +57,7 @@ final class FallbackTests: XCTestCase {
 
     func testFallbackDoesNotFireForMouse() throws {
         // anyKey matches keyDown only — mouse / scroll events fall
-        // through. The capsule-corp v1 fallback design is keyboard-
+        // through. The canon v1 fallback design is keyboard-
         // only by spec; mouse fallbacks are explicitly deferred.
         let config = try Config.parse("""
         [[fallbacks]]
@@ -75,7 +75,7 @@ final class FallbackTests: XCTestCase {
     func testFallbackModifierConstraintRespected() throws {
         // A fallback scoped to ULTRA_LL (right-only) must NOT fire
         // when the user holds left modifiers instead — the design
-        // intent capsule-corp explicitly wants preserved.
+        // intent canon explicitly wants preserved.
         let config = try Config.parse("""
         [[fallbacks]]
         name = "right-only fallback"

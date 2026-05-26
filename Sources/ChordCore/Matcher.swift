@@ -78,7 +78,7 @@ public struct Matcher: Sendable {
         if case .anyKey = ruleTrigger {
             // The wildcard fires only for keyboard events, not
             // mouse / scroll. Mouse fallbacks were considered for
-            // v1 and explicitly deferred (capsule-corp use case
+            // v1 and explicitly deferred (canon use case
             // is keyboard-only).
             if case .key = event { return true }
             return false

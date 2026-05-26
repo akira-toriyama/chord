@@ -9,7 +9,7 @@ import Foundation
 ///
 /// * **Modifier side encoded per-category** (`modifier_sides:
 ///   {"ctrl": "right"}`), not as a flat array mixing `ctrl` and
-///   `rctrl`. capsule-corp's Q1-2: consuming-side code stays clean
+///   `rctrl`. canon's Q1-2: consuming-side code stays clean
 ///   when "logical modifier" and "physical side" are orthogonal.
 /// * **`apps` absent vs `apps: []`** — absent means "any app" (the
 ///   user didn't write `apps`); `[]` means "explicitly empty list".

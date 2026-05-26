@@ -5,7 +5,7 @@ import Foundation
 /// Before PR2 every warning was a `String` flowing through
 /// `ParseResult.warnings`. That worked for the human-facing
 /// `--validate` output but offered nothing to machine consumers
-/// (chord.bindings.v1 schema, capsule-corp's
+/// (chord.bindings.v1 schema, canon's
 /// `gen-chord-doc.py` / CI). `ConfigWarning` is the promoted form:
 ///
 /// * `kind` — a stable enum slug downstream code can branch on
