@@ -123,7 +123,7 @@ event. Everything below depends on this contract:
   `chord --list --json | jq …` must never break because chord
   printed a warning to the same stream.
 - **`modifier_sides` is per-logical-modifier, not flat**. Reason:
-  capsule-corp Q1-2 — keeps consumer code clean (checking "ctrl
+  canon Q1-2 — keeps consumer code clean (checking "ctrl
   is held" is one field lookup, not an OR over `ctrl|lctrl|rctrl`).
   Don't flatten.
 - **`apps: null` vs `apps: []` is meaningful**. `null` = user did
@@ -162,7 +162,7 @@ event. Everything below depends on this contract:
 - **Applies to `action-shell` only**. `action-keys` is parsed
   through `InputParser` and treats `@name` as an unknown token
   (drops the binding via the existing parse-error path) — by
-  design, capsule-corp confirmed `action-keys` reuse is not a
+  design, canon confirmed `action-keys` reuse is not a
   needed case.
 - **Single-token `@name` only**. `@name arg` syntax is reserved
   for a future expansion; in v1 a value containing whitespace
@@ -170,7 +170,7 @@ event. Everything below depends on this contract:
   who really meant to pass an argument doesn't get a silent
   malfunction). Document this clearly in any user-facing changes.
 - **Undefined `@name` drops the binding with a warning** in the
-  exact format capsule-corp asked for:
+  exact format canon asked for:
   ```
   warning: binding 'NAME' (config.toml:LINE) references undefined alias '@xyz'; binding dropped
   ```
@@ -198,10 +198,10 @@ event. Everything below depends on this contract:
   per-section.
 - **`.anyKey` matches keyboard events only** — mouse and scroll
   events never satisfy a wildcard. Mouse fallbacks were
-  considered for v1 and explicitly deferred (capsule-corp's
+  considered for v1 and explicitly deferred (canon's
   v1 use case is keyboard-only).
 - **Use case**: "play a sound when ULTRA_LL fires on an
-  undefined key" — capsule-corp's effect-feedback that was
+  undefined key" — canon's effect-feedback that was
   previously hand-enumerated as 4 modsets × ~30 keys against an
   upstream daemon's hard-error dedup; one `[[fallbacks]]` row
   per modset now suffices.
@@ -260,7 +260,7 @@ event. Everything below depends on this contract:
   Tests pin the contract in
   [Tests/ChordCoreTests/MatcherTests.swift](Tests/ChordCoreTests/MatcherTests.swift)
   — especially `testUltraLLPattern`, which encodes the ZMK
-  ULTRA_LL parity the capsule-corp migration is built on.
+  ULTRA_LL parity the canon migration is built on.
 - **When posting synthetic keys**, the dispatcher sets the
   abstract mask (`.maskCommand` etc.) AND the device-dependent
   bit only when the binding requested a specific side. A plain

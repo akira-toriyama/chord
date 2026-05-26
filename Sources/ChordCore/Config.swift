@@ -207,7 +207,7 @@ public enum Config {
                                     raw: shell,
                                     aliasName: aliasName)
             case .undefined(let aliasName):
-                // capsule-corp-specified warning format — kept
+                // canon-specified warning format — kept
                 // separately from the `[[bindings]] '…' (line): …`
                 // format on purpose. The structured `.undefinedAlias`
                 // kind lets machine consumers disambiguate.

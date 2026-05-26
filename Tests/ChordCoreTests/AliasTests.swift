@@ -47,7 +47,7 @@ final class AliasTests: XCTestCase {
         XCTAssertEqual(res.config.bindings.count, 1)
         XCTAssertEqual(res.config.bindings[0].name, "uses defined")
         XCTAssertEqual(res.droppedBindings, 1)
-        // The capsule-corp-specified warning format: binding name +
+        // The canon-specified warning format: binding name +
         // (config.toml:LINE) + the alias name + "binding dropped".
         let w = res.warnings.first { $0.kind == .undefinedAlias }
         XCTAssertNotNil(w)

@@ -127,7 +127,7 @@ final class MatcherTests: XCTestCase {
             "ultra_ll"
         )
         // One left modifier present → does NOT fire (the bug the
-        // capsule-corp migration is fixing).
+        // canon migration is fixing).
         XCTAssertNil(
             m.find(.init(trigger: .key(0x08),
                          modifiers: [.lctrl, .ropt, .rshift],
