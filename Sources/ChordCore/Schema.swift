@@ -124,9 +124,9 @@ public enum BindingsSchema {
         /// v2: modifier-mask tying a variable's lifecycle to a held-
         /// down mod set. Tokens drawn from `modifier_token`.
         public let holdWhile: [String]?
-        /// v2.1: inactivity timeout (ms) lifecycle. Mutually
-        /// exclusive with [holdWhile]; the parser drops the binding
-        /// if both are set.
+        /// Inactivity timeout (ms) lifecycle (added in chord 0.4.0).
+        /// Mutually exclusive with [holdWhile]; the parser drops the
+        /// binding if both are set.
         public let holdWhileTimeoutMs: Int?
         /// v2: secondary action that fires on the matching key's
         /// release. Same shape as `action`.

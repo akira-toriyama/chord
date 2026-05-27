@@ -263,7 +263,7 @@ event. Everything below depends on this contract:
   and keeps the parser surface bounded. Anything richer belongs
   in stroke or in Karabiner.
 
-### Variable lifecycle (v2.1 — `hold-while-timeout`)
+### Variable lifecycle — `hold-while-timeout` (chord 0.4.0)
 
 - **`hold-while`** ties the variable to a held modifier mask. Only
   useful when the modifiers stay physically held at the OS level
@@ -273,7 +273,7 @@ event. Everything below depends on this contract:
   clear the variable before the next primary arrived. Verified by
   observing flagsChanged transitions of 1-2ms duration immediately
   after a `keyDown` on those setups.
-- **`hold-while-timeout`** (v2.1) is the inactivity-timer
+- **`hold-while-timeout`** is the inactivity-timer
   lifecycle. The timer is scheduled from the tap thread via
   `DispatchSource.makeTimerSource` on `stateTimerQueue` (a private
   serial queue), and fires `Controller.timerFired(name:)` which

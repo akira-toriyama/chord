@@ -82,9 +82,9 @@ exclude-apps = []
 #                                    modifier mask is no longer held.
 #                                    Only useful when modifiers stay
 #                                    physically held across keystrokes.
-#   hold-while-timeout = 800       — (v2.1, recommended for ZMK /
-#                                    Karabiner setups whose firmware
-#                                    fires modifier chords atomically)
+#   hold-while-timeout = 800       — (recommended for ZMK / Karabiner
+#                                    setups whose firmware fires
+#                                    modifier chords atomically)
 #                                    inactivity timer (ms). Reset every
 #                                    time a binding gated on the same
 #                                    variable fires. Vim's `timeoutlen`

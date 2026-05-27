@@ -179,7 +179,7 @@ final class StateTests: XCTestCase {
         XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
 
-    // MARK: - v2.1 hold-while-timeout
+    // MARK: - hold-while-timeout (chord 0.4.0)
 
     func testParseHoldWhileTimeout() throws {
         let res = try Config.parse("""
