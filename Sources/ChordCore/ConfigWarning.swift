@@ -35,6 +35,12 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         case actionKeysParseError = "action-keys-parse-error"
         case undefinedAlias       = "undefined-alias"
         case aliasNonString       = "alias-non-string"
+        /// v2: `when-var` / `when-var-value` malformed or orphan.
+        case conditionParseError  = "condition-parse-error"
+        /// v2: `hold-while = "…"` fails to parse as a modifier mask.
+        case holdWhileParseError  = "hold-while-parse-error"
+        /// v2: `action-set-var` / `action-set-value` malformed.
+        case actionSetParseError  = "action-set-parse-error"
         /// Reserved for future surface-area expansion (e.g.
         /// `[include]` cycles, option key typos). Kept as a catch-all
         /// so a downstream consumer's match-exhaustion never breaks.

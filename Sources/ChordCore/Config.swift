@@ -156,8 +156,43 @@ public enum Config {
                                        source: source,
                                        sourceLine: line,
                                        aliases: aliases,
+                                       suffix: "",
+                                       required: true,
                                        warnings: &warnings)
         guard let parsedAction = actionResult else { return nil }
+
+        // On-up action: optional. Failure to parse drops the binding —
+        // a broken on-up declaration is a user error, not silent
+        // ignore (same severity as a broken primary action-keys).
+        let onUpResult: ParsedAction?
+        if hasOnUpAction(row: row) {
+            onUpResult = parseAction(row: row,
+                                     section: section,
+                                     name: name,
+                                     source: source,
+                                     sourceLine: line,
+                                     aliases: aliases,
+                                     suffix: "-on-up",
+                                     required: false,
+                                     warnings: &warnings)
+            if onUpResult == nil { return nil }
+        } else {
+            onUpResult = nil
+        }
+
+        // Optional v2 fields. Each parser returns nil for "field
+        // absent", or appends a warning + drops the binding when the
+        // field is present but malformed.
+        guard let condition = parseCondition(row: row, section: section,
+                                             name: name, source: source,
+                                             sourceLine: line,
+                                             warnings: &warnings)
+        else { return nil }
+        guard let holdWhile = parseHoldWhile(row: row, section: section,
+                                             name: name, source: source,
+                                             sourceLine: line,
+                                             warnings: &warnings)
+        else { return nil }
 
         var apps: [String]?
         if let arr = row["apps"]?.asArray {
@@ -169,28 +204,39 @@ public enum Config {
             name: name, trigger: parsed.trigger,
             modifiers: parsed.modifiers, apps: apps,
             action: parsedAction.action,
+            condition: condition.value,
+            onUpAction: onUpResult?.action,
+            holdWhile: holdWhile.value,
             inputRaw: inputRaw,
             actionRaw: parsedAction.raw,
             aliasName: parsedAction.aliasName,
             sourceLine: line)
     }
 
-    /// Pick the binding's [Action] from `action-shell` / `action-keys`
-    /// / `action-noop`, expanding any `@name` alias along the way.
+    /// True iff at least one `action-*-on-up` key is present in `row`.
+    /// Lets `makeBinding` decide whether to even invoke the parser —
+    /// keeps the absent-on-up case zero-cost.
+    private static func hasOnUpAction(row: [String: TOML.Value]) -> Bool {
+        row["action-shell-on-up"] != nil
+            || row["action-keys-on-up"] != nil
+            || row["action-noop-on-up"] != nil
+            || row["action-set-var-on-up"] != nil
+    }
+
+    /// Pick the binding's [Action] from one of `action-shell` /
+    /// `action-keys` / `action-noop` / `action-set-var`, expanding
+    /// any `@name` alias on the shell path.
+    ///
+    /// `suffix` is `""` for the primary down action and `"-on-up"`
+    /// for the optional release action. `required` controls whether
+    /// the absence of every `action-*` key warns + drops — `true` for
+    /// the primary, `false` for `-on-up` (caller already checked one
+    /// was present before invoking).
     ///
     /// Returns `nil` and appends a warning when:
-    ///   * no `action-*` key was provided
+    ///   * no matching `action-*` key was provided (and `required`)
     ///   * `@name` references an alias not in `[aliases]`
-    ///   * `action-keys` fails to parse
-    ///
-    /// TODO(PR2 / chord.bindings.v1.json): the warning strings here
-    /// are human-readable only. PR2's `--list --json` schema will
-    /// need a structured `kind:` discriminator (e.g.
-    /// `"undefined-alias"` / `"action-keys-parse-error"` /
-    /// `"missing-action"`) so machine consumers can distinguish them
-    /// without grepping the message. Promote `warnings: [String]` to
-    /// `warnings: [ConfigWarning]` (kind + message + source line)
-    /// when PR2 lands.
+    ///   * `action-keys` / `action-set-*` fails to parse
     private static func parseAction(
         row: [String: TOML.Value],
         section: String,
@@ -198,9 +244,18 @@ public enum Config {
         source: String,
         sourceLine: Int?,
         aliases: [String: String],
+        suffix: String = "",
+        required: Bool = true,
         warnings: inout [ConfigWarning]
     ) -> ParsedAction? {
-        if let shell = row["action-shell"]?.asString {
+        let shellKey = "action-shell\(suffix)"
+        let keysKey  = "action-keys\(suffix)"
+        let noopKey  = "action-noop\(suffix)"
+        let setKey   = "action-set-var\(suffix)"
+        let setValKey = "action-set-value\(suffix)"
+        let fieldLabel = suffix.isEmpty ? "" : " (on-up)"
+
+        if let shell = row[shellKey]?.asString {
             switch resolveAlias(shell, aliases: aliases) {
             case .body(let body, let aliasName):
                 return ParsedAction(action: .shell(body),
@@ -214,13 +269,14 @@ public enum Config {
                 warnings.append(ConfigWarning(
                     kind: .undefinedAlias,
                     message:
-                        "binding '\(name)'\(source) references undefined " +
-                        "alias '@\(aliasName)'; binding dropped",
+                        "binding '\(name)'\(source)\(fieldLabel) " +
+                        "references undefined alias '@\(aliasName)'; " +
+                        "binding dropped",
                     sourceLine: sourceLine, bindingName: name))
                 return nil
             }
         }
-        if let keysStr = row["action-keys"]?.asString {
+        if let keysStr = row[keysKey]?.asString {
             do {
                 let (mods, code) =
                     try InputParser.parseKeyForOutput(keysStr)
@@ -231,19 +287,143 @@ public enum Config {
                 warnings.append(ConfigWarning(
                     kind: .actionKeysParseError,
                     message:
-                        "\(section) '\(name)'\(source): action-keys: \(error)",
+                        "\(section) '\(name)'\(source)\(fieldLabel): " +
+                        "\(keysKey): \(error)",
                     sourceLine: sourceLine, bindingName: name))
                 return nil
             }
         }
-        if row["action-noop"]?.asBool == true {
+        if row[noopKey]?.asBool == true {
             return ParsedAction(action: .noop, raw: nil, aliasName: nil)
         }
+        if let varName = row[setKey]?.asString {
+            // `action-set-value` defaults to 1 (the leader-key case).
+            // Writing 0 explicitly unsets the variable; non-int is an
+            // error.
+            let value: Int
+            if let raw = row[setValKey] {
+                guard let v = raw.asInt else {
+                    warnings.append(ConfigWarning(
+                        kind: .actionSetParseError,
+                        message:
+                            "\(section) '\(name)'\(source)\(fieldLabel): " +
+                            "\(setValKey) must be an integer",
+                        sourceLine: sourceLine, bindingName: name))
+                    return nil
+                }
+                value = Int(v)
+            } else {
+                value = 1
+            }
+            return ParsedAction(action: .setVariable(name: varName, value: value),
+                                raw: varName,
+                                aliasName: nil)
+        }
+        if row[setValKey] != nil {
+            // Orphan: action-set-value without action-set-var. Common
+            // typo — surfacing it explicitly beats silently ignoring.
+            warnings.append(ConfigWarning(
+                kind: .actionSetParseError,
+                message:
+                    "\(section) '\(name)'\(source)\(fieldLabel): " +
+                    "\(setValKey) present without \(setKey)",
+                sourceLine: sourceLine, bindingName: name))
+            return nil
+        }
+        if !required { return nil }
         warnings.append(ConfigWarning(
             kind: .missingAction,
             message: "\(section) '\(name)'\(source): no action-* key provided",
             sourceLine: sourceLine, bindingName: name))
         return nil
+    }
+
+    /// Parse the optional `when-var` / `when-var-value` pair into a
+    /// [Condition]. Returns:
+    ///   * `.some(.some(condition))` — field present and well-formed
+    ///   * `.some(.none)`            — field absent (no gate)
+    ///   * `.none`                   — field present but malformed
+    ///                                 (caller drops the binding)
+    private static func parseCondition(
+        row: [String: TOML.Value],
+        section: String, name: String, source: String,
+        sourceLine: Int?,
+        warnings: inout [ConfigWarning]
+    ) -> OptionalParse<Condition>? {
+        let varName = row["when-var"]?.asString
+        let rawValue = row["when-var-value"]
+        if varName == nil && rawValue == nil {
+            return OptionalParse(value: nil)
+        }
+        guard let varName = varName else {
+            warnings.append(ConfigWarning(
+                kind: .conditionParseError,
+                message:
+                    "\(section) '\(name)'\(source): " +
+                    "when-var-value present without when-var",
+                sourceLine: sourceLine, bindingName: name))
+            return nil
+        }
+        // when-var-value defaults to 1 — matches the leader-key idiom.
+        let value: Int
+        if let raw = rawValue {
+            guard let v = raw.asInt else {
+                warnings.append(ConfigWarning(
+                    kind: .conditionParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "when-var-value must be an integer",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            value = Int(v)
+        } else {
+            value = 1
+        }
+        return OptionalParse(value: .variable(name: varName, equals: value))
+    }
+
+    /// Parse the optional `hold-while = "cmd + opt"` field into a
+    /// [Modifiers] mask. Same return convention as `parseCondition`.
+    private static func parseHoldWhile(
+        row: [String: TOML.Value],
+        section: String, name: String, source: String,
+        sourceLine: Int?,
+        warnings: inout [ConfigWarning]
+    ) -> OptionalParse<Modifiers>? {
+        guard let raw = row["hold-while"]?.asString else {
+            return OptionalParse(value: nil)
+        }
+        do {
+            let mask = try InputParser.parseModifiersOnly(raw)
+            // Empty mask is meaningless for hold-while — surface it
+            // as a parse error rather than silently no-op'ing.
+            if mask.rawValue == 0 {
+                warnings.append(ConfigWarning(
+                    kind: .holdWhileParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "hold-while must contain at least one modifier",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            return OptionalParse(value: mask)
+        } catch {
+            warnings.append(ConfigWarning(
+                kind: .holdWhileParseError,
+                message:
+                    "\(section) '\(name)'\(source): hold-while: \(error)",
+                sourceLine: sourceLine, bindingName: name))
+            return nil
+        }
+    }
+
+    /// Wrapper used by optional-field parsers so they can distinguish
+    /// "absent (success)" from "present-but-malformed (drop binding)".
+    /// `Optional<Optional<T>>` would technically work but the inner
+    /// nesting reads poorly at call sites.
+    private struct OptionalParse<T> {
+        let value: T?
     }
 
     /// Render the `(config.toml:42)` suffix attached to per-binding

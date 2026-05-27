@@ -86,6 +86,23 @@ public enum InputParser {
         return Parsed(modifiers: mods, trigger: trigger)
     }
 
+    /// Parse a modifier-only chain like `"cmd + opt"` or
+    /// `"hyper"`. Used by v2's `hold-while` field — the modifier mask
+    /// that ties a variable's lifecycle to a held-down mod set. An
+    /// empty string returns the empty mask (no auto-clear).
+    public static func parseModifiersOnly(_ raw: String) throws -> Modifiers {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { return [] }
+        // The internal modifier parser splits on `+`. Strip a trailing
+        // `-` if present (lets users write `"cmd + opt -"` or
+        // `"cmd + opt"` interchangeably — same dash convention as the
+        // primary-key form).
+        let body = trimmed.hasSuffix("-")
+            ? String(trimmed.dropLast()).trimmingCharacters(in: .whitespaces)
+            : trimmed
+        return try parseModifiers(body, context: raw)
+    }
+
     /// Subset of `parse` that returns the keys form only (for
     /// `action-keys`, which by construction is a key, not a
     /// mouse). Throws if the parsed trigger is not `.key`.
