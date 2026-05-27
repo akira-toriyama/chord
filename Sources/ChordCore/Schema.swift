@@ -1,9 +1,20 @@
 import Foundation
 
 /// Wire format for `chord --list --json` / `chord --validate --json`,
-/// versioned `chord.bindings.v1`. The JSON Schema published at
-/// `docs/schema/chord.bindings.v1.json` is the canonical contract;
-/// every field in this file is mirrored there.
+/// versioned `chord.bindings.v2` (was v1 through 0.3.x). The JSON
+/// Schema published at `docs/schema/chord.bindings.v2.json` is the
+/// canonical contract; every field in this file is mirrored there.
+///
+/// v2 additions over v1:
+///   * action.kind = "set-variable" with `variable` + `value` fields
+///   * binding.condition (state-gate predicate)
+///   * binding.hold_while  (modifier-mask lifecycle for variables)
+///   * binding.action_on_up (release action)
+///   * three new dropped[].kind values for the new fields' parse errors
+///
+/// Consumers still pinned to v1 will reject these documents under
+/// strict-schema validation (`additionalProperties: false` on the v1
+/// binding object). Either re-pin to v2 or vendor the v2 schema.
 ///
 /// Design choices (locked for v1):
 ///
@@ -27,7 +38,7 @@ import Foundation
 ///   sort key.
 public enum BindingsSchema {
 
-    public static let version = "chord.bindings.v1"
+    public static let version = "chord.bindings.v2"
 
     /// Where the running daemon snapshots its last-loaded state, so
     /// `chord --reload --dry-run` can diff the on-disk config
@@ -107,11 +118,30 @@ public enum BindingsSchema {
         public let input: WireInput
         public let apps: [String]?
         public let action: WireAction
+        /// v2: optional state-gate predicate. `nil` ⇒ no gate; the
+        /// binding fires whenever input + apps match.
+        public let condition: WireCondition?
+        /// v2: modifier-mask tying a variable's lifecycle to a held-
+        /// down mod set. Tokens drawn from `modifier_token`.
+        public let holdWhile: [String]?
+        /// v2: secondary action that fires on the matching key's
+        /// release. Same shape as `action`.
+        public let actionOnUp: WireAction?
 
         enum CodingKeys: String, CodingKey {
-            case index, name, input, apps, action
-            case sourceLine = "source_line"
+            case index, name, input, apps, action, condition
+            case sourceLine  = "source_line"
+            case holdWhile   = "hold_while"
+            case actionOnUp  = "action_on_up"
         }
+    }
+
+    public struct WireCondition: Codable, Sendable, Hashable {
+        /// Discriminator. v2 only emits `"variable"`; richer
+        /// predicates (and/or, comparisons) live behind future kinds.
+        public let kind: String
+        public let variable: String
+        public let equals: Int
     }
 
     public struct WireInput: Codable, Sendable, Hashable {
@@ -150,10 +180,10 @@ public enum BindingsSchema {
     }
 
     public struct WireAction: Codable, Sendable, Hashable {
-        /// `"keys"` | `"shell"` | `"noop"`.
+        /// `"keys"` | `"shell"` | `"noop"` | `"set-variable"` (v2).
         public let kind: String
-        /// `action-shell` / `action-keys` original user string.
-        /// `nil` for `noop`.
+        /// `action-shell` / `action-keys` / `action-set-var`
+        /// original user string. `nil` for `noop`.
         public let raw: String?
         /// `keys` only — canonical modifier-token list.
         public let modifiers: [String]?
@@ -164,6 +194,10 @@ public enum BindingsSchema {
         /// `shell` only — alias name used (without leading `@`), or
         /// `nil` if no alias was referenced.
         public let alias: String?
+        /// `set-variable` only — variable name.
+        public let variable: String?
+        /// `set-variable` only — value (0 = clear).
+        public let value: Int?
     }
 
     public struct WireKey: Codable, Sendable, Hashable {
@@ -290,6 +324,9 @@ public enum BindingsSchema {
             && a.input == b.input
             && a.apps == b.apps
             && a.action == b.action
+            && a.condition == b.condition
+            && a.holdWhile == b.holdWhile
+            && a.actionOnUp == b.actionOnUp
     }
 
     // MARK: - encoding
@@ -368,7 +405,22 @@ public enum BindingsSchema {
             sourceLine: b.sourceLine,
             input: wireInput(b: b),
             apps: b.apps,
-            action: wireAction(b: b))
+            action: wireAction(action: b.action,
+                               raw: b.actionRaw,
+                               aliasName: b.aliasName),
+            condition: b.condition.map(wireCondition),
+            holdWhile: b.holdWhile.map { modifierTokens($0) },
+            actionOnUp: b.onUpAction.map {
+                wireAction(action: $0, raw: nil, aliasName: nil)
+            })
+    }
+
+    private static func wireCondition(_ c: Condition) -> WireCondition {
+        switch c {
+        case .variable(let name, let equals):
+            return WireCondition(kind: "variable",
+                                 variable: name, equals: equals)
+        }
     }
 
     private static func wireInput(b: Binding) -> WireInput {
@@ -452,36 +504,48 @@ public enum BindingsSchema {
         }
     }
 
-    private static func wireAction(b: Binding) -> WireAction {
-        switch b.action {
+    /// Map a [Action] → [WireAction]. Caller supplies `raw` /
+    /// `aliasName` because they live on Binding (the primary path)
+    /// or are absent (the `actionOnUp` path).
+    private static func wireAction(action: Action,
+                                   raw: String?,
+                                   aliasName: String?) -> WireAction {
+        switch action {
         case .keys(let mods, let code):
             return WireAction(
                 kind: "keys",
-                raw: b.actionRaw,
+                raw: raw,
                 modifiers: modifierTokens(mods),
                 key: WireKey(name: KeyCodes.name(forCode: code),
                              keycode: code),
                 command: nil,
-                alias: nil)
+                alias: nil,
+                variable: nil,
+                value: nil)
         case .shell(let body):
             return WireAction(
                 kind: "shell",
-                raw: b.actionRaw,
+                raw: raw,
                 modifiers: nil,
                 key: nil,
                 command: body,
-                alias: b.aliasName)
+                alias: aliasName,
+                variable: nil,
+                value: nil)
         case .noop:
             return WireAction(kind: "noop", raw: nil, modifiers: nil,
-                              key: nil, command: nil, alias: nil)
-        case .setVariable:
-            // v2: full wiring (variable + value fields) lands with the
-            // schema bump. For now emit kind="set-variable" with no
-            // raw — enough to keep --list --json structurally valid
-            // and let v1 consumers see an unknown kind they can skip.
-            return WireAction(kind: "set-variable", raw: nil,
-                              modifiers: nil, key: nil,
-                              command: nil, alias: nil)
+                              key: nil, command: nil, alias: nil,
+                              variable: nil, value: nil)
+        case .setVariable(let name, let v):
+            return WireAction(
+                kind: "set-variable",
+                raw: raw,
+                modifiers: nil,
+                key: nil,
+                command: nil,
+                alias: nil,
+                variable: name,
+                value: v)
         }
     }
 

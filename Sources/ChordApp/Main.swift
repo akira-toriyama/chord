@@ -200,7 +200,7 @@ enum ChordApp {
     /// `chord --list [--json] [--include-dropped]`
     ///
     /// Default is a human-readable text table. `--json` emits the
-    /// `chord.bindings.v1` schema document on stdout (machine-
+    /// `chord.bindings.v2` schema document on stdout (machine-
     /// readable). `--include-dropped` adds a `DROPPED` section to
     /// the text output or populates `dropped[]` in JSON (it's
     /// populated regardless of the flag, actually — the flag only
@@ -607,9 +607,9 @@ enum ChordApp {
 
           chord --validate          parse config.toml; exit 0 on clean
           chord --validate --strict warnings + drops fail with exit 1
-          chord --validate --json   chord.bindings.v1 doc + validation block
+          chord --validate --json   chord.bindings.v2 doc + validation block
           chord --list              human-readable parsed config
-          chord --list --json       machine-readable (chord.bindings.v1)
+          chord --list --json       machine-readable (chord.bindings.v2)
           chord --list --include-dropped   also list dropped bindings
           chord --doctor            report Accessibility / config / daemon
           chord --resign            re-sign Chord.app with chord-dev + restart
