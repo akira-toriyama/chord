@@ -1,7 +1,7 @@
 import XCTest
 @testable import ChordCore
 
-/// Coverage for chord.bindings.v1 wire format (PR2).
+/// Coverage for chord.bindings.v2 wire format (PR2).
 final class SchemaTests: XCTestCase {
 
     private func parseAndEncode(_ source: String) throws -> [String: Any] {
@@ -19,7 +19,7 @@ final class SchemaTests: XCTestCase {
         input = "f13"
         action-noop = true
         """)
-        XCTAssertEqual(json["schema"] as? String, "chord.bindings.v1")
+        XCTAssertEqual(json["schema"] as? String, "chord.bindings.v2")
         XCTAssertNotNil(json["generated_at"])
         XCTAssertNotNil(json["options"])
         XCTAssertNotNil(json["aliases"])
@@ -85,7 +85,7 @@ final class SchemaTests: XCTestCase {
         let fb = (json["fallbacks"] as! [[String: Any]])[0]
         let trigger = ((fb["input"] as! [String: Any])["trigger"]) as! [String: Any]
         XCTAssertEqual(trigger["kind"] as? String, "anyKey")
-        // Per chord.bindings.v1 schema: for the `anyKey` trigger
+        // Per chord.bindings.v2 schema: for the `anyKey` trigger
         // branch, `name` and `keycode` are absent (chord's
         // JSONEncoder omits nil-Optional fields). Consumers
         // treating absent and explicit-null equivalently (jq's

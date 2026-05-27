@@ -8,14 +8,21 @@ Guidance for working in this repository.
 around one idea: **every binding is a chord of inputs**, where the
 "notes" can be modifier keys, ordinary keys (incl. F13–F24), mouse
 buttons (incl. side1/side2), or scroll-wheel deltas. Each chord
-maps to one of three actions: post replacement keys, run a shell
-command, or absorb the input.
+maps to one of four actions: post replacement keys, run a shell
+command, absorb the input, or mutate a named state variable
+(v2 — enables Karabiner-style leader-key modes).
 
 Architectural sibling of
 [stroke](https://github.com/akira-toriyama/stroke): Swift 6,
 macOS 13+, three-layer hexagonal split. Difference from stroke is
-the trigger: chord is *discrete events* (one key-down / button-down
-fires immediately), stroke is *gesture sequences*.
+the trigger: chord is **discrete events + 1-tier state** — one
+key-down / button-down fires immediately, but a binding may
+optionally gate on a single named variable and another binding may
+have set that variable on an earlier discrete event. stroke is
+*gesture sequences*. The state surface is intentionally narrow:
+flat `[String: Int]` store, single-variable equality predicates,
+no nested modes. Anything that needs a real state machine belongs
+in stroke (or Karabiner-Elements at the HID layer).
 
 Implementation: chord uses **CGEventTap** rather than the older
 Carbon `RegisterEventHotKey` API. That's what makes F21–F24 (no
@@ -76,6 +83,12 @@ event. Everything below depends on this contract:
   on the tap's run loop thread. The handler closure
   [Controller.handle(_:)](Sources/ChordApp/Controller.swift) is
   called inline from there.
+- v2 extended the contract to **paired down/up consume**: when a
+  down is swallowed, the corresponding up is too (tracked via the
+  Controller's `pendingUps` table). The OS sees neither half.
+  Without this pair, the OS would receive a "phantom" key-up for
+  a key it never saw go down. See the "Key-up / paired consume"
+  section below for the details.
 - `ActionDispatcher.postKeys` posts synthetic events via
   `.cghidEventTap`, which means our own tap sees them on the way
   back in. To avoid an infinite loop the dispatcher tags every
@@ -205,6 +218,110 @@ event. Everything below depends on this contract:
   previously hand-enumerated as 4 modsets × ~30 keys against an
   upstream daemon's hard-error dedup; one `[[fallbacks]]` row
   per modset now suffices.
+
+### State machine (v2 — Karabiner-style leader keys)
+
+- **The store is flat `[String: Int]`, owned by the Controller**.
+  Reads on the tap thread go through `stateSnapshot()` (a value-typed
+  copy of the dict under `stateLock`); the Matcher consumes the
+  snapshot via `Matcher.Event.state`. Writes happen in
+  `applyVariable(_:value:holdWhile:)`, also tap-thread, also under
+  `stateLock`. The lock window is the dict copy itself — never
+  wraps a callback. **Don't replace it with an actor** — the tap
+  thread cannot `await`.
+- **Action.setVariable is intercepted by the Controller**, not the
+  ActionDispatcher. State ownership belongs to the App layer; the
+  Adapter has no legitimate reason to know about the variable
+  store. The dispatcher's `case .setVariable` path is a debug-log
+  no-op safety net for tests that exercise it directly.
+- **An unset variable reads as 0**. `Condition.variable(_, equals: 0)`
+  is the idiomatic "mode cleared" check. Writing 0 via
+  `applyVariable` removes the entry — the dict doesn't accumulate
+  zeroed keys.
+- **`hold-while` is the lifecycle**. A binding's `action-set-var`
+  with `hold-while = "cmd + opt"` ties the variable to that
+  modifier mask: when the OS-side modifier state no longer
+  satisfies the mask (via `Modifiers.isStillHeld(in:)`), the
+  Controller clears the entry on the next flagsChanged event.
+  Without `hold-while`, the variable persists until an explicit
+  `action-set-value = 0` write.
+- **`isStillHeld(in:)` is permissive of extras**. Distinct from
+  `matches(event:)`: adding shift on top of held cmd+opt must NOT
+  clear a `hold-while = "cmd + opt"` variable, because the user
+  hasn't done anything to indicate "leave the mode". Strict-side
+  bits (`.lcmd`, `.rshift`, …) require the exact side; any-side
+  bits (`.cmd`) accept either.
+- **Reload wipes everything** — state dict and pending-up table.
+  A reload may have dropped the binding that owned a variable,
+  leaving an entry no one can clear (silent leak). Same policy
+  as the config loader: reload = clean slate.
+- **State is intentionally narrow**: single-variable equality only
+  (no `a == 1 && b == 2`), no nested modes, no state-emitting
+  conditions (a binding can `set-variable` OR gate on
+  `when-var`, but the gate predicate cannot itself mutate state).
+  This matches the canon migration's actual leader-key use cases
+  and keeps the parser surface bounded. Anything richer belongs
+  in stroke or in Karabiner.
+
+### Variable lifecycle (v2.1 — `hold-while-timeout`)
+
+- **`hold-while`** ties the variable to a held modifier mask. Only
+  useful when the modifiers stay physically held at the OS level
+  across keystrokes. Many programmable keyboards (ZMK macros that
+  emit atomic strict-side chords; Karabiner complex_modifications)
+  drop the modifiers between primary keys — `hold-while` would
+  clear the variable before the next primary arrived. Verified by
+  observing flagsChanged transitions of 1-2ms duration immediately
+  after a `keyDown` on those setups.
+- **`hold-while-timeout`** (v2.1) is the inactivity-timer
+  lifecycle. The timer is scheduled from the tap thread via
+  `DispatchSource.makeTimerSource` on `stateTimerQueue` (a private
+  serial queue), and fires `Controller.timerFired(name:)` which
+  takes `stateLock` and removes the entry. B-α "reset-on-use":
+  every binding gated on the same variable extends the timer
+  before returning — sustained editing sessions don't time out.
+- **Mutual exclusion**: a binding writing both `hold-while` and
+  `hold-while-timeout` is dropped at parse time. They pick
+  different lifecycles for the same variable.
+- **Cleanup paths cancel timers**: reload (`resetState`),
+  modifier release (`clearStaleVariables`), explicit clear
+  (`action-set-value = 0`) all cancel the timer via
+  `cancelTimerLocked` so a delayed fire doesn't mutate stale
+  state.
+- **No global default**. Each `action-set-var` binding declares
+  its own timeout. Vim's `timeoutlen` global is a known pain
+  point — different leaders have different ergonomics
+  (window-management snap = fast, editing leader = slow).
+
+### Key-up / paired consume (v2)
+
+- **EventTap.mask now includes `keyUp` and the three `*MouseUp`
+  variants** alongside the down events. `flagsChanged` was always
+  in the mask; v2 routes it to the state-cleanup path via
+  `EventKind.modifiersChanged` rather than dropping it at
+  `makeInputEvent`.
+- **B1 contract — implicit consume of paired up**: when the
+  Controller consumes a down event, it registers the binding in
+  the `pendingUps` table keyed by `Trigger` alone. When the up
+  arrives, the table entry is taken and consumed (the OS never
+  saw the down; sending the up alone would leave it in a
+  phantom-key-up state). The binding's `onUpAction` fires at this
+  point if present.
+- **Keyed by Trigger alone, not (Trigger, Modifiers)**. The user
+  may lift modifiers between the down and the up (releases `cmd`
+  before releasing `j`); the up event then carries a different
+  modifier mask than the down. Matching on trigger alone keeps
+  the pair coherent.
+- **`onUpAction` is optional**. A binding with only a primary
+  action still gets paired-up consume — the up is swallowed even
+  without an `action-*-on-up` declaration, again for B1
+  coherence.
+- **`EventKind.modifiersChanged` never reaches the matcher**.
+  The Controller branches on `event.kind` before consulting the
+  matcher and routes flagsChanged events directly to
+  `clearStaleVariables(currentMods:)`. The matcher only ever sees
+  `.down`. (Up events go through the pending-ups path, never the
+  matcher.)
 
 ### Configuration
 

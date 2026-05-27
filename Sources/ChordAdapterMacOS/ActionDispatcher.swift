@@ -22,6 +22,14 @@ public enum ActionDispatcher {
             Task.detached(priority: .userInitiated) {
                 ActionDispatcher.runShell(cmd, binding: binding)
             }
+        case .setVariable(let name, let value):
+            // The actual state mutation lives on the Controller side;
+            // the dispatcher is the wrong place to own variable state
+            // (this module knows about CGEvent / shell, not Core's
+            // model). The Controller intercepts setVariable before
+            // calling dispatch, so reaching here is a no-op safety
+            // net for tests that exercise the dispatcher directly.
+            Log.debug("dispatch.setVariable: \(binding.name) → \(name)=\(value)")
         }
     }
 

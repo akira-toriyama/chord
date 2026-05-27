@@ -97,6 +97,40 @@ input = "mouse.side1"
 action-keys = "cmd + shift - 4"
 ```
 
+### Leader-key モード (v2)
+
+Karabiner 流の 2 ストローク・バインド。リーダーコードでモードを
+"装填" し、修飾キーを押したまま次のキーでアクションを発火。修飾を
+離した瞬間にモードが自動解除されます:
+
+```toml
+[[bindings]]
+name = "wm: モード開始"
+input = "cmd + opt - j"
+action-set-var = "wm"
+hold-while = "cmd + opt"
+
+[[bindings]]
+name = "wm: 最大化"
+input = "cmd + opt - k"
+when-var = "wm"
+action-shell = "yabai -m window --grid 1:1:0:0:1:1"
+
+[[bindings]]
+name = "wm: ダウンで左寄せ / アップで右寄せ"
+input = "cmd + opt - l"
+when-var = "wm"
+action-shell        = "yabai -m window --grid 1:2:0:0:1:1"
+action-shell-on-up  = "yabai -m window --grid 1:2:1:0:1:1"
+```
+
+`action-set-var` でフラットな整数変数を書込み、`when-var` で gate、
+`hold-while` で変数のライフサイクルを修飾マスクに結びつけ、
+`action-*-on-up` でキーアップ時のアクションを定義します。
+状態表現は意図的に絞ってあり、単一変数の等値比較のみ・モードの
+ネストはなし。詳細は [`config.toml`](./config.toml) の Pattern 9
+を参照。
+
 全オプションのコメント付きフルテンプレートは [`config.toml`](./config.toml)
 を参照。
 

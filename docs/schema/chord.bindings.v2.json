@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/akira-toriyama/chord/main/docs/schema/chord.bindings.v2.json",
+  "title": "chord.bindings.v2",
+  "description": "Wire format emitted by `chord --list --json` and `chord --validate --json`. Version chord.bindings.v2 (was v1 through 0.3.x). v2 additions over v1: action.kind = \"set-variable\"; binding.condition / hold_while / action_on_up; three new dropped[].kind values. Emitters: chord >= 0.4.0. Breaking changes require a major bump (v3) — consumers should pin the schema and treat unknown fields as forward-compatible additions. **Consumer pinning guidance**: prefer a tagged URL (e.g. `https://raw.githubusercontent.com/akira-toriyama/chord/v0.4.0/docs/schema/chord.bindings.v2.json`) over `…/main/…` for reproducibility — `main` is a moving reference. The strongest option is to vendor this file into the consumer repo (e.g. `docs/external/chord.bindings.v2.json`), giving network-independence and explicit diff review when chord ships a new schema version. See https://github.com/akira-toriyama/chord/blob/main/Sources/ChordCore/Schema.swift for the canonical Swift mappers.",
+  "type": "object",
+  "required": [
+    "schema",
+    "generated_at",
+    "options",
+    "aliases",
+    "bindings",
+    "fallbacks",
+    "dropped"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "chord.bindings.v2",
+      "description": "Schema identifier. A v3 bump means breaking changes; v2.x adds fields without removing or repurposing existing ones."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp with fractional seconds. Informational only; not a stable sort key."
+    },
+    "source_path": {
+      "type": ["string", "null"],
+      "description": "Absolute path the parser read the config from. `null` when chord was given an in-memory string (test paths)."
+    },
+    "options": { "$ref": "#/$defs/options" },
+    "aliases": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "[aliases] table — each key is the alias name (without the leading @), each value is the shell-command body."
+    },
+    "bindings":  { "type": "array", "items": { "$ref": "#/$defs/binding" } },
+    "fallbacks": { "type": "array", "items": { "$ref": "#/$defs/binding" } },
+    "dropped":   { "type": "array", "items": { "$ref": "#/$defs/dropped" } },
+    "validation": {
+      "$ref": "#/$defs/validation",
+      "description": "Populated by `chord --validate --json`, absent on `chord --list --json`. Surfaces validation status structurally so CI consumers can branch without inspecting exit codes alone."
+    }
+  },
+  "$defs": {
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passthrough_unmatched", "exclude_apps"],
+      "properties": {
+        "passthrough_unmatched": {
+          "type": "boolean",
+          "description": "If true (default), unmatched events flow through to the OS unchanged."
+        },
+        "exclude_apps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Bundle-id glob patterns where chord is globally disabled."
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "name", "input", "action"],
+      "description": "`source_line` is absent when the TOML parser couldn't track it. `apps` is absent (== unscoped) or an array of bundle-id glob patterns. `condition`, `hold_while`, `action_on_up` are v2 additions and absent when the user did not declare them.",
+      "properties": {
+        "index":       { "type": "integer", "minimum": 0 },
+        "name":        { "type": "string" },
+        "source_line": { "type": "integer", "minimum": 1 },
+        "input":       { "$ref": "#/$defs/input" },
+        "apps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Bundle-id glob patterns. Absent = match every app (the user didn't write `apps`); present = explicit allow/deny list."
+        },
+        "action":       { "$ref": "#/$defs/action" },
+        "condition":    { "$ref": "#/$defs/condition" },
+        "hold_while": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/modifier_token" },
+          "uniqueItems": true,
+          "description": "Modifier mask tying a variable's lifecycle to a held-down mod set. When all modifiers in this mask have left the OS-side flag state, chord clears every variable this binding's `set-variable` action wrote. Meaningful only when `action.kind == \"set-variable\"`. Mutually exclusive with `hold_while_timeout`."
+        },
+        "hold_while_timeout": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "v2.1 — inactivity timeout (milliseconds) tying a variable's lifecycle to 'no relevant input within N ms'. Timer is scheduled when the binding's `set-variable` action fires and reset every time a binding gated on the same variable fires (B-α 'reset-on-use' semantics; matches Vim's `timeoutlen`). Designed for keyboards whose firmware emits modifier chords atomically (ZMK macros, Karabiner complex_modifications) — the modifier flag drops between primary keys so `hold_while` would clear the variable before the next primary arrived. Mutually exclusive with `hold_while`."
+        },
+        "action_on_up": {
+          "$ref": "#/$defs/action",
+          "description": "Secondary action that fires on the matching key's release. Same shape as `action`. The primary `action` always fires on key-down; both halves are implicitly consumed (the OS never sees the original down or up)."
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "modifiers", "modifier_sides", "fn", "trigger"],
+      "properties": {
+        "raw": {
+          "type": "string",
+          "description": "Original `input = \"…\"` user string, verbatim."
+        },
+        "modifiers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/modifier_token" },
+          "uniqueItems": true,
+          "description": "All set modifier bits as canonical tokens — both any-side (`ctrl`) and side-specific (`rctrl`) appear when both bits are set on the binding constraint. Alphabetically sorted."
+        },
+        "modifier_sides": { "$ref": "#/$defs/modifier_sides" },
+        "fn": {
+          "type": "boolean",
+          "description": "Reported separately because `fn` has no left/right variants."
+        },
+        "trigger": { "$ref": "#/$defs/trigger" }
+      }
+    },
+    "modifier_token": {
+      "type": "string",
+      "enum": [
+        "cmd", "opt", "ctrl", "shift", "fn",
+        "lcmd", "rcmd", "lopt", "ropt",
+        "lctrl", "rctrl", "lshift", "rshift"
+      ]
+    },
+    "modifier_sides": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cmd", "opt", "ctrl", "shift"],
+      "description": "Per-logical-modifier side requirement. Decoupling logical modifier from physical side keeps consumer code clean (checking `ctrl` does not need to OR over `ctrl|lctrl|rctrl`).",
+      "properties": {
+        "cmd":   { "$ref": "#/$defs/side_requirement" },
+        "opt":   { "$ref": "#/$defs/side_requirement" },
+        "ctrl":  { "$ref": "#/$defs/side_requirement" },
+        "shift": { "$ref": "#/$defs/side_requirement" }
+      }
+    },
+    "side_requirement": {
+      "type": "string",
+      "enum": ["absent", "any", "left", "right", "both"],
+      "description": "absent = must NOT be held. any = either side OK. left/right = strict side. both = both sides held simultaneously. Matches `Modifiers.matches(event:)` semantics."
+    },
+    "trigger": {
+      "description": "Discriminated by `kind`. Fields not relevant to the kind (`keycode` for non-key triggers, etc.) are OMITTED by the chord emitter — the schema does not require them.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "keycode"],
+          "properties": {
+            "kind": { "const": "key" },
+            "name": { "type": "string" },
+            "keycode": { "type": "integer", "minimum": 0, "maximum": 65535 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name"],
+          "properties": {
+            "kind": { "const": "mouseButton" },
+            "name": { "type": "string",
+                       "enum": ["left", "right", "middle",
+                                "side1", "side2",
+                                "other5", "other6", "other7"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name"],
+          "properties": {
+            "kind": { "const": "scroll" },
+            "name": { "type": "string",
+                       "enum": ["up", "down", "left", "right"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "description": "Wildcard trigger — fires only inside [[fallbacks]] sections. `name` and `keycode` are absent.",
+          "properties": {
+            "kind": { "const": "anyKey" }
+          }
+        }
+      ]
+    },
+    "action": {
+      "description": "Discriminated by `kind`. Fields irrelevant to the kind are OMITTED by the chord emitter — the schema requires only the fields actually populated per kind.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "raw", "modifiers", "key"],
+          "properties": {
+            "kind": { "const": "keys" },
+            "raw": { "type": "string" },
+            "modifiers": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/modifier_token" }
+            },
+            "key": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "keycode"],
+              "properties": {
+                "name": { "type": "string" },
+                "keycode": { "type": "integer", "minimum": 0, "maximum": 65535 }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "raw", "command"],
+          "properties": {
+            "kind": { "const": "shell" },
+            "raw": { "type": "string", "description": "User-typed value, including a leading `@name` if an alias was used." },
+            "command": { "type": "string", "description": "Resolved command body (post-alias if applicable)." },
+            "alias":   { "type": "string", "description": "Alias name (without `@`) when the user wrote `action-shell = \"@name\"`; absent otherwise." }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "noop" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "variable", "value"],
+          "description": "v2: state mutation. Sets the named variable in the controller's store. value=0 clears the entry. Bindings with a state-gate (`condition`) consult this store on subsequent events.",
+          "properties": {
+            "kind": { "const": "set-variable" },
+            "raw": { "type": "string", "description": "Original `action-set-var = \"…\"` user string. Present for the primary action; absent for `action_on_up` (no per-action raw)." },
+            "variable": { "type": "string", "minLength": 1 },
+            "value": { "type": "integer" }
+          }
+        }
+      ]
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "variable", "equals"],
+      "description": "v2: state-gate predicate. Discriminated by `kind` for future expansion; v2 only emits `\"variable\"`. The matcher consults the controller's store and skips the binding when the predicate is false. Treats an unset variable as 0 — `equals: 0` is the idiomatic \"mode cleared\" check.",
+      "properties": {
+        "kind": { "const": "variable" },
+        "variable": { "type": "string", "minLength": 1 },
+        "equals":   { "type": "integer" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "strict", "parsed_counts",
+                   "dropped_count", "warning_count",
+                   "undefined_aliases"],
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "`true` iff the validate command's exit code would be 0. Independent of `strict` — `ok` already accounts for it."
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "Whether `--strict` was passed. Lets consumers distinguish 'lenient pass (drops allowed)' from 'strict pass (no drops, no warnings)'."
+        },
+        "parsed_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bindings", "fallbacks", "aliases"],
+          "properties": {
+            "bindings":  { "type": "integer", "minimum": 0 },
+            "fallbacks": { "type": "integer", "minimum": 0 },
+            "aliases":   { "type": "integer", "minimum": 0 }
+          }
+        },
+        "dropped_count":     { "type": "integer", "minimum": 0 },
+        "warning_count":     { "type": "integer", "minimum": 0 },
+        "undefined_aliases": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "dropped": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["section", "kind", "message"],
+      "description": "`name` and `source_line` are absent when chord couldn't attribute the warning to a single binding row.",
+      "properties": {
+        "section": {
+          "type": "string",
+          "enum": ["[[bindings]]", "[[fallbacks]]", "[aliases]"],
+          "description": "Literal TOML section header the warning fired in."
+        },
+        "name":        { "type": "string" },
+        "source_line": { "type": "integer", "minimum": 1 },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "config-not-found",
+            "missing-input",
+            "missing-action",
+            "unknown-input-token",
+            "action-keys-parse-error",
+            "undefined-alias",
+            "alias-non-string",
+            "condition-parse-error",
+            "hold-while-parse-error",
+            "action-set-parse-error",
+            "other"
+          ],
+          "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a v3 schema bump. v2 added the last three: condition-parse-error, hold-while-parse-error, action-set-parse-error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable warning line. Format is NOT part of the stable contract — branch on `kind`, display `message`."
+        }
+      }
+    }
+  }
+}
