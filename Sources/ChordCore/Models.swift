@@ -315,15 +315,30 @@ public struct ChordConfig: Sendable {
     /// Lookup is simple (no recursion, no argument passing — `@name
     /// arg` syntax is reserved for a future expansion).
     public var aliases: [String: String]
+    /// Named modifier-set aliases for `input = "…"` matching.
+    /// Each entry is `name -> "mod1 + mod2 + …"`. A binding whose
+    /// input contains an unknown token gets a second chance against
+    /// this map; if found, the body is parsed as a modifier list and
+    /// merged. Bare reference (no `@` prefix). Alias names must not
+    /// collide with built-in modifier tokens (cmd/ctrl/shift/…) —
+    /// such collisions are rejected at load with a warning.
+    ///
+    /// Use case: ZMK-style logical chord names like
+    /// `ULTRA_LL = "rctrl + ralt + rshift"` keep `input` lines
+    /// readable + searchable while the literal modifier composition
+    /// stays a single source of truth.
+    public var inputAliases: [String: String]
 
     public init(options: Options = .init(),
                 bindings: [Binding] = [],
                 fallbacks: [Binding] = [],
-                aliases: [String: String] = [:]) {
+                aliases: [String: String] = [:],
+                inputAliases: [String: String] = [:]) {
         self.options = options
         self.bindings = bindings
         self.fallbacks = fallbacks
         self.aliases = aliases
+        self.inputAliases = inputAliases
     }
 
     /// Conventional config path: `$XDG_CONFIG_HOME/chord/config.toml`

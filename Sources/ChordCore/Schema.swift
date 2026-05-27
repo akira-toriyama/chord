@@ -55,6 +55,13 @@ public enum BindingsSchema {
         public let sourcePath: String?
         public let options: WireOptions
         public let aliases: [String: String]
+        /// `[input-aliases]` table — bare-reference modifier-set
+        /// aliases for matching `input = "…"`. Each entry is a logical
+        /// name (e.g. `"ULTRA_LL"`) → modifier-list body (e.g.
+        /// `"rctrl + ralt + rshift"`). Resolution happens at the
+        /// parser layer; this surface is purely for documentation /
+        /// introspection. Schema-v2.x forward-compatible addition.
+        public let inputAliases: [String: String]
         public let bindings: [WireBinding]
         public let fallbacks: [WireBinding]
         public let dropped: [WireDropped]
@@ -66,8 +73,9 @@ public enum BindingsSchema {
 
         enum CodingKeys: String, CodingKey {
             case schema, options, aliases, bindings, fallbacks, dropped, validation
-            case generatedAt = "generated_at"
-            case sourcePath  = "source_path"
+            case generatedAt   = "generated_at"
+            case sourcePath    = "source_path"
+            case inputAliases  = "input_aliases"
         }
     }
 
@@ -250,6 +258,9 @@ public enum BindingsSchema {
         public var aliasesAdded:   [String: String] = [:]
         public var aliasesRemoved: [String: String] = [:]
         public var aliasesChanged: [(name: String, oldBody: String, newBody: String)] = []
+        public var inputAliasesAdded:   [String: String] = [:]
+        public var inputAliasesRemoved: [String: String] = [:]
+        public var inputAliasesChanged: [(name: String, oldBody: String, newBody: String)] = []
 
         public var isClean: Bool {
             addedBindings.isEmpty && removedBindings.isEmpty
@@ -258,6 +269,8 @@ public enum BindingsSchema {
                 && changedFallbacks.isEmpty
                 && aliasesAdded.isEmpty && aliasesRemoved.isEmpty
                 && aliasesChanged.isEmpty
+                && inputAliasesAdded.isEmpty && inputAliasesRemoved.isEmpty
+                && inputAliasesChanged.isEmpty
         }
     }
 
@@ -285,6 +298,18 @@ public enum BindingsSchema {
         for (k, newV) in new.aliases {
             if let oldV = oldAliases[k], oldV != newV {
                 d.aliasesChanged.append((k, oldV, newV))
+            }
+        }
+        let oldInputAliases = old?.inputAliases ?? [:]
+        for (k, v) in new.inputAliases where oldInputAliases[k] == nil {
+            d.inputAliasesAdded[k] = v
+        }
+        for (k, v) in oldInputAliases where new.inputAliases[k] == nil {
+            d.inputAliasesRemoved[k] = v
+        }
+        for (k, newV) in new.inputAliases {
+            if let oldV = oldInputAliases[k], oldV != newV {
+                d.inputAliasesChanged.append((k, oldV, newV))
             }
         }
         return d
@@ -387,6 +412,7 @@ public enum BindingsSchema {
             sourcePath: result.sourcePath,
             options: opts,
             aliases: result.config.aliases,
+            inputAliases: result.config.inputAliases,
             bindings: bindings,
             fallbacks: fallbacks,
             dropped: dropped,
@@ -569,6 +595,10 @@ public enum BindingsSchema {
             return nil
         case .aliasNonString:
             section = "[aliases]"
+        case .inputAliasNonString,
+             .inputAliasShadowsModifier,
+             .inputAliasInvalidBody:
+            section = "[input-aliases]"
         default:
             // missing-input / missing-action / unknown-input-token /
             // action-keys-parse-error / undefined-alias all come
