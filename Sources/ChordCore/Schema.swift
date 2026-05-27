@@ -1,8 +1,8 @@
 import Foundation
 
 /// Wire format for `chord --list --json` / `chord --validate --json`,
-/// versioned `chord.bindings.v2` (was v1 through 0.3.x). The JSON
-/// Schema published at `docs/schema/chord.bindings.v2.json` is the
+/// versioned `chord.bindings.v3` (was v1 through 0.3.x). The JSON
+/// Schema published at `docs/schema/chord.bindings.v3.json` is the
 /// canonical contract; every field in this file is mirrored there.
 ///
 /// v2 additions over v1:
@@ -38,7 +38,7 @@ import Foundation
 ///   sort key.
 public enum BindingsSchema {
 
-    public static let version = "chord.bindings.v2"
+    public static let version = "chord.bindings.v3"
 
     /// Where the running daemon snapshots its last-loaded state, so
     /// `chord --reload --dry-run` can diff the on-disk config
@@ -54,7 +54,7 @@ public enum BindingsSchema {
         public let generatedAt: String
         public let sourcePath: String?
         public let options: WireOptions
-        public let aliases: [String: String]
+        public let actionAliases: [String: String]
         /// `[input-aliases]` table — bare-reference modifier-set
         /// aliases for matching `input = "…"`. Each entry is a logical
         /// name (e.g. `"ULTRA_LL"`) → modifier-list body (e.g.
@@ -72,9 +72,10 @@ public enum BindingsSchema {
         public let validation: WireValidation?
 
         enum CodingKeys: String, CodingKey {
-            case schema, options, aliases, bindings, fallbacks, dropped, validation
+            case schema, options, bindings, fallbacks, dropped, validation
             case generatedAt   = "generated_at"
             case sourcePath    = "source_path"
+            case actionAliases = "action_aliases"
             case inputAliases  = "input_aliases"
         }
     }
@@ -92,21 +93,21 @@ public enum BindingsSchema {
         public let parsedCounts: WireParsedCounts
         public let droppedCount: Int
         public let warningCount: Int
-        public let undefinedAliases: Int
+        public let undefinedActionAliases: Int
 
         enum CodingKeys: String, CodingKey {
             case ok, strict
             case parsedCounts     = "parsed_counts"
             case droppedCount     = "dropped_count"
             case warningCount     = "warning_count"
-            case undefinedAliases = "undefined_aliases"
+            case undefinedActionAliases = "undefined_action_aliases"
         }
     }
 
     public struct WireParsedCounts: Codable, Sendable {
         public let bindings: Int
         public let fallbacks: Int
-        public let aliases: Int
+        public let actionAliases: Int
     }
 
     public struct WireOptions: Codable, Sendable {
@@ -219,7 +220,7 @@ public enum BindingsSchema {
     }
 
     public struct WireDropped: Codable, Sendable {
-        /// `"[[bindings]]"` | `"[[fallbacks]]"` | `"[aliases]"` —
+        /// `"[[bindings]]"` | `"[[fallbacks]]"` | `"[actionAliases]"` —
         /// matches the literal section header the warning fired in.
         public let section: String
         public let name: String?
@@ -255,9 +256,9 @@ public enum BindingsSchema {
         public var removedFallbacks: [WireBinding] = []
         public var changedFallbacks: [Change]      = []
         public var unchangedFallbackCount: Int     = 0
-        public var aliasesAdded:   [String: String] = [:]
-        public var aliasesRemoved: [String: String] = [:]
-        public var aliasesChanged: [(name: String, oldBody: String, newBody: String)] = []
+        public var actionAliasesAdded:   [String: String] = [:]
+        public var actionAliasesRemoved: [String: String] = [:]
+        public var actionAliasesChanged: [(name: String, oldBody: String, newBody: String)] = []
         public var inputAliasesAdded:   [String: String] = [:]
         public var inputAliasesRemoved: [String: String] = [:]
         public var inputAliasesChanged: [(name: String, oldBody: String, newBody: String)] = []
@@ -267,8 +268,8 @@ public enum BindingsSchema {
                 && changedBindings.isEmpty
                 && addedFallbacks.isEmpty && removedFallbacks.isEmpty
                 && changedFallbacks.isEmpty
-                && aliasesAdded.isEmpty && aliasesRemoved.isEmpty
-                && aliasesChanged.isEmpty
+                && actionAliasesAdded.isEmpty && actionAliasesRemoved.isEmpty
+                && actionAliasesChanged.isEmpty
                 && inputAliasesAdded.isEmpty && inputAliasesRemoved.isEmpty
                 && inputAliasesChanged.isEmpty
         }
@@ -288,16 +289,16 @@ public enum BindingsSchema {
                    removed: &d.removedFallbacks,
                    changed: &d.changedFallbacks,
                    unchanged: &d.unchangedFallbackCount)
-        let oldAliases = old?.aliases ?? [:]
-        for (k, v) in new.aliases where oldAliases[k] == nil {
-            d.aliasesAdded[k] = v
+        let oldActionAliases = old?.actionAliases ?? [:]
+        for (k, v) in new.actionAliases where oldActionAliases[k] == nil {
+            d.actionAliasesAdded[k] = v
         }
-        for (k, v) in oldAliases where new.aliases[k] == nil {
-            d.aliasesRemoved[k] = v
+        for (k, v) in oldActionAliases where new.actionAliases[k] == nil {
+            d.actionAliasesRemoved[k] = v
         }
-        for (k, newV) in new.aliases {
-            if let oldV = oldAliases[k], oldV != newV {
-                d.aliasesChanged.append((k, oldV, newV))
+        for (k, newV) in new.actionAliases {
+            if let oldV = oldActionAliases[k], oldV != newV {
+                d.actionAliasesChanged.append((k, oldV, newV))
             }
         }
         let oldInputAliases = old?.inputAliases ?? [:]
@@ -390,7 +391,7 @@ public enum BindingsSchema {
         let dropped = result.warnings.compactMap(wireDropped(from:))
         let validation = validationStrict.map { strict in
             let undef = result.warnings.lazy
-                .filter { $0.kind == .undefinedAlias }
+                .filter { $0.kind == .undefinedActionAlias }
                 .count
             let ok = strict
                 ? (result.warnings.isEmpty && result.droppedBindings == 0)
@@ -401,17 +402,17 @@ public enum BindingsSchema {
                 parsedCounts: WireParsedCounts(
                     bindings: result.config.bindings.count,
                     fallbacks: result.config.fallbacks.count,
-                    aliases: result.config.aliases.count),
+                    actionAliases: result.config.actionAliases.count),
                 droppedCount: result.droppedBindings,
                 warningCount: result.warnings.count,
-                undefinedAliases: undef)
+                undefinedActionAliases: undef)
         }
         return Document(
             schema: version,
             generatedAt: formatter.string(from: generatedAt),
             sourcePath: result.sourcePath,
             options: opts,
-            aliases: result.config.aliases,
+            actionAliases: result.config.actionAliases,
             inputAliases: result.config.inputAliases,
             bindings: bindings,
             fallbacks: fallbacks,
@@ -593,8 +594,8 @@ public enum BindingsSchema {
             // Surface as a global note, not a dropped binding —
             // skip in the dropped[] list.
             return nil
-        case .aliasNonString:
-            section = "[aliases]"
+        case .actionAliasNonString:
+            section = "[actionAliases]"
         case .inputAliasNonString,
              .inputAliasShadowsModifier,
              .inputAliasInvalidBody:

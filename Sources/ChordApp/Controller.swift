@@ -349,14 +349,14 @@ public final class Controller {
             // condition-gated binding alive.
             resetState()
             let undef = result.warnings.lazy
-                .filter { $0.kind == .undefinedAlias }
+                .filter { $0.kind == .undefinedActionAlias }
                 .count
             let hint = (result.droppedBindings > 0 || result.warnings.count > 0)
                 ? " (run --validate --strict for details)" : ""
             Log.line("config \(reason): \(matcher.bindings.count) bindings, " +
                      "\(matcher.fallbacks.count) fallbacks, " +
-                     "\(result.config.aliases.count) aliases, " +
-                     "undefined-aliases=\(undef), " +
+                     "\(result.config.actionAliases.count) action-aliases, " +
+                     "undefined-action-aliases=\(undef), " +
                      "dropped=\(result.droppedBindings)\(hint)")
             // Snapshot the loaded state for `chord --reload --dry-run`
             // to diff against on the next edit. Failures here are

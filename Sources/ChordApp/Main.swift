@@ -17,7 +17,7 @@ enum ChordApp {
             printHelp(); exit(0)
         }
         if args.contains("--version") {
-            print("chord 0.5.0"); exit(0)
+            print("chord 0.6.0"); exit(0)
         }
         if args.contains("--validate") {
             exit(runValidate(strict: args.contains("--strict"),
@@ -161,13 +161,13 @@ enum ChordApp {
             }
             for w in res.warnings { print("warning: \(w.message)") }
             let undef = res.warnings.lazy
-                .filter { $0.kind == .undefinedAlias }
+                .filter { $0.kind == .undefinedActionAlias }
                 .count
             print("parsed: \(res.config.bindings.count) bindings, " +
                   "\(res.config.fallbacks.count) fallbacks, " +
-                  "\(res.config.aliases.count) aliases; " +
+                  "\(res.config.actionAliases.count) action-aliases; " +
                   "dropped: \(res.droppedBindings), " +
-                  "undefined-aliases: \(undef), " +
+                  "undefined-action-aliases: \(undef), " +
                   "warnings: \(res.warnings.count)")
             if strict && (res.warnings.count > 0 || res.droppedBindings > 0) {
                 fputs("chord: --strict: \(res.warnings.count) warnings, " +
@@ -200,7 +200,7 @@ enum ChordApp {
     /// `chord --list [--json] [--include-dropped]`
     ///
     /// Default is a human-readable text table. `--json` emits the
-    /// `chord.bindings.v2` schema document on stdout (machine-
+    /// `chord.bindings.v3` schema document on stdout (machine-
     /// readable). `--include-dropped` adds a `DROPPED` section to
     /// the text output or populates `dropped[]` in JSON (it's
     /// populated regardless of the flag, actually — the flag only
@@ -236,10 +236,10 @@ enum ChordApp {
         print("options:")
         print("  passthrough_unmatched: \(res.config.options.passthroughUnmatched)")
         print("  exclude_apps: \(res.config.options.excludeApps)")
-        if !res.config.aliases.isEmpty {
-            print("aliases (\(res.config.aliases.count)):")
-            for k in res.config.aliases.keys.sorted() {
-                print("  @\(k) → \(res.config.aliases[k] ?? "")")
+        if !res.config.actionAliases.isEmpty {
+            print("action-aliases (\(res.config.actionAliases.count)):")
+            for k in res.config.actionAliases.keys.sorted() {
+                print("  @\(k) → \(res.config.actionAliases[k] ?? "")")
             }
         }
         printBindingSection("bindings", rows: res.config.bindings)
@@ -344,19 +344,19 @@ enum ChordApp {
                             changed: diff.changedFallbacks,
                             unchanged: diff.unchangedFallbackCount)
         }
-        if !diff.aliasesAdded.isEmpty
-            || !diff.aliasesRemoved.isEmpty
-            || !diff.aliasesChanged.isEmpty
+        if !diff.actionAliasesAdded.isEmpty
+            || !diff.actionAliasesRemoved.isEmpty
+            || !diff.actionAliasesChanged.isEmpty
         {
             print("")
-            print("aliases:")
-            for k in diff.aliasesAdded.keys.sorted() {
-                print("  + @\(k) → \(diff.aliasesAdded[k] ?? "")")
+            print("action-aliases:")
+            for k in diff.actionAliasesAdded.keys.sorted() {
+                print("  + @\(k) → \(diff.actionAliasesAdded[k] ?? "")")
             }
-            for k in diff.aliasesRemoved.keys.sorted() {
-                print("  - @\(k) → \(diff.aliasesRemoved[k] ?? "")")
+            for k in diff.actionAliasesRemoved.keys.sorted() {
+                print("  - @\(k) → \(diff.actionAliasesRemoved[k] ?? "")")
             }
-            for c in diff.aliasesChanged.sorted(by: { $0.name < $1.name }) {
+            for c in diff.actionAliasesChanged.sorted(by: { $0.name < $1.name }) {
                 print("  ~ @\(c.name): \(c.oldBody) → \(c.newBody)")
             }
         }
@@ -575,7 +575,7 @@ enum ChordApp {
         if let res = try? Config.load() {
             print("bindings: \(res.config.bindings.count) loaded, " +
                   "\(res.config.fallbacks.count) fallbacks, " +
-                  "\(res.config.aliases.count) aliases, " +
+                  "\(res.config.actionAliases.count) action-aliases, " +
                   "\(res.droppedBindings) dropped")
             // The shipped template is all-commented by design — a
             // brand-new install would otherwise look broken when
@@ -607,9 +607,9 @@ enum ChordApp {
 
           chord --validate          parse config.toml; exit 0 on clean
           chord --validate --strict warnings + drops fail with exit 1
-          chord --validate --json   chord.bindings.v2 doc + validation block
+          chord --validate --json   chord.bindings.v3 doc + validation block
           chord --list              human-readable parsed config
-          chord --list --json       machine-readable (chord.bindings.v2)
+          chord --list --json       machine-readable (chord.bindings.v3)
           chord --list --include-dropped   also list dropped bindings
           chord --doctor            report Accessibility / config / daemon
           chord --resign            re-sign Chord.app with chord-dev + restart

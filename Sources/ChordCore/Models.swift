@@ -314,7 +314,7 @@ public struct ChordConfig: Sendable {
     /// is the single token `@name` resolves to the body string here.
     /// Lookup is simple (no recursion, no argument passing — `@name
     /// arg` syntax is reserved for a future expansion).
-    public var aliases: [String: String]
+    public var actionAliases: [String: String]
     /// Named modifier-set aliases for `input = "…"` matching.
     /// Each entry is `name -> "mod1 + mod2 + …"`. A binding whose
     /// input contains an unknown token gets a second chance against
@@ -332,12 +332,12 @@ public struct ChordConfig: Sendable {
     public init(options: Options = .init(),
                 bindings: [Binding] = [],
                 fallbacks: [Binding] = [],
-                aliases: [String: String] = [:],
+                actionAliases: [String: String] = [:],
                 inputAliases: [String: String] = [:]) {
         self.options = options
         self.bindings = bindings
         self.fallbacks = fallbacks
-        self.aliases = aliases
+        self.actionAliases = actionAliases
         self.inputAliases = inputAliases
     }
 

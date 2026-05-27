@@ -184,47 +184,52 @@ exclude-apps = []
 
 
 # =====================================================================
-# Aliases — named shell snippets, referenced via `@name`
+# Action aliases — named shell snippets, referenced via `@name`
 # =====================================================================
 # Lookup is flat: each entry `name = "command"`. Reference from any
-# `action-shell` via the single token `@name`. v1 is intentionally
-# narrow: no recursion (`alias = "@other"` not supported), no
-# argument passing (the `@name arg` syntax is RESERVED — values
-# containing whitespace after `@name` are treated as literal command
-# strings).
+# `action-shell` via the single token `@name`. No recursion
+# (`alias = "@other"` is treated as a literal command). No argument
+# passing (the `@name arg` syntax is RESERVED — values containing
+# whitespace after `@name` are treated as literal command strings).
 #
 # An undefined `@name` reference drops the referring binding with a
 # warning of the exact form:
 #   warning: binding 'foo' (config.toml:42) references undefined alias '@bar'; binding dropped
 # so a typo is loud, not silent.
 #
-# [aliases]
+# Renamed v0.5.0 → v0.6.0: was `[aliases]`. Schema v3 wire field is
+# `action_aliases` (mirrors the table name).
+#
+# [action-aliases]
 # rift_focus_next  = "rift-cli execute window next"
 # rift_focus_prev  = "rift-cli execute window prev"
 
 
 # =====================================================================
-# Input aliases — named modifier-set chords, bare reference in `input`
+# Input aliases — named modifier-set chords, referenced via `$name`
 # =====================================================================
 # `[input-aliases]` lets you give a logical name to a modifier set so
-# `input = "..."` can stay readable. Reference is **bare** (no `@`
-# prefix), just write the alias name in place of the modifiers:
+# `input = "..."` can stay readable. Reference uses the `$` prefix
+# (parallels `@name` for action aliases):
 #
 #   [input-aliases]
 #   ULTRA_LL   = "rctrl + ralt + rshift"
 #   MIRACLE_LM = "rctrl + rcmd + rshift"
 #
 #   [[bindings]]
-#   input = "ULTRA_LL - c"          # = "rctrl + ralt + rshift - c"
-#   input = "ULTRA_LL + cmd - m"    # mix with built-in modifiers OK
+#   input = "$ULTRA_LL - c"          # = "rctrl + ralt + rshift - c"
+#   input = "$ULTRA_LL + cmd - m"    # mix with built-in modifiers OK
 #
 # Constraints:
 #   * Body = built-in modifier tokens only (no nested alias references)
 #   * Name must not collide with built-in tokens (cmd / ctrl / hyper …)
 #   * Names matched case-insensitively at lookup time
 #
-# Undefined alias references fail the same way as a modifier typo:
-# `unknown-input-token` warning, binding dropped.
+# Undefined `$name` references emit `undefined-input-alias` and drop
+# the binding. Bare references (no `$`) fall through as
+# `unknown-input-token` (same class as a modifier typo).
+#
+# v0.6.0 change: `$` prefix is now required. v0.5.0 used bare refs.
 #
 # [input-aliases]
 # ULTRA_LL = "rctrl + ralt + rshift"
