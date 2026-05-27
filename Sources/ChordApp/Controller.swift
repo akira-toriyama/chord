@@ -55,13 +55,67 @@ public final class Controller {
         // bouncing to main — main bounces would deadlock the tap.
         if isPaused() { return .passthrough }
         let snapshot = matcherSnapshot()
+        let state = stateSnapshot()
         let me = Matcher.Event(trigger: event.trigger,
                                modifiers: event.modifiers,
-                               bundleID: event.frontmostBundleID)
+                               bundleID: event.frontmostBundleID,
+                               state: state)
         guard let binding = snapshot.find(me) else { return .passthrough }
-        ActionDispatcher.dispatch(binding)
+        // Intercept setVariable: state ownership lives here, not in
+        // the dispatcher (which is in the Adapter layer and has no
+        // legitimate reason to know about the controller's store).
+        if case .setVariable(let name, let value) = binding.action {
+            applyVariable(name: name, value: value,
+                          holdWhile: binding.holdWhile)
+            Log.debug("state: set \(name)=\(value) " +
+                      "via '\(binding.name)'" +
+                      (binding.holdWhile.map {
+                          " (hold-while=0x\(String($0.rawValue, radix: 16)))"
+                      } ?? ""))
+        } else {
+            ActionDispatcher.dispatch(binding)
+        }
         Control.writeStatus("fired \(binding.name)")
         return .consume
+    }
+
+    /// Snapshot of the variable store, value-typed and lock-free
+    /// to read on the tap thread (the dictionary is copied inside the
+    /// lock then released). The matcher consumes this via
+    /// [Matcher.Event.state].
+    nonisolated private func stateSnapshot() -> StateSnapshot {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        var out: [String: Int] = [:]
+        for (k, e) in (sharedState ?? [:]) { out[k] = e.value }
+        return StateSnapshot(variables: out)
+    }
+
+    /// Apply a [Action.setVariable] under [stateLock]. Writing 0
+    /// clears the entry (matches the matcher's "unset == 0" reading,
+    /// keeps the dict from accumulating zeroed keys over time).
+    nonisolated private func applyVariable(name: String, value: Int,
+                                           holdWhile: Modifiers?) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        if sharedState == nil { sharedState = [:] }
+        if value == 0 {
+            sharedState?.removeValue(forKey: name)
+        } else {
+            sharedState?[name] = VariableEntry(value: value,
+                                               holdWhile: holdWhile)
+        }
+    }
+
+    /// Wipe the variable store. Called on every config reload — the
+    /// new config may have dropped a binding that owned a variable,
+    /// leaving us with state that nothing can ever clear. Clean slate
+    /// on reload sidesteps the leak (and matches the user's mental
+    /// model: "reload restarts the daemon's state").
+    nonisolated private func resetState() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        sharedState = nil
     }
 
     nonisolated private func isPaused() -> Bool {
@@ -107,6 +161,11 @@ public final class Controller {
                 fallbacks: result.config.fallbacks,
                 excludeApps: result.config.options.excludeApps)
             publishMatcher()
+            // Reload wipes the variable store — the new config may
+            // have removed the binding that owned a variable, and a
+            // stale entry no one can clear would silently keep a
+            // condition-gated binding alive.
+            resetState()
             let undef = result.warnings.lazy
                 .filter { $0.kind == .undefinedAlias }
                 .count
@@ -252,3 +311,16 @@ private let matcherLock = NSLock()
 // `chord --pause` / `--resume`.
 nonisolated(unsafe) private var pausedFlag: Bool = false
 private let pauseLock = NSLock()
+
+// v2 state store. Both writes (Action.setVariable interception) and
+// reads (per-event snapshot) happen on the tap thread, so the lock
+// window is the dict copy itself — never wraps a callback. The
+// `holdWhile` field records which modifier mask, if any, ties the
+// variable's lifetime to a held-down mod set; flagsChanged handling
+// inspects this to auto-clear on release.
+struct VariableEntry: Sendable {
+    let value: Int
+    let holdWhile: Modifiers?
+}
+nonisolated(unsafe) var sharedState: [String: VariableEntry]?
+let stateLock = NSLock()

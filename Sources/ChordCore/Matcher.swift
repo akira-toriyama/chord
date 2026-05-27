@@ -33,12 +33,18 @@ public struct Matcher: Sendable {
         public var trigger: Trigger
         public var modifiers: Modifiers
         public var bundleID: String?
+        /// v2: snapshot of the controller's variable store at the
+        /// moment this event arrived. Defaulted to empty so existing
+        /// call sites (synthetic tests, fallbacks) compile unchanged.
+        public var state: StateSnapshot
 
         public init(trigger: Trigger, modifiers: Modifiers,
-                    bundleID: String?) {
+                    bundleID: String?,
+                    state: StateSnapshot = StateSnapshot()) {
             self.trigger = trigger
             self.modifiers = modifiers
             self.bundleID = bundleID
+            self.state = state
         }
     }
 
@@ -68,9 +74,28 @@ public struct Matcher: Sendable {
                 guard let id = event.bundleID else { continue }
                 if !Matcher.appsAllow(id, patterns: apps) { continue }
             }
+            // v2 state gate. Evaluated last because most bindings
+            // have `condition == nil` and the modifier / apps tests
+            // are cheaper to short-circuit on the hot keystroke path.
+            if let cond = b.condition,
+               !Matcher.conditionHolds(cond, state: event.state)
+            {
+                continue
+            }
             return b
         }
         return nil
+    }
+
+    /// Pure function — Matcher stays value-type and the tap thread
+    /// calls into it lock-free (the snapshot was already copied in).
+    /// An unset variable reads as 0; `Condition.variable(_, equals: 0)`
+    /// is the idiomatic "mode is cleared" predicate.
+    static func conditionHolds(_ c: Condition, state: StateSnapshot) -> Bool {
+        switch c {
+        case .variable(let name, let expected):
+            return state.value(name) == expected
+        }
     }
 
     private func triggerMatches(_ ruleTrigger: Trigger,
