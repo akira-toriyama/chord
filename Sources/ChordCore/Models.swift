@@ -124,6 +124,25 @@ public enum Action: Hashable, Sendable {
     /// Absorb the input and do nothing. Useful for disabling a key
     /// inside a specific app.
     case noop
+    /// Mutate the controller's state store. Subsequent events whose
+    /// binding carries a [Condition.variable] predicate consult that
+    /// store to decide whether to fire. A `value` of `0` is the
+    /// cleared sentinel — `Condition.variable(name, equals: 0)`
+    /// effectively asks "variable is unset". The binding still
+    /// consumes the event (Karabiner-style leader keys swallow their
+    /// trigger so the OS never sees the j of cmd+opt+j).
+    case setVariable(name: String, value: Int)
+}
+
+/// Predicate gate evaluated against the controller's state snapshot.
+///
+/// v2 grammar is deliberately narrow — single-variable equality only.
+/// A richer expression language (`a == 1 && b == 2`) would need a
+/// parser; the leader-key state machines the canon migration
+/// needs fit equality alone. Add cases (not values) as the surface
+/// grows; renaming a case is a v3 bump.
+public enum Condition: Hashable, Sendable {
+    case variable(name: String, equals: Int)
 }
 
 /// One binding: trigger + modifiers + optional app scope → action.
@@ -143,6 +162,29 @@ public struct Binding: Hashable, Sendable {
     /// Exclusion via `!com.example`; any exclusion wins.
     public var apps: [String]?
     public var action: Action
+
+    /// Optional state-gate. When non-nil, the matcher consults the
+    /// controller's variable snapshot and skips this binding when
+    /// the predicate is false. `nil` = the binding fires whenever
+    /// trigger + modifiers + apps match (pre-v2 behavior).
+    public var condition: Condition?
+
+    /// Optional second action that fires on the matching key's
+    /// release. The primary `action` fires on key-down as usual;
+    /// `onUpAction` fires on the paired key-up. The OS never sees
+    /// the original down or up (both consumed) — same contract as
+    /// any other consumed binding, extended to the up half.
+    /// Meaningful only for `Trigger.key(_)` / `Trigger.mouseButton(_)`
+    /// triggers; ignored for scroll.
+    public var onUpAction: Action?
+
+    /// Modifier mask tying a variable's lifecycle to a held mod set.
+    /// When all modifiers in this mask have left the OS-side flag
+    /// state, the controller clears every variable this binding set.
+    /// `nil` = no auto-clear (the variable persists until an explicit
+    /// `setVariable(_, 0)` action). Only meaningful when `action`
+    /// is `.setVariable`.
+    public var holdWhile: Modifiers?
 
     // — metadata (read by Schema.swift, not by Matcher) —
 
@@ -164,6 +206,9 @@ public struct Binding: Hashable, Sendable {
 
     public init(name: String, trigger: Trigger, modifiers: Modifiers,
                 apps: [String]?, action: Action,
+                condition: Condition? = nil,
+                onUpAction: Action? = nil,
+                holdWhile: Modifiers? = nil,
                 inputRaw: String = "",
                 actionRaw: String? = nil,
                 aliasName: String? = nil,
@@ -173,11 +218,29 @@ public struct Binding: Hashable, Sendable {
         self.modifiers = modifiers
         self.apps = apps
         self.action = action
+        self.condition = condition
+        self.onUpAction = onUpAction
+        self.holdWhile = holdWhile
         self.inputRaw = inputRaw
         self.actionRaw = actionRaw
         self.aliasName = aliasName
         self.sourceLine = sourceLine
     }
+}
+
+/// Snapshot of the controller's variable store, passed by value into
+/// the matcher. Read on the tap thread without locks (the snapshot is
+/// copied in; no contention). The map's identity (which keys exist)
+/// equals the union of every variable ever assigned a non-zero value
+/// since startup or the last `--reload`; an unset key reads as 0.
+public struct StateSnapshot: Hashable, Sendable {
+    public let variables: [String: Int]
+    public init(variables: [String: Int] = [:]) {
+        self.variables = variables
+    }
+    /// Equality semantics: unset variable == 0. Lets a binding write
+    /// `Condition.variable("wm", equals: 0)` to mean "wm is cleared".
+    public func value(_ name: String) -> Int { variables[name] ?? 0 }
 }
 
 /// Whole-program configuration. The TOML file lands here.

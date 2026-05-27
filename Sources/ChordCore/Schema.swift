@@ -474,6 +474,14 @@ public enum BindingsSchema {
         case .noop:
             return WireAction(kind: "noop", raw: nil, modifiers: nil,
                               key: nil, command: nil, alias: nil)
+        case .setVariable:
+            // v2: full wiring (variable + value fields) lands with the
+            // schema bump. For now emit kind="set-variable" with no
+            // raw — enough to keep --list --json structurally valid
+            // and let v1 consumers see an unknown kind they can skip.
+            return WireAction(kind: "set-variable", raw: nil,
+                              modifiers: nil, key: nil,
+                              command: nil, alias: nil)
         }
     }
 

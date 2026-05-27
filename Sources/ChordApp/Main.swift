@@ -268,6 +268,8 @@ enum ChordApp {
                 let aliasTag = b.aliasName.map { " (alias @\($0))" } ?? ""
                 actionDesc = "shell → \(b.actionRaw ?? "")\(aliasTag)"
             case .noop: actionDesc = "noop"
+            case .setVariable(let n, let v):
+                actionDesc = "set-variable → \(n)=\(v)"
             }
             print("  \(b.name)\(lineTag)")
             print("    input:  \(b.inputRaw)")
