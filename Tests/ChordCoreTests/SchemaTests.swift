@@ -234,7 +234,7 @@ final class SchemaTests: XCTestCase {
             BindingsSchema.makeDocument(from: res))
         let str = String(data: data, encoding: .utf8) ?? ""
         // "action_aliases" should come before "bindings" before "dropped".
-        let iA = str.range(of: "\"actionAliases\"")!.lowerBound
+        let iA = str.range(of: "\"action_aliases\"")!.lowerBound
         let iB = str.range(of: "\"bindings\"")!.lowerBound
         let iD = str.range(of: "\"dropped\"")!.lowerBound
         XCTAssertLessThan(iA, iB)
