@@ -1,26 +1,32 @@
 import XCTest
 @testable import ChordCore
 
-/// Coverage for `[input-aliases]` + bare modifier-set references
-/// (e.g. `input = "ULTRA_LL - m"` resolving to
+/// Coverage for `[input-aliases]` + `$name` references
+/// (e.g. `input = "$ULTRA_LL - m"` resolving to
 /// `rctrl + ralt + rshift - m`).
+///
+/// The `$` prefix is the explicit signal that the token is a
+/// user-defined modifier-set alias — parallels `@name` for
+/// shell-action `[action-aliases]`. Bare references (without `$`) are
+/// NOT resolved against `[input-aliases]` — they fail as
+/// `unknown-input-token`, same as a plain modifier typo.
 ///
 /// Three classes of behaviour:
 ///   * Load-time validation (`[input-aliases]` table itself)
-///   * Parse-time resolution (`input = "…"` token lookup)
-///   * Schema output (`chord.bindings.v2` `input_aliases` field)
+///   * Parse-time resolution (`$name` token lookup)
+///   * Schema output (`chord.bindings.v3` `input_aliases` field)
 final class InputAliasesTests: XCTestCase {
 
     // MARK: - Resolution: alias hits
 
-    func testBareAliasResolvesToModifierMask() throws {
+    func testDollarPrefixedAliasResolvesToModifierMask() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = "rctrl + ralt + rshift"
 
         [[bindings]]
         name = "tab-left"
-        input = "ULTRA_LL - c"
+        input = "$ULTRA_LL - c"
         action-keys = "ctrl + shift - tab"
         """)
         XCTAssertEqual(res.config.bindings.count, 1)
@@ -39,7 +45,7 @@ final class InputAliasesTests: XCTestCase {
 
         [[bindings]]
         name = "ultra + cmd"
-        input = "ULTRA_LL + cmd - m"
+        input = "$ULTRA_LL + cmd - m"
         action-noop = true
         """)
         XCTAssertEqual(res.config.bindings.count, 1)
@@ -58,7 +64,7 @@ final class InputAliasesTests: XCTestCase {
 
         [[bindings]]
         name = "both-ctrls"
-        input = "LEFT + RIGHT - a"
+        input = "$LEFT + $RIGHT - a"
         action-noop = true
         """)
         XCTAssertEqual(res.config.bindings.count, 1)
@@ -68,14 +74,15 @@ final class InputAliasesTests: XCTestCase {
     }
 
     func testAliasLookupIsCaseInsensitive() throws {
-        // Source uses MIXED case, binding writes lowercased.
+        // Source declares with uppercase, binding references in
+        // lowercase. Both resolve to the same entry.
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = "rctrl + ralt + rshift"
 
         [[bindings]]
         name = "tab-left"
-        input = "ultra_ll - c"
+        input = "$ultra_ll - c"
         action-noop = true
         """)
         XCTAssertEqual(res.config.bindings.count, 1)
@@ -89,12 +96,12 @@ final class InputAliasesTests: XCTestCase {
 
         [[bindings]]
         name = "one"
-        input = "ULTRA_LL - a"
+        input = "$ULTRA_LL - a"
         action-noop = true
 
         [[bindings]]
         name = "two"
-        input = "ULTRA_LL - b"
+        input = "$ULTRA_LL - b"
         action-noop = true
         """)
         XCTAssertEqual(res.config.bindings.count, 2)
@@ -103,12 +110,17 @@ final class InputAliasesTests: XCTestCase {
 
     // MARK: - Resolution: alias misses
 
-    func testUndefinedAliasReferenceDropsBindingAsUnknownToken() throws {
-        // No [input-aliases] declared; bare `ULTRA_LL` is just an
-        // unknown modifier token. Same error class as a typo.
+    func testBareReferenceFallsThroughAsUnknownToken() throws {
+        // Bare `ULTRA_LL` (no `$` prefix) is treated as a plain
+        // modifier token — and since it isn't a built-in, it fails
+        // as unknown-input-token. The `$` sigil is required to
+        // request alias resolution.
         let res = try Config.parse("""
+        [input-aliases]
+        ULTRA_LL = "rctrl + ralt + rshift"
+
         [[bindings]]
-        name = "missing"
+        name = "bare reference"
         input = "ULTRA_LL - m"
         action-noop = true
         """)
@@ -117,6 +129,26 @@ final class InputAliasesTests: XCTestCase {
         let w = res.warnings.first { $0.kind == .unknownInputToken }
         XCTAssertNotNil(w)
         XCTAssertTrue(w?.message.contains("ultra_ll") == true)
+    }
+
+    func testUndefinedDollarReferenceDropsBindingWithSpecificKind() throws {
+        // `$FOO_BAR` with no matching entry in `[input-aliases]`
+        // emits `undefined-input-alias` (distinct from
+        // `unknown-input-token` for bare typos) so consumers can
+        // tell "you forgot to declare this alias" apart from
+        // "you mistyped a modifier name".
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "undefined alias"
+        input = "$FOO_BAR - x"
+        action-noop = true
+        """)
+        XCTAssertEqual(res.config.bindings.count, 0)
+        XCTAssertEqual(res.droppedBindings, 1)
+        let w = res.warnings.first { $0.kind == .undefinedInputAlias }
+        XCTAssertNotNil(w)
+        XCTAssertTrue(w?.message.contains("$foo_bar") == true,
+                      "want alias name with `$` prefix in error: \(w?.message ?? "")")
     }
 
     // MARK: - Load validation
@@ -149,14 +181,16 @@ final class InputAliasesTests: XCTestCase {
 
         [[bindings]]
         name = "want-alias"
-        input = "ULTRA_LL - m"
+        input = "$ULTRA_LL - m"
         action-noop = true
         """)
         let w = res.warnings.first { $0.kind == .inputAliasNonString }
         XCTAssertNotNil(w)
-        // Binding drops because alias didn't load → unknown token.
+        // Binding drops because alias didn't load → undefined-input-alias.
         XCTAssertEqual(res.config.bindings.count, 0)
         XCTAssertEqual(res.droppedBindings, 1)
+        XCTAssertNotNil(
+            res.warnings.first { $0.kind == .undefinedInputAlias })
     }
 
     func testAliasInvalidBodyIsRejected() throws {
@@ -166,7 +200,7 @@ final class InputAliasesTests: XCTestCase {
 
         [[bindings]]
         name = "want-alias"
-        input = "BAD - m"
+        input = "$BAD - m"
         action-noop = true
         """)
         let w = res.warnings.first { $0.kind == .inputAliasInvalidBody }
@@ -181,7 +215,7 @@ final class InputAliasesTests: XCTestCase {
 
         [[bindings]]
         name = "want-alias"
-        input = "EMPTY - m"
+        input = "$EMPTY - m"
         action-noop = true
         """)
         let w = res.warnings.first { $0.kind == .inputAliasInvalidBody }
@@ -191,26 +225,28 @@ final class InputAliasesTests: XCTestCase {
     func testNestedAliasReferenceIsRejected() throws {
         // Body must contain only built-in modifier tokens — alias
         // bodies aren't recursively resolved (prevents cycles).
+        // `$INNER` inside OUTER's body fails because the load-time
+        // body parser uses `parseModifiersOnly` with an empty alias
+        // map.
         let res = try Config.parse("""
         [input-aliases]
         INNER = "rctrl"
-        OUTER = "INNER + ralt"
+        OUTER = "$INNER + ralt"
 
         [[bindings]]
         name = "uses-outer"
-        input = "OUTER - m"
+        input = "$OUTER - m"
         action-noop = true
         """)
-        // OUTER body references INNER which isn't a built-in mod →
-        // body parse fails → OUTER not registered.
         let w = res.warnings.first {
             $0.kind == .inputAliasInvalidBody && $0.bindingName == "OUTER"
         }
         XCTAssertNotNil(w)
-        // INNER is fine on its own.
-        // Binding uses OUTER which didn't register → unknown token →
-        // dropped.
+        // INNER is fine on its own. OUTER didn't register, so the
+        // binding using $OUTER drops as undefinedInputAlias.
         XCTAssertEqual(res.config.bindings.count, 0)
+        XCTAssertNotNil(
+            res.warnings.first { $0.kind == .undefinedInputAlias })
     }
 
     // MARK: - Schema output
@@ -223,7 +259,7 @@ final class InputAliasesTests: XCTestCase {
 
         [[bindings]]
         name = "one"
-        input = "ULTRA_LL - a"
+        input = "$ULTRA_LL - a"
         action-noop = true
         """)
         let doc = BindingsSchema.makeDocument(from: res)
@@ -231,7 +267,7 @@ final class InputAliasesTests: XCTestCase {
         XCTAssertEqual(doc.inputAliases["MIRACLE_LM"], "rctrl + rcmd + rshift")
     }
 
-    // MARK: - Wildcard fallback uses aliases too
+    // MARK: - Wildcard fallback uses actionAliases too
 
     func testFallbackInputUsesAlias() throws {
         let res = try Config.parse("""
@@ -240,7 +276,7 @@ final class InputAliasesTests: XCTestCase {
 
         [[fallbacks]]
         name = "undef feedback"
-        input = "ULTRA_LL - *"
+        input = "$ULTRA_LL - *"
         action-shell = "afplay foo.wav"
         """)
         XCTAssertEqual(res.config.fallbacks.count, 1)

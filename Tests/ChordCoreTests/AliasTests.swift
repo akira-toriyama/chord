@@ -1,14 +1,14 @@
 import XCTest
 @testable import ChordCore
 
-/// Coverage for `[aliases]` + `@name` expansion (PR4).
+/// Coverage for `[action-aliases]` + `@name` expansion (PR4).
 /// Resolution is strict: undefined `@name` drops the binding with a
 /// warning carrying the source line + the undefined alias name.
 final class AliasTests: XCTestCase {
 
     func testAliasExpansionInActionShell() throws {
         let res = try Config.parse("""
-        [aliases]
+        [action-aliases]
         rift_focus_next = "rift-cli execute window next"
 
         [[bindings]]
@@ -19,7 +19,7 @@ final class AliasTests: XCTestCase {
         XCTAssertEqual(res.config.bindings.count, 1)
         XCTAssertEqual(res.droppedBindings, 0)
         XCTAssertEqual(res.warnings.count, 0)
-        XCTAssertEqual(res.config.aliases["rift_focus_next"],
+        XCTAssertEqual(res.config.actionAliases["rift_focus_next"],
                        "rift-cli execute window next")
         switch res.config.bindings[0].action {
         case .shell(let body):
@@ -31,7 +31,7 @@ final class AliasTests: XCTestCase {
 
     func testUndefinedAliasDropsBindingWithWarning() throws {
         let res = try Config.parse("""
-        [aliases]
+        [action-aliases]
         defined_one = "echo yes"
 
         [[bindings]]
@@ -49,7 +49,7 @@ final class AliasTests: XCTestCase {
         XCTAssertEqual(res.droppedBindings, 1)
         // The canon-specified warning format: binding name +
         // (config.toml:LINE) + the alias name + "binding dropped".
-        let w = res.warnings.first { $0.kind == .undefinedAlias }
+        let w = res.warnings.first { $0.kind == .undefinedActionAlias }
         XCTAssertNotNil(w)
         if let warning = w {
             XCTAssertEqual(warning.bindingName, "uses undefined")
@@ -71,7 +71,7 @@ final class AliasTests: XCTestCase {
         // an unknown token and drop the binding via a different path.
         // We expect NO alias expansion to happen for action-keys.
         let res = try Config.parse("""
-        [aliases]
+        [action-aliases]
         x = "left"
 
         [[bindings]]
@@ -84,7 +84,7 @@ final class AliasTests: XCTestCase {
         // The drop reason is InputParser's unknown-token, NOT the
         // alias resolver. Make sure no "undefined alias" warning
         // leaks through that path.
-        XCTAssertFalse(res.warnings.contains { $0.kind == .undefinedAlias })
+        XCTAssertFalse(res.warnings.contains { $0.kind == .undefinedActionAlias })
     }
 
     func testLiteralAtSignPassesThrough() throws {
@@ -108,13 +108,13 @@ final class AliasTests: XCTestCase {
 
     func testNonStringAliasValueIgnored() throws {
         let res = try Config.parse("""
-        [aliases]
+        [action-aliases]
         good = "echo yes"
         bad = 42
         """)
-        XCTAssertEqual(res.config.aliases, ["good": "echo yes"])
+        XCTAssertEqual(res.config.actionAliases, ["good": "echo yes"])
         XCTAssertTrue(res.warnings.contains {
-            $0.kind == .aliasNonString && $0.message.contains("'bad'")
+            $0.kind == .actionAliasNonString && $0.message.contains("'bad'")
         })
     }
 }

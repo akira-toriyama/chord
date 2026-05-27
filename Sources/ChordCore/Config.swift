@@ -70,19 +70,19 @@ public enum Config {
             }
         }
 
-        // [aliases] — flat `name = "command"` lookup. Validation is
+        // [actionAliases] — flat `name = "command"` lookup. Validation is
         // minimal: only string values are accepted; anything else is
         // dropped with a warning.
-        var aliases: [String: String] = [:]
-        if case .table(let raw)? = root["aliases"] {
+        var actionAliases: [String: String] = [:]
+        if case .table(let raw)? = root["action-aliases"] {
             for (key, value) in raw {
                 if key == TOML.lineKey { continue }
                 if let s = value.asString {
-                    aliases[key] = s
+                    actionAliases[key] = s
                 } else {
                     warnings.append(ConfigWarning(
-                        kind: .aliasNonString,
-                        message: "[aliases] '\(key)': value must be a string — ignored",
+                        kind: .actionAliasNonString,
+                        message: "[actionAliases] '\(key)': value must be a string — ignored",
                         bindingName: key))
                 }
             }
@@ -160,7 +160,7 @@ public enum Config {
         for (i, row) in rows.enumerated() {
             if let b = makeBinding(from: row, index: i,
                                    isFallback: false,
-                                   aliases: aliases,
+                                   actionAliases: actionAliases,
                                    inputAliases: inputAliasesParsed,
                                    warnings: &warnings)
             {
@@ -175,7 +175,7 @@ public enum Config {
         for (i, row) in fbRows.enumerated() {
             if let b = makeBinding(from: row, index: i,
                                    isFallback: true,
-                                   aliases: aliases,
+                                   actionAliases: actionAliases,
                                    inputAliases: inputAliasesParsed,
                                    warnings: &warnings)
             {
@@ -186,7 +186,7 @@ public enum Config {
         }
 
         let cfg = ChordConfig(options: options, bindings: bindings,
-                              fallbacks: fallbacks, aliases: aliases,
+                              fallbacks: fallbacks, actionAliases: actionAliases,
                               inputAliases: inputAliasesRaw)
         return ParseResult(config: cfg, warnings: warnings,
                            droppedBindings: dropped, sourcePath: nil)
@@ -195,7 +195,7 @@ public enum Config {
     private static func makeBinding(
         from row: [String: TOML.Value], index: Int,
         isFallback: Bool,
-        aliases: [String: String],
+        actionAliases: [String: String],
         inputAliases: [String: Modifiers],
         warnings: inout [ConfigWarning]
     ) -> Binding? {
@@ -214,6 +214,22 @@ public enum Config {
         do { parsed = try InputParser.parse(inputRaw,
                                             allowWildcard: isFallback,
                                             inputAliases: inputAliases) }
+        catch let e as InputParser.InputParseError {
+            // Differentiate `$name` typos (undefinedInputAlias) from
+            // plain modifier typos (unknownToken) so CI / schema
+            // consumers can branch on the structured kind.
+            let kind: ConfigWarning.Kind
+            if case .undefinedInputAlias = e {
+                kind = .undefinedInputAlias
+            } else {
+                kind = .unknownInputToken
+            }
+            warnings.append(ConfigWarning(
+                kind: kind,
+                message: "\(section) '\(name)'\(source): \(e)",
+                sourceLine: line, bindingName: name))
+            return nil
+        }
         catch {
             warnings.append(ConfigWarning(
                 kind: .unknownInputToken,
@@ -226,7 +242,7 @@ public enum Config {
                                        name: name,
                                        source: source,
                                        sourceLine: line,
-                                       aliases: aliases,
+                                       actionAliases: actionAliases,
                                        suffix: "",
                                        required: true,
                                        warnings: &warnings)
@@ -242,7 +258,7 @@ public enum Config {
                                      name: name,
                                      source: source,
                                      sourceLine: line,
-                                     aliases: aliases,
+                                     actionAliases: actionAliases,
                                      suffix: "-on-up",
                                      required: false,
                                      warnings: &warnings)
@@ -327,7 +343,7 @@ public enum Config {
     ///
     /// Returns `nil` and appends a warning when:
     ///   * no matching `action-*` key was provided (and `required`)
-    ///   * `@name` references an alias not in `[aliases]`
+    ///   * `@name` references an alias not in `[actionAliases]`
     ///   * `action-keys` / `action-set-*` fails to parse
     private static func parseAction(
         row: [String: TOML.Value],
@@ -335,7 +351,7 @@ public enum Config {
         name: String,
         source: String,
         sourceLine: Int?,
-        aliases: [String: String],
+        actionAliases: [String: String],
         suffix: String = "",
         required: Bool = true,
         warnings: inout [ConfigWarning]
@@ -348,7 +364,7 @@ public enum Config {
         let fieldLabel = suffix.isEmpty ? "" : " (on-up)"
 
         if let shell = row[shellKey]?.asString {
-            switch resolveAlias(shell, aliases: aliases) {
+            switch resolveAlias(shell, actionAliases: actionAliases) {
             case .body(let body, let aliasName):
                 return ParsedAction(action: .shell(body),
                                     raw: shell,
@@ -356,10 +372,10 @@ public enum Config {
             case .undefined(let aliasName):
                 // canon-specified warning format — kept
                 // separately from the `[[bindings]] '…' (line): …`
-                // format on purpose. The structured `.undefinedAlias`
+                // format on purpose. The structured `.undefinedActionAlias`
                 // kind lets machine consumers disambiguate.
                 warnings.append(ConfigWarning(
-                    kind: .undefinedAlias,
+                    kind: .undefinedActionAlias,
                     message:
                         "binding '\(name)'\(source)\(fieldLabel) " +
                         "references undefined alias '@\(aliasName)'; " +
@@ -579,13 +595,13 @@ public enum Config {
     }
 
     /// Resolve a single `@name` token at the start of the value
-    /// against [aliases]. Anything else is passed through unchanged.
+    /// against [actionAliases]. Anything else is passed through unchanged.
     ///
     /// `@name arg` syntax is reserved for a future expansion; in v1,
     /// a value of the form `@name arg` is treated as a literal
     /// command string (the user wrote it; we don't second-guess).
     private static func resolveAlias(_ raw: String,
-                                     aliases: [String: String])
+                                     actionAliases: [String: String])
         -> AliasResolution
     {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
@@ -597,7 +613,7 @@ public enum Config {
             // `@foo bar` or `@` alone falls through to literal.
             return .body(raw, aliasName: nil)
         }
-        if let body = aliases[name] { return .body(body, aliasName: name) }
+        if let body = actionAliases[name] { return .body(body, aliasName: name) }
         return .undefined(name)
     }
 }

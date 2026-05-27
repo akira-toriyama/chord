@@ -263,7 +263,7 @@ final class StateTests: XCTestCase {
         let doc = BindingsSchema.makeDocument(from: res)
         let data = try BindingsSchema.encodeJSON(doc)
         let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-        XCTAssertEqual(json["schema"] as? String, "chord.bindings.v2")
+        XCTAssertEqual(json["schema"] as? String, "chord.bindings.v3")
         let b = (json["bindings"] as! [[String: Any]])[0]
         let action = b["action"] as! [String: Any]
         XCTAssertEqual(action["kind"] as? String, "set-variable")

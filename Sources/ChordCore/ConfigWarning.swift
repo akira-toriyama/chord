@@ -12,14 +12,14 @@ import Foundation
 ///   (`undefined-alias`, `unknown-input-token`, …) without having
 ///   to grep the message string. The raw values are part of the
 ///   schema's wire contract; renaming requires a schema major bump
-///   (e.g. `chord.bindings.v2` → `v3`). Adding new values is
+///   (e.g. `chord.bindings.v3` → `v3`). Adding new values is
 ///   forward-compatible if consumers branch defensively.
 /// * `message` — the human-readable line; `description` returns it
 ///   verbatim so existing callers (`print("warning: \(w)")`)
 ///   keep working byte-for-byte.
 /// * `sourceLine` — the 1-based config-file line, when known. Comes
 ///   from the `__line__` synthetic key the TOML parser injects on
-///   every `[[X]]` header (`TOML.lineKey`). For `[aliases]` entries
+///   every `[[X]]` header (`TOML.lineKey`). For `[actionAliases]` entries
 ///   and `[options]` table fields, lines are not tracked yet —
 ///   surfaces as `nil`.
 /// * `bindingName` — the row's `name` (or the synthetic `binding-N`
@@ -35,8 +35,13 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         case missingAction        = "missing-action"
         case unknownInputToken    = "unknown-input-token"
         case actionKeysParseError = "action-keys-parse-error"
-        case undefinedAlias       = "undefined-alias"
-        case aliasNonString       = "alias-non-string"
+        /// `[action-actionAliases]` entry whose value isn't a string.
+        /// (was `aliasNonString` / `alias-non-string` in schema v2)
+        case actionAliasNonString = "action-alias-non-string"
+        /// A binding's `action-shell` contains an `@name` reference
+        /// whose `name` is not in `[action-actionAliases]`.
+        /// (was `undefinedAlias` / `undefined-alias` in schema v2)
+        case undefinedActionAlias = "undefined-action-alias"
         /// `[input-aliases]` entry whose value isn't a string.
         case inputAliasNonString  = "input-alias-non-string"
         /// `[input-aliases]` name collides with a built-in modifier
@@ -48,6 +53,10 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// alias name) trigger this — bodies must be made of built-in
         /// modifier tokens only.
         case inputAliasInvalidBody = "input-alias-invalid-body"
+        /// A binding's `input = "..."` contains a `$name` reference
+        /// whose `name` is not in `[input-aliases]`. Parallel to
+        /// `undefinedAlias` for shell-action `@name` references.
+        case undefinedInputAlias  = "undefined-input-alias"
         /// v2: `when-var` / `when-var-value` malformed or orphan.
         case conditionParseError  = "condition-parse-error"
         /// v2: `hold-while = "…"` fails to parse as a modifier mask.

@@ -137,23 +137,23 @@ final class DiffTests: XCTestCase {
 
     func testAliasDiff() throws {
         let oldDoc = try doc("""
-        [aliases]
+        [action-aliases]
         keep = "echo keep"
         change = "echo old"
         gone  = "echo bye"
         """)
         let newDoc = try doc("""
-        [aliases]
+        [action-aliases]
         keep = "echo keep"
         change = "echo new"
         fresh = "echo hi"
         """)
         let d = BindingsSchema.diff(old: oldDoc, new: newDoc)
-        XCTAssertEqual(d.aliasesAdded, ["fresh": "echo hi"])
-        XCTAssertEqual(d.aliasesRemoved, ["gone": "echo bye"])
-        XCTAssertEqual(d.aliasesChanged.count, 1)
-        XCTAssertEqual(d.aliasesChanged[0].name, "change")
-        XCTAssertEqual(d.aliasesChanged[0].oldBody, "echo old")
-        XCTAssertEqual(d.aliasesChanged[0].newBody, "echo new")
+        XCTAssertEqual(d.actionAliasesAdded, ["fresh": "echo hi"])
+        XCTAssertEqual(d.actionAliasesRemoved, ["gone": "echo bye"])
+        XCTAssertEqual(d.actionAliasesChanged.count, 1)
+        XCTAssertEqual(d.actionAliasesChanged[0].name, "change")
+        XCTAssertEqual(d.actionAliasesChanged[0].oldBody, "echo old")
+        XCTAssertEqual(d.actionAliasesChanged[0].newBody, "echo new")
     }
 }

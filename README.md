@@ -20,10 +20,10 @@ Capabilities:
   per-side matching for ZMK ULTRA_LL-style layered keyboards
 - **`[[fallbacks]]` + `*` wildcard** for catch-all rules
   (per-modifier-set "unmapped key" feedback sounds, etc.)
-- **`[aliases]` + `@name`** to DRY repeated shell actions
-- **`[input-aliases]`** for bare-reference modifier-set names in
+- **`[action-aliases]` + `@name`** to DRY repeated shell actions
+- **`[input-aliases]` + `$name`** for modifier-set names in
   `input = "…"` (e.g. `ULTRA_LL = "rctrl + ralt + rshift"` →
-  `input = "ULTRA_LL - c"`)
+  `input = "$ULTRA_LL - c"`) — parallels `@name` for shell actions
 - **`chord --list --json` / `chord --validate --json`** for CI
   consumption, both conforming to a versioned
   [`chord.bindings.v1` JSON Schema](docs/schema/chord.bindings.v1.json)

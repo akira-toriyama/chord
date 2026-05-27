@@ -1,7 +1,7 @@
 import XCTest
 @testable import ChordCore
 
-/// Coverage for chord.bindings.v2 wire format (PR2).
+/// Coverage for chord.bindings.v3 wire format (PR2).
 final class SchemaTests: XCTestCase {
 
     private func parseAndEncode(_ source: String) throws -> [String: Any] {
@@ -19,10 +19,10 @@ final class SchemaTests: XCTestCase {
         input = "f13"
         action-noop = true
         """)
-        XCTAssertEqual(json["schema"] as? String, "chord.bindings.v2")
+        XCTAssertEqual(json["schema"] as? String, "chord.bindings.v3")
         XCTAssertNotNil(json["generated_at"])
         XCTAssertNotNil(json["options"])
-        XCTAssertNotNil(json["aliases"])
+        XCTAssertNotNil(json["action_aliases"])
         XCTAssertNotNil(json["bindings"])
         XCTAssertNotNil(json["fallbacks"])
         XCTAssertNotNil(json["dropped"])
@@ -85,7 +85,7 @@ final class SchemaTests: XCTestCase {
         let fb = (json["fallbacks"] as! [[String: Any]])[0]
         let trigger = ((fb["input"] as! [String: Any])["trigger"]) as! [String: Any]
         XCTAssertEqual(trigger["kind"] as? String, "anyKey")
-        // Per chord.bindings.v2 schema: for the `anyKey` trigger
+        // Per chord.bindings.v3 schema: for the `anyKey` trigger
         // branch, `name` and `keycode` are absent (chord's
         // JSONEncoder omits nil-Optional fields). Consumers
         // treating absent and explicit-null equivalently (jq's
@@ -117,7 +117,7 @@ final class SchemaTests: XCTestCase {
 
     func testShellWithAliasExposesBothCommandAndAlias() throws {
         let json = try parseAndEncode("""
-        [aliases]
+        [action-aliases]
         say_hi = "echo hi"
 
         [[bindings]]
@@ -217,7 +217,7 @@ final class SchemaTests: XCTestCase {
         action-shell = "@nope"
         """)
         let doc = BindingsSchema.makeDocument(from: res, validationStrict: false)
-        XCTAssertEqual(doc.validation?.undefinedAliases, 1)
+        XCTAssertEqual(doc.validation?.undefinedActionAliases, 1)
     }
 
     func testStableSortedKeys() throws {
@@ -233,8 +233,8 @@ final class SchemaTests: XCTestCase {
         let data = try BindingsSchema.encodeJSON(
             BindingsSchema.makeDocument(from: res))
         let str = String(data: data, encoding: .utf8) ?? ""
-        // "aliases" should come before "bindings" before "dropped".
-        let iA = str.range(of: "\"aliases\"")!.lowerBound
+        // "action_aliases" should come before "bindings" before "dropped".
+        let iA = str.range(of: "\"action_aliases\"")!.lowerBound
         let iB = str.range(of: "\"bindings\"")!.lowerBound
         let iD = str.range(of: "\"dropped\"")!.lowerBound
         XCTAssertLessThan(iA, iB)

@@ -26,6 +26,12 @@ public enum InputParser {
         case empty
         case unknownToken(String, context: String)
         case missingPrimary(context: String)
+        /// A `$name` reference resolved to no entry in `[input-aliases]`.
+        /// Separate from `unknownToken` because the failure mode is
+        /// distinct: the user *intended* an alias (the `$` prefix is
+        /// the explicit signal), they just typoed the name or forgot
+        /// to declare it.
+        case undefinedInputAlias(String, context: String)
 
         public var description: String {
             switch self {
@@ -35,6 +41,10 @@ public enum InputParser {
                 return "unknown token '\(t)' in \"\(ctx)\""
             case .missingPrimary(let ctx):
                 return "no key / mouse / scroll token in \"\(ctx)\""
+            case .undefinedInputAlias(let name, let ctx):
+                return
+                    "undefined input-alias '$\(name)' in \"\(ctx)\" " +
+                    "— declare it in [input-aliases] or fix the typo"
             }
         }
     }
@@ -176,17 +186,23 @@ public enum InputParser {
             case "rshift":                      out.insert(.rshift)
 
             default:
-                // Unknown token gets a second chance against the
-                // user's `[input-aliases]` table — supports bare
-                // references like `"ULTRA_LL - m"` where
-                // `ULTRA_LL = "rctrl + ralt + rshift"` was declared.
-                // The map's bodies are pre-validated at load time
-                // (Config.swift) so a hit guarantees a valid mask;
-                // a miss falls through to the same `unknownToken`
-                // error as before — keeps undefined-alias errors
-                // visually identical to plain typos.
-                if let aliased = inputAliases[t] {
-                    out.formUnion(aliased)
+                // `$name` reference into [input-aliases]. The `$`
+                // prefix is the *explicit* signal that the token is
+                // a user-defined modifier-set alias — parallels the
+                // `@name` syntax used for shell-action `[actionAliases]`
+                // resolution. Without a prefix the token must be a
+                // built-in modifier (the cases above); bare alias
+                // references are not supported. The map's bodies are
+                // pre-validated at load time (Config.swift), so a hit
+                // here guarantees a valid mask.
+                if t.hasPrefix("$") {
+                    let aliasName = String(t.dropFirst())
+                    if let aliased = inputAliases[aliasName] {
+                        out.formUnion(aliased)
+                    } else {
+                        throw InputParseError.undefinedInputAlias(
+                            aliasName, context: context)
+                    }
                 } else {
                     throw InputParseError.unknownToken(t, context: context)
                 }
