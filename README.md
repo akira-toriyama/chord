@@ -98,6 +98,41 @@ input = "mouse.side1"
 action-keys = "cmd + shift - 4"
 ```
 
+### Leader-key modes (v2)
+
+Karabiner-style two-stroke bindings — press a "leader" chord to
+arm a mode, then a follow-up key under the still-held modifiers
+fires the action. The mode auto-clears when the modifiers are
+released:
+
+```toml
+[[bindings]]
+name = "wm: enter mode"
+input = "cmd + opt - j"
+action-set-var = "wm"
+hold-while = "cmd + opt"
+
+[[bindings]]
+name = "wm: maximize"
+input = "cmd + opt - k"
+when-var = "wm"
+action-shell = "yabai -m window --grid 1:1:0:0:1:1"
+
+[[bindings]]
+name = "wm: snap left/right (down/up)"
+input = "cmd + opt - l"
+when-var = "wm"
+action-shell        = "yabai -m window --grid 1:2:0:0:1:1"
+action-shell-on-up  = "yabai -m window --grid 1:2:1:0:1:1"
+```
+
+`action-set-var` writes a flat integer variable; `when-var` gates
+on it; `hold-while` ties the variable's lifetime to a modifier
+mask; `action-*-on-up` fires on the release half. The state
+surface is deliberately narrow — single-variable equality, no
+nested modes. See Pattern 9 in [`config.toml`](./config.toml) for
+the full annotated example.
+
 See [`config.toml`](./config.toml) for the full template with every
 option commented inline.
 

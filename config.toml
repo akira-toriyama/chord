@@ -58,10 +58,28 @@ exclude-apps = []
 #   See Sources/ChordCore/KeyCodes.swift for the full table.
 #   Anything else: use `keycode-N` (raw CGKeyCode).
 #
-# Exactly ONE action key per binding:
-#   action-shell = "open -a Terminal"        — runs in /bin/zsh -l -c
-#   action-keys  = "cmd + shift - 4"         — chord posts these keys
-#   action-noop  = true                       — eats the event
+# Exactly ONE primary action per binding:
+#   action-shell    = "open -a Terminal"     — runs in /bin/zsh -l -c
+#   action-keys     = "cmd + shift - 4"      — chord posts these keys
+#   action-noop     = true                    — eats the event
+#   action-set-var  = "wm"                    — v2: sets wm = 1
+#                                                (use action-set-value=N for ≠1)
+#
+# Optional secondary action that fires on the key's release:
+#   action-shell-on-up = "…"
+#   action-keys-on-up  = "…"
+#   action-set-var-on-up = "…"  (+ action-set-value-on-up)
+# Both halves are implicitly consumed — the OS sees neither.
+#
+# Optional state-gate (v2):
+#   when-var       = "wm"        — binding fires only when wm == 1
+#   when-var-value = 1            — default; set to 0 to mean
+#                                    "fire only when the variable
+#                                    is cleared or unset"
+#
+# Optional variable lifecycle (v2 — meaningful with action-set-var):
+#   hold-while = "cmd + opt"      — variable auto-clears when this
+#                                    modifier mask is no longer held
 #
 # Shell actions get these env vars:
 #   CHORD_BINDING_NAME, CHORD_FRONTMOST_BUNDLE_ID
@@ -235,3 +253,45 @@ exclude-apps = []
 # name = "ULTRA_LL undefined feedback"
 # input = "rctrl + ralt + rshift - *"
 # action-shell = "afplay /System/Library/Sounds/Pop.aiff"
+
+
+# =====================================================================
+# Pattern 9 — Leader-key window mode (v2 state + on-up + hold-while)
+# =====================================================================
+# Karabiner-style two-stroke binding. Press cmd+opt+j to "arm" the
+# window mode (no action). While cmd+opt remain held, subsequent
+# keys do window-management actions. When cmd+opt is released the
+# mode auto-clears (no `esc` needed).
+#
+#   cmd + opt + j         → enter mode (sets wm=1)
+#   cmd + opt + k (down)  → maximize    (only when wm=1)
+#   cmd + opt + l (down)  → snap-left
+#   cmd + opt + l (up)    → snap-right  (release fires action_on_up)
+#   cmd + opt released    → wm cleared (hold-while auto-release)
+#
+# Notes:
+#   • `action-set-var = "wm"` sets the variable to 1 (the default).
+#     Use `action-set-value = 0` to clear an entry explicitly.
+#   • `when-var = "wm"` defaults to `when-var-value = 1`.
+#   • The leader key (`j`) is consumed — the OS never sees the j.
+#   • `hold-while` only ties the variable lifecycle; consumer
+#     bindings still need `when-var` to gate.
+#
+# [[bindings]]
+# name = "wm: enter (leader)"
+# input = "cmd + opt - j"
+# action-set-var = "wm"
+# hold-while = "cmd + opt"
+#
+# [[bindings]]
+# name = "wm: maximize"
+# input = "cmd + opt - k"
+# when-var = "wm"
+# action-shell = "yabai -m window --grid 1:1:0:0:1:1"
+#
+# [[bindings]]
+# name = "wm: snap left → snap right on release"
+# input = "cmd + opt - l"
+# when-var = "wm"
+# action-shell = "yabai -m window --grid 1:2:0:0:1:1"
+# action-shell-on-up = "yabai -m window --grid 1:2:1:0:1:1"
