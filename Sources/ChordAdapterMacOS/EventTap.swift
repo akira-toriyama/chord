@@ -41,13 +41,17 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
         }
         self.handler = handler
 
-        let mask: CGEventMask =
-              (1 << CGEventType.keyDown.rawValue)
-            | (1 << CGEventType.flagsChanged.rawValue)
-            | (1 << CGEventType.leftMouseDown.rawValue)
-            | (1 << CGEventType.rightMouseDown.rawValue)
-            | (1 << CGEventType.otherMouseDown.rawValue)
-            | (1 << CGEventType.scrollWheel.rawValue)
+        // Built piecewise — a single 10-OR expression hits the Swift
+        // type-checker's complexity budget on this stdlib.
+        let types: [CGEventType] = [
+            .keyDown, .keyUp, .flagsChanged,
+            .leftMouseDown, .leftMouseUp,
+            .rightMouseDown, .rightMouseUp,
+            .otherMouseDown, .otherMouseUp,
+            .scrollWheel,
+        ]
+        var mask: CGEventMask = 0
+        for t in types { mask |= CGEventMask(1) << CGEventMask(t.rawValue) }
 
         let info = Unmanaged.passUnretained(self).toOpaque()
         guard let port = CGEvent.tapCreate(
@@ -140,28 +144,66 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
             return InputEvent(
                 trigger: .key(UInt16(truncatingIfNeeded: raw)),
                 modifiers: mods,
-                frontmostBundleID: frontmost
+                frontmostBundleID: frontmost,
+                kind: .down
+            )
+
+        case .keyUp:
+            let raw = event.getIntegerValueField(.keyboardEventKeycode)
+            return InputEvent(
+                trigger: .key(UInt16(truncatingIfNeeded: raw)),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                kind: .up
             )
 
         case .flagsChanged:
-            // Pure modifier presses (e.g. tapping just `fn`) are
-            // not chord-triggers in v0. Pass through.
-            return nil
+            // Pure modifier transitions never match a binding's
+            // trigger — but v2's hold-while machinery needs to see
+            // them to clear bound variables when their modifier mask
+            // is released. Routed via `.modifiersChanged` so the
+            // Controller can branch before consulting the matcher.
+            return InputEvent(
+                trigger: .key(0),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                kind: .modifiersChanged
+            )
 
         case .leftMouseDown:
             return InputEvent(trigger: .mouseButton(.left),
                               modifiers: mods,
-                              frontmostBundleID: frontmost)
+                              frontmostBundleID: frontmost,
+                              kind: .down)
+        case .leftMouseUp:
+            return InputEvent(trigger: .mouseButton(.left),
+                              modifiers: mods,
+                              frontmostBundleID: frontmost,
+                              kind: .up)
         case .rightMouseDown:
             return InputEvent(trigger: .mouseButton(.right),
                               modifiers: mods,
-                              frontmostBundleID: frontmost)
+                              frontmostBundleID: frontmost,
+                              kind: .down)
+        case .rightMouseUp:
+            return InputEvent(trigger: .mouseButton(.right),
+                              modifiers: mods,
+                              frontmostBundleID: frontmost,
+                              kind: .up)
         case .otherMouseDown:
             let n = event.getIntegerValueField(.mouseEventButtonNumber)
             let btn = MouseButton(rawValue: Int(n)) ?? .middle
             return InputEvent(trigger: .mouseButton(btn),
                               modifiers: mods,
-                              frontmostBundleID: frontmost)
+                              frontmostBundleID: frontmost,
+                              kind: .down)
+        case .otherMouseUp:
+            let n = event.getIntegerValueField(.mouseEventButtonNumber)
+            let btn = MouseButton(rawValue: Int(n)) ?? .middle
+            return InputEvent(trigger: .mouseButton(btn),
+                              modifiers: mods,
+                              frontmostBundleID: frontmost,
+                              kind: .up)
 
         case .scrollWheel:
             // Wheel deltas: positive Y = up, positive X = right

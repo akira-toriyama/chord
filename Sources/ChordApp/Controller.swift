@@ -54,6 +54,22 @@ public final class Controller {
         // value-type granularity in Swift) and act without
         // bouncing to main — main bounces would deadlock the tap.
         if isPaused() { return .passthrough }
+
+        // Branch on event kind before consulting the matcher. The
+        // matcher only deals with `.down` events; `.up` flows
+        // through the pending-up table for paired consume + onUp
+        // dispatch; `.modifiersChanged` flows through the hold-while
+        // cleanup path and never reaches the matcher.
+        switch event.kind {
+        case .modifiersChanged:
+            clearStaleVariables(currentMods: event.modifiers)
+            return .passthrough
+        case .up:
+            return handleKeyUp(trigger: event.trigger)
+        case .down:
+            break
+        }
+
         let snapshot = matcherSnapshot()
         let state = stateSnapshot()
         let me = Matcher.Event(trigger: event.trigger,
@@ -75,7 +91,39 @@ public final class Controller {
         } else {
             ActionDispatcher.dispatch(binding)
         }
+        // Register pairing: B1 contract — the OS never saw this
+        // down, so the corresponding up must also be consumed.
+        // The binding (with its onUpAction) is what handleKeyUp
+        // dispatches against.
+        registerPendingUp(trigger: event.trigger, binding: binding)
         Control.writeStatus("fired \(binding.name)")
+        return .consume
+    }
+
+    /// Key/mouse `.up` arrived. If we consumed the paired down, we
+    /// must also consume this up so the OS sees a coherent
+    /// up/down pair (it saw neither half). Fires the binding's
+    /// `onUpAction` if present.
+    nonisolated private func handleKeyUp(trigger: Trigger) -> EventOutcome {
+        guard let binding = takePendingUp(trigger: trigger) else {
+            return .passthrough
+        }
+        if let onUp = binding.onUpAction {
+            if case .setVariable(let name, let value) = onUp {
+                applyVariable(name: name, value: value,
+                              holdWhile: binding.holdWhile)
+                Log.debug("state: set \(name)=\(value) " +
+                          "via '\(binding.name)' (on-up)")
+            } else {
+                // Dispatch the on-up action under the original
+                // binding's name (for logging / status output). The
+                // dispatcher only looks at `.action`, so a swap is
+                // enough — no need to mutate the binding store.
+                var upBinding = binding
+                upBinding.action = onUp
+                ActionDispatcher.dispatch(upBinding)
+            }
+        }
         return .consume
     }
 
@@ -114,8 +162,51 @@ public final class Controller {
     /// model: "reload restarts the daemon's state").
     nonisolated private func resetState() {
         stateLock.lock()
-        defer { stateLock.unlock() }
         sharedState = nil
+        stateLock.unlock()
+        pendingUpsLock.lock()
+        pendingUps = nil
+        pendingUpsLock.unlock()
+    }
+
+    /// Walk the variable store and remove any entry whose `holdWhile`
+    /// mask is no longer satisfied by the current modifier mask.
+    /// Called from the `.modifiersChanged` path; touches the lock
+    /// once per flagsChanged event (cheap — the dict is tiny).
+    nonisolated private func clearStaleVariables(currentMods: Modifiers) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard var dict = sharedState else { return }
+        var mutated = false
+        for (name, entry) in dict {
+            guard let hold = entry.holdWhile else { continue }
+            if !hold.isStillHeld(in: currentMods) {
+                dict.removeValue(forKey: name)
+                mutated = true
+                Log.debug("state: clear \(name) (hold-while released)")
+            }
+        }
+        if mutated { sharedState = dict }
+    }
+
+    /// Record a binding so its `.up` half can implicitly consume the
+    /// release event and dispatch any `onUpAction`. Keyed by Trigger
+    /// alone — modifiers may transition between the down and up
+    /// (the user lifts cmd before lifting the primary key).
+    nonisolated private func registerPendingUp(trigger: Trigger,
+                                               binding: Binding) {
+        // Skip pairing for triggers that have no up half (scroll).
+        if case .scroll = trigger { return }
+        pendingUpsLock.lock()
+        defer { pendingUpsLock.unlock() }
+        if pendingUps == nil { pendingUps = [:] }
+        pendingUps?[trigger] = binding
+    }
+
+    nonisolated private func takePendingUp(trigger: Trigger) -> Binding? {
+        pendingUpsLock.lock()
+        defer { pendingUpsLock.unlock() }
+        return pendingUps?.removeValue(forKey: trigger)
     }
 
     nonisolated private func isPaused() -> Bool {
@@ -324,3 +415,11 @@ struct VariableEntry: Sendable {
 }
 nonisolated(unsafe) var sharedState: [String: VariableEntry]?
 let stateLock = NSLock()
+
+// Pending-up table: tap-side bookkeeping for the B1 contract
+// (consume the up of every consumed down so the OS sees a coherent
+// down/up pair, where it actually saw neither). Keyed by Trigger
+// alone — the modifier mask may have changed by the time the
+// release arrives (user lifts cmd before lifting the primary key).
+nonisolated(unsafe) var pendingUps: [Trigger: Binding]?
+let pendingUpsLock = NSLock()

@@ -64,6 +64,35 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
             && self.contains(.fn) == event.contains(.fn)
     }
 
+    /// Subset check tailored for v2 `hold-while` lifecycle: does the
+    /// current OS-side mask `current` still satisfy every modifier
+    /// requirement in `self`? Unlike [matches], this is permissive
+    /// of extra modifiers — adding shift on top of a held cmd+opt
+    /// must NOT clear a `hold-while = "cmd + opt"` variable.
+    public func isStillHeld(in current: Modifiers) -> Bool {
+        for (any, l, r): (Modifiers, Modifiers, Modifiers) in [
+            (.cmd,   .lcmd,   .rcmd),
+            (.opt,   .lopt,   .ropt),
+            (.ctrl,  .lctrl,  .rctrl),
+            (.shift, .lshift, .rshift),
+        ] {
+            let needAny = self.contains(any)
+            let needL = self.contains(l)
+            let needR = self.contains(r)
+            let hasL = current.contains(l)
+            let hasR = current.contains(r)
+            if needL && !hasL { return false }
+            if needR && !hasR { return false }
+            // any-side ("cmd") requirement satisfied when either
+            // side is held — releasing one side keeps it alive.
+            if needAny && !needL && !needR && !hasL && !hasR {
+                return false
+            }
+        }
+        if self.contains(.fn) && !current.contains(.fn) { return false }
+        return true
+    }
+
     private func matchCategory(any: Modifiers, l: Modifiers, r: Modifiers,
                                event: Modifiers) -> Bool {
         let eL = event.contains(l)

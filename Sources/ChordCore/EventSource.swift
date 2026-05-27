@@ -32,6 +32,22 @@ public enum EventOutcome: Sendable {
     case consume
 }
 
+/// Up/down indicator on an [InputEvent]. v2 added `.up` so bindings
+/// can react to releases (`action-shell-on-up`) and so the OS never
+/// sees a "phantom" up for a key whose down chord consumed at the
+/// tap. Scroll events are always `.down` — the wheel has no
+/// release semantics.
+///
+/// `.modifiersChanged` is the bare-modifier transition (cmd lifted,
+/// shift pressed, …). It never matches a binding's trigger; the
+/// Controller routes it to the hold-while auto-clear path instead
+/// of the matcher. `trigger` is a placeholder on these events.
+public enum EventKind: Sendable, Hashable {
+    case down
+    case up
+    case modifiersChanged
+}
+
 /// What an EventSource hands to the consumer.
 public struct InputEvent: Sendable, Hashable {
     public var trigger: Trigger
@@ -39,16 +55,23 @@ public struct InputEvent: Sendable, Hashable {
     /// Frontmost app at the time of the event (for app-scoped
     /// bindings). The matcher reads this directly.
     public var frontmostBundleID: String?
+    /// Whether this is a press (`.down`) or release (`.up`). v1
+    /// EventSources only emitted `.down` — the field defaults to it
+    /// so call sites that don't care compile unchanged.
+    public var kind: EventKind
     /// True for events the adapter itself synthesised (e.g. an
     /// `action-keys` post). The tap tags these so the callback
     /// short-circuits before they re-enter the matcher.
     public var isSynthetic: Bool
 
     public init(trigger: Trigger, modifiers: Modifiers,
-                frontmostBundleID: String?, isSynthetic: Bool = false) {
+                frontmostBundleID: String?,
+                kind: EventKind = .down,
+                isSynthetic: Bool = false) {
         self.trigger = trigger
         self.modifiers = modifiers
         self.frontmostBundleID = frontmostBundleID
+        self.kind = kind
         self.isSynthetic = isSynthetic
     }
 }
