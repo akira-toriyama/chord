@@ -37,6 +37,17 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         case actionKeysParseError = "action-keys-parse-error"
         case undefinedAlias       = "undefined-alias"
         case aliasNonString       = "alias-non-string"
+        /// `[input-aliases]` entry whose value isn't a string.
+        case inputAliasNonString  = "input-alias-non-string"
+        /// `[input-aliases]` name collides with a built-in modifier
+        /// token (cmd/ctrl/shift/…). The alias is rejected to keep
+        /// `parse("cmd - a")` deterministic.
+        case inputAliasShadowsModifier = "input-alias-shadows-modifier"
+        /// `[input-aliases]` value fails to parse as a modifier list.
+        /// Nested alias references (an alias body referring to another
+        /// alias name) trigger this — bodies must be made of built-in
+        /// modifier tokens only.
+        case inputAliasInvalidBody = "input-alias-invalid-body"
         /// v2: `when-var` / `when-var-value` malformed or orphan.
         case conditionParseError  = "condition-parse-error"
         /// v2: `hold-while = "…"` fails to parse as a modifier mask.

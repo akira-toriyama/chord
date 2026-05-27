@@ -40,7 +40,10 @@ public enum InputParser {
     }
 
     public static func parse(_ raw: String,
-                             allowWildcard: Bool = false) throws -> Parsed {
+                             allowWildcard: Bool = false,
+                             inputAliases: [String: Modifiers] = [:])
+        throws -> Parsed
+    {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { throw InputParseError.empty }
 
@@ -80,11 +83,33 @@ public enum InputParser {
             primaryPart = last
         }
 
-        let mods = try parseModifiers(modPart, context: raw)
+        let mods = try parseModifiers(modPart, context: raw,
+                                      inputAliases: inputAliases)
         let trigger = try parsePrimary(primaryPart, context: raw,
                                        allowWildcard: allowWildcard)
         return Parsed(modifiers: mods, trigger: trigger)
     }
+
+    /// Built-in modifier tokens (lowercased, including the common
+    /// spellings: `cmd`/`command`/`⌘`/`alt`/`opt` etc). Used by
+    /// `Config` to reject `[input-aliases]` names that would shadow a
+    /// real modifier. Lookup is case-insensitive: callers should
+    /// `.lowercased()` before checking.
+    public static let reservedModifierTokens: Set<String> = [
+        "cmd", "⌘", "command",
+        "opt", "⌥", "alt", "option",
+        "ctrl", "⌃", "control",
+        "shift", "⇧",
+        "fn", "hyper",
+        "lcmd",   "lcommand",
+        "rcmd",   "rcommand",
+        "lopt",   "lalt", "loption",
+        "ropt",   "ralt", "roption",
+        "lctrl",  "lcontrol",
+        "rctrl",  "rcontrol",
+        "lshift",
+        "rshift",
+    ]
 
     /// Parse a modifier-only chain like `"cmd + opt"` or
     /// `"hyper"`. Used by v2's `hold-while` field — the modifier mask
@@ -118,7 +143,8 @@ public enum InputParser {
         return (p.modifiers, kc)
     }
 
-    private static func parseModifiers(_ raw: String, context: String)
+    private static func parseModifiers(_ raw: String, context: String,
+                                       inputAliases: [String: Modifiers] = [:])
         throws -> Modifiers
     {
         guard !raw.isEmpty else { return [] }
@@ -150,7 +176,20 @@ public enum InputParser {
             case "rshift":                      out.insert(.rshift)
 
             default:
-                throw InputParseError.unknownToken(t, context: context)
+                // Unknown token gets a second chance against the
+                // user's `[input-aliases]` table — supports bare
+                // references like `"ULTRA_LL - m"` where
+                // `ULTRA_LL = "rctrl + ralt + rshift"` was declared.
+                // The map's bodies are pre-validated at load time
+                // (Config.swift) so a hit guarantees a valid mask;
+                // a miss falls through to the same `unknownToken`
+                // error as before — keeps undefined-alias errors
+                // visually identical to plain typos.
+                if let aliased = inputAliases[t] {
+                    out.formUnion(aliased)
+                } else {
+                    throw InputParseError.unknownToken(t, context: context)
+                }
             }
         }
         return out

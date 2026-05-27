@@ -34,6 +34,11 @@
       "additionalProperties": { "type": "string" },
       "description": "[aliases] table — each key is the alias name (without the leading @), each value is the shell-command body."
     },
+    "input_aliases": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "[input-aliases] table (v2.x forward-compat addition) — each key is a logical modifier-set name, each value is a `+`-joined modifier list (e.g. `\"ULTRA_LL\": \"rctrl + ralt + rshift\"`). Resolved as a bare reference (no `@` prefix) when it appears in a binding's `input = \"…\"`. Alias names that collide with built-in modifier tokens (cmd/ctrl/shift/…) are rejected at load. Absent or empty when the user did not declare any."
+    },
     "bindings":  { "type": "array", "items": { "$ref": "#/$defs/binding" } },
     "fallbacks": { "type": "array", "items": { "$ref": "#/$defs/binding" } },
     "dropped":   { "type": "array", "items": { "$ref": "#/$defs/dropped" } },
@@ -294,7 +299,7 @@
       "properties": {
         "section": {
           "type": "string",
-          "enum": ["[[bindings]]", "[[fallbacks]]", "[aliases]"],
+          "enum": ["[[bindings]]", "[[fallbacks]]", "[aliases]", "[input-aliases]"],
           "description": "Literal TOML section header the warning fired in."
         },
         "name":        { "type": "string" },
@@ -309,12 +314,15 @@
             "action-keys-parse-error",
             "undefined-alias",
             "alias-non-string",
+            "input-alias-non-string",
+            "input-alias-shadows-modifier",
+            "input-alias-invalid-body",
             "condition-parse-error",
             "hold-while-parse-error",
             "action-set-parse-error",
             "other"
           ],
-          "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a v3 schema bump. v2 added the last three: condition-parse-error, hold-while-parse-error, action-set-parse-error."
+          "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a v3 schema bump. v2.x additions are forward-compatible: input-alias-non-string / input-alias-shadows-modifier / input-alias-invalid-body (from [input-aliases]); condition-parse-error / hold-while-parse-error / action-set-parse-error (from v2 stateful bindings)."
         },
         "message": {
           "type": "string",

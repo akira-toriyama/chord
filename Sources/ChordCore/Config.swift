@@ -88,6 +88,72 @@ public enum Config {
             }
         }
 
+        // [input-aliases] — `name = "mod1 + mod2 + …"` lookup,
+        // bare reference in `input = "…"`. Two parallel maps:
+        //   * `inputAliasesRaw`: original case, used for schema /
+        //     introspection output (`chord --list --json`).
+        //   * `inputAliasesParsed`: lowercased keys → `Modifiers` mask,
+        //     pre-validated. Passed to `InputParser.parse` so token
+        //     resolution is a constant-time lookup (no body re-parse
+        //     per binding).
+        // Entries are rejected with a warning (not a hard error) when:
+        //   * value isn't a string
+        //   * name collides with a built-in modifier token — keeps
+        //     `parse("cmd - a")` unambiguous
+        //   * body fails to parse as a modifier list — bodies are
+        //     constrained to built-in tokens only (no nested alias
+        //     references; cycle-free by construction)
+        var inputAliasesRaw: [String: String] = [:]
+        var inputAliasesParsed: [String: Modifiers] = [:]
+        if case .table(let raw)? = root["input-aliases"] {
+            for (key, value) in raw {
+                if key == TOML.lineKey { continue }
+                let keyLower = key.lowercased()
+                if InputParser.reservedModifierTokens.contains(keyLower) {
+                    warnings.append(ConfigWarning(
+                        kind: .inputAliasShadowsModifier,
+                        message:
+                            "[input-aliases] '\(key)': name shadows " +
+                            "built-in modifier token — ignored",
+                        bindingName: key))
+                    continue
+                }
+                guard let s = value.asString else {
+                    warnings.append(ConfigWarning(
+                        kind: .inputAliasNonString,
+                        message:
+                            "[input-aliases] '\(key)': value must be a " +
+                            "string — ignored",
+                        bindingName: key))
+                    continue
+                }
+                let mask: Modifiers
+                do {
+                    mask = try InputParser.parseModifiersOnly(s)
+                } catch {
+                    warnings.append(ConfigWarning(
+                        kind: .inputAliasInvalidBody,
+                        message:
+                            "[input-aliases] '\(key)': \(error) — ignored",
+                        bindingName: key))
+                    continue
+                }
+                // Empty body is meaningless — same treatment as
+                // hold-while: caller almost certainly mistyped.
+                if mask.rawValue == 0 {
+                    warnings.append(ConfigWarning(
+                        kind: .inputAliasInvalidBody,
+                        message:
+                            "[input-aliases] '\(key)': must contain at " +
+                            "least one modifier — ignored",
+                        bindingName: key))
+                    continue
+                }
+                inputAliasesRaw[key] = s
+                inputAliasesParsed[keyLower] = mask
+            }
+        }
+
         var bindings: [Binding] = []
         var dropped = 0
         let rows = root["bindings"]?.asArrayOfTables ?? []
@@ -95,6 +161,7 @@ public enum Config {
             if let b = makeBinding(from: row, index: i,
                                    isFallback: false,
                                    aliases: aliases,
+                                   inputAliases: inputAliasesParsed,
                                    warnings: &warnings)
             {
                 bindings.append(b)
@@ -109,6 +176,7 @@ public enum Config {
             if let b = makeBinding(from: row, index: i,
                                    isFallback: true,
                                    aliases: aliases,
+                                   inputAliases: inputAliasesParsed,
                                    warnings: &warnings)
             {
                 fallbacks.append(b)
@@ -118,7 +186,8 @@ public enum Config {
         }
 
         let cfg = ChordConfig(options: options, bindings: bindings,
-                              fallbacks: fallbacks, aliases: aliases)
+                              fallbacks: fallbacks, aliases: aliases,
+                              inputAliases: inputAliasesRaw)
         return ParseResult(config: cfg, warnings: warnings,
                            droppedBindings: dropped, sourcePath: nil)
     }
@@ -127,6 +196,7 @@ public enum Config {
         from row: [String: TOML.Value], index: Int,
         isFallback: Bool,
         aliases: [String: String],
+        inputAliases: [String: Modifiers],
         warnings: inout [ConfigWarning]
     ) -> Binding? {
         let section = isFallback ? "[[fallbacks]]" : "[[bindings]]"
@@ -142,7 +212,8 @@ public enum Config {
         }
         let parsed: InputParser.Parsed
         do { parsed = try InputParser.parse(inputRaw,
-                                            allowWildcard: isFallback) }
+                                            allowWildcard: isFallback,
+                                            inputAliases: inputAliases) }
         catch {
             warnings.append(ConfigWarning(
                 kind: .unknownInputToken,

@@ -204,6 +204,33 @@ exclude-apps = []
 
 
 # =====================================================================
+# Input aliases — named modifier-set chords, bare reference in `input`
+# =====================================================================
+# `[input-aliases]` lets you give a logical name to a modifier set so
+# `input = "..."` can stay readable. Reference is **bare** (no `@`
+# prefix), just write the alias name in place of the modifiers:
+#
+#   [input-aliases]
+#   ULTRA_LL   = "rctrl + ralt + rshift"
+#   MIRACLE_LM = "rctrl + rcmd + rshift"
+#
+#   [[bindings]]
+#   input = "ULTRA_LL - c"          # = "rctrl + ralt + rshift - c"
+#   input = "ULTRA_LL + cmd - m"    # mix with built-in modifiers OK
+#
+# Constraints:
+#   * Body = built-in modifier tokens only (no nested alias references)
+#   * Name must not collide with built-in tokens (cmd / ctrl / hyper …)
+#   * Names matched case-insensitively at lookup time
+#
+# Undefined alias references fail the same way as a modifier typo:
+# `unknown-input-token` warning, binding dropped.
+#
+# [input-aliases]
+# ULTRA_LL = "rctrl + ralt + rshift"
+
+
+# =====================================================================
 # Pattern 5 — App-scoped overrides
 # =====================================================================
 # Same chord, different action depending on the frontmost app.
