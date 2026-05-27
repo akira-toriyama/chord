@@ -34,26 +34,28 @@ jobs:
           shasum -a 256 "dist/chord-${GITHUB_SHA::7}.tar.gz" \
             > "dist/chord-${GITHUB_SHA::7}.tar.gz.sha256"
 
-      - name: install git-cliff
-        run: brew install git-cliff
-
-      - name: generate changelog
-        run: git-cliff --config cliff.toml --output dist/CHANGELOG.md
-
-      - name: rolling-draft release
+      - name: Attach artifacts to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Find or create the rolling draft.
-          existing=$(gh release list --limit 5 --json tagName,isDraft \
-            --jq '.[] | select(.isDraft) | .tagName' | head -n1)
-          tag="${existing:-v0.1.0-dev}"
-          if [ -z "$existing" ]; then
-            gh release create "$tag" \
-              --draft --title "$tag" \
-              --notes-file dist/CHANGELOG.md \
-              dist/*.tar.gz dist/*.sha256
+          # Upload Chord.app tar.gz + sha256 to the release matching
+          # the pushed tag (e.g. v0.5.0). The release itself is
+          # expected to exist already — the maintainer creates it
+          # manually with handwritten gitmoji notes after the build
+          # passes. If the release isn't there yet, log + exit clean
+          # so the workflow doesn't create the historic "v0.1.0-dev"
+          # rolling draft (intentionally retired).
+          #
+          # To attach artifacts after a later `gh release create`,
+          # either re-run this workflow from the Actions UI or run:
+          #   gh release upload "${TAG}" dist/*.tar.gz dist/*.sha256
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" \
+              dist/*.tar.gz dist/*.sha256 --clobber
+            echo "uploaded artifacts to release $tag"
           else
-            gh release upload "$tag" --clobber dist/*.tar.gz dist/*.sha256
-            gh release edit "$tag" --notes-file dist/CHANGELOG.md
+            echo "release $tag not found — skipping upload."
+            echo "create the release manually, then re-run this workflow"
+            echo "(or run: gh release upload $tag dist/*.tar.gz dist/*.sha256)"
           fi
