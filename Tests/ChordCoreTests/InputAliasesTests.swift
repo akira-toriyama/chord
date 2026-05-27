@@ -226,7 +226,7 @@ final class InputAliasesTests: XCTestCase {
         input = "ULTRA_LL - a"
         action-noop = true
         """)
-        let doc = Schema.makeDocument(from: res)
+        let doc = BindingsSchema.makeDocument(from: res)
         XCTAssertEqual(doc.inputAliases["ULTRA_LL"], "rctrl + ralt + rshift")
         XCTAssertEqual(doc.inputAliases["MIRACLE_LM"], "rctrl + rcmd + rshift")
     }
