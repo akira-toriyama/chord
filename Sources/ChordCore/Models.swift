@@ -210,10 +210,26 @@ public struct Binding: Hashable, Sendable {
     /// Modifier mask tying a variable's lifecycle to a held mod set.
     /// When all modifiers in this mask have left the OS-side flag
     /// state, the controller clears every variable this binding set.
-    /// `nil` = no auto-clear (the variable persists until an explicit
-    /// `setVariable(_, 0)` action). Only meaningful when `action`
+    /// `nil` = no auto-clear via modifier release. Mutually exclusive
+    /// with [holdWhileTimeoutMs] — the parser drops the binding when
+    /// both are set. Only meaningful when `action`
     /// is `.setVariable`.
     public var holdWhile: Modifiers?
+
+    /// Inactivity timeout (milliseconds) tying a variable's lifecycle
+    /// to "no relevant input within N ms". The timer is scheduled
+    /// when `Action.setVariable` fires and reset every time a binding
+    /// gated on the same variable fires (B-α "reset-on-use" semantics,
+    /// matches Vim's `timeoutlen`). On timer expiry the controller
+    /// clears the entry. `nil` = no timeout. Mutually exclusive with
+    /// [holdWhile].
+    ///
+    /// Designed for keyboards whose firmware emits modifier chords
+    /// atomically (ZMK macros, Karabiner complex_modifications):
+    /// the modifier flag drops between primary keys so `holdWhile`
+    /// would clear the variable before the next primary arrived.
+    /// Timeout-based lifetime sidesteps that constraint entirely.
+    public var holdWhileTimeoutMs: Int?
 
     // — metadata (read by Schema.swift, not by Matcher) —
 
@@ -238,6 +254,7 @@ public struct Binding: Hashable, Sendable {
                 condition: Condition? = nil,
                 onUpAction: Action? = nil,
                 holdWhile: Modifiers? = nil,
+                holdWhileTimeoutMs: Int? = nil,
                 inputRaw: String = "",
                 actionRaw: String? = nil,
                 aliasName: String? = nil,
@@ -250,6 +267,7 @@ public struct Binding: Hashable, Sendable {
         self.condition = condition
         self.onUpAction = onUpAction
         self.holdWhile = holdWhile
+        self.holdWhileTimeoutMs = holdWhileTimeoutMs
         self.inputRaw = inputRaw
         self.actionRaw = actionRaw
         self.aliasName = aliasName

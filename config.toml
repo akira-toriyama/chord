@@ -79,7 +79,17 @@ exclude-apps = []
 #
 # Optional variable lifecycle (v2 — meaningful with action-set-var):
 #   hold-while = "cmd + opt"      — variable auto-clears when this
-#                                    modifier mask is no longer held
+#                                    modifier mask is no longer held.
+#                                    Only useful when modifiers stay
+#                                    physically held across keystrokes.
+#   hold-while-timeout = 800       — (v2.1, recommended for ZMK /
+#                                    Karabiner setups whose firmware
+#                                    fires modifier chords atomically)
+#                                    inactivity timer (ms). Reset every
+#                                    time a binding gated on the same
+#                                    variable fires. Vim's `timeoutlen`
+#                                    semantics.
+#   (mutually exclusive — write one or neither, not both)
 #
 # Shell actions get these env vars:
 #   CHORD_BINDING_NAME, CHORD_FRONTMOST_BUNDLE_ID
@@ -256,26 +266,59 @@ exclude-apps = []
 
 
 # =====================================================================
-# Pattern 9 — Leader-key window mode (v2 state + on-up + hold-while)
+# Pattern 9 — Leader-key mode with inactivity timeout (recommended)
 # =====================================================================
-# Karabiner-style two-stroke binding. Press cmd+opt+j to "arm" the
-# window mode (no action). While cmd+opt remain held, subsequent
-# keys do window-management actions. When cmd+opt is released the
-# mode auto-clears (no `esc` needed).
+# Vim-style timeoutlen leader. Tap leader to "arm" the layer, then
+# tap follow-up keys within the timeout window. Each gated keypress
+# extends the timer (B-α reset-on-use), so a sustained editing
+# session keeps the layer alive. After 800ms of inactivity the
+# variable auto-clears.
 #
-#   cmd + opt + j         → enter mode (sets wm=1)
-#   cmd + opt + k (down)  → maximize    (only when wm=1)
-#   cmd + opt + l (down)  → snap-left
-#   cmd + opt + l (up)    → snap-right  (release fires action_on_up)
-#   cmd + opt released    → wm cleared (hold-while auto-release)
+# Use this form when your keyboard firmware (ZMK macros, Karabiner
+# complex_modifications, …) emits modifier chords atomically — i.e.
+# the modifiers drop between primary keys at the OS level. Pattern 10
+# below (`hold-while`) only works when the modifiers stay physically
+# held across keystrokes — many programmable keyboards can't deliver
+# that.
 #
-# Notes:
-#   • `action-set-var = "wm"` sets the variable to 1 (the default).
-#     Use `action-set-value = 0` to clear an entry explicitly.
-#   • `when-var = "wm"` defaults to `when-var-value = 1`.
-#   • The leader key (`j`) is consumed — the OS never sees the j.
-#   • `hold-while` only ties the variable lifecycle; consumer
-#     bindings still need `when-var` to gate.
+#   ULTRA_LL + j         → enter j-layer (sets jlayer=1, 800ms timer)
+#   ULTRA_LL + k         → Enter         (only when jlayer=1, resets timer)
+#   ULTRA_LL + l         → Backspace
+#   (no input for 800ms) → jlayer auto-clears
+#
+# [[bindings]]
+# name = "ULTRA_LL + j → arm j-layer"
+# input = "rctrl + ralt + rshift - j"
+# action-set-var = "jlayer"
+# hold-while-timeout = 800
+#
+# [[bindings]]
+# name = "ULTRA_LL + k → Enter (in j-layer)"
+# input = "rctrl + ralt + rshift - k"
+# when-var = "jlayer"
+# action-keys = "return"
+#
+# [[bindings]]
+# name = "ULTRA_LL + l → Backspace (in j-layer)"
+# input = "rctrl + ralt + rshift - l"
+# when-var = "jlayer"
+# action-keys = "backspace"
+
+
+# =====================================================================
+# Pattern 10 — Leader-key mode with modifier hold (Karabiner-style)
+# =====================================================================
+# Same idea as Pattern 9, but the layer's lifetime is tied to a held
+# modifier mask rather than an inactivity timer. Auto-clears the
+# moment the modifier drops. Only useful when the modifiers stay
+# physically held across keystrokes — i.e. plain software keyboard
+# usage, NOT atomic-chord firmware. If unsure, prefer Pattern 9.
+#
+#   cmd + opt + j        → enter wm-mode (sets wm=1)
+#   cmd + opt + k        → maximize         (only when wm=1)
+#   cmd + opt + l (down) → snap-left
+#   cmd + opt + l (up)   → snap-right       (fires action_on_up)
+#   cmd + opt released   → wm cleared
 #
 # [[bindings]]
 # name = "wm: enter (leader)"

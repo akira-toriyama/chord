@@ -179,6 +179,77 @@ final class StateTests: XCTestCase {
         XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
 
+    // MARK: - v2.1 hold-while-timeout
+
+    func testParseHoldWhileTimeout() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "j-layer (timeout)"
+        input = "rctrl + ralt + rshift - j"
+        action-set-var = "jlayer"
+        hold-while-timeout = 800
+        """)
+        XCTAssertEqual(res.config.bindings.count, 1)
+        XCTAssertEqual(res.config.bindings[0].holdWhileTimeoutMs, 800)
+        XCTAssertNil(res.config.bindings[0].holdWhile,
+                     "timeout-only binding should not carry holdWhile")
+    }
+
+    func testHoldWhileTimeoutZeroDropsBinding() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "bad-timeout"
+        input = "f13"
+        action-set-var = "x"
+        hold-while-timeout = 0
+        """)
+        XCTAssertEqual(res.config.bindings.count, 0)
+        XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError })
+    }
+
+    func testHoldWhileTimeoutNegativeDropsBinding() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "bad-timeout"
+        input = "f13"
+        action-set-var = "x"
+        hold-while-timeout = -100
+        """)
+        XCTAssertEqual(res.config.bindings.count, 0)
+        XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError })
+    }
+
+    func testHoldWhileAndTimeoutMutuallyExclusive() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "both-lifecycles"
+        input = "cmd - j"
+        action-set-var = "x"
+        hold-while = "cmd"
+        hold-while-timeout = 500
+        """)
+        XCTAssertEqual(res.config.bindings.count, 0)
+        XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError },
+                      "both lifecycles should produce a holdWhileParseError")
+    }
+
+    func testSchemaEmitsHoldWhileTimeout() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "j-layer"
+        input = "rctrl + ralt + rshift - j"
+        action-set-var = "jlayer"
+        hold-while-timeout = 800
+        """)
+        let doc = BindingsSchema.makeDocument(from: res)
+        let data = try BindingsSchema.encodeJSON(doc)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let b = (json["bindings"] as! [[String: Any]])[0]
+        XCTAssertEqual(b["hold_while_timeout"] as? Int, 800)
+        XCTAssertNil(b["hold_while"],
+                     "timeout-only binding omits hold_while in JSON")
+    }
+
     // MARK: - Schema v2 emission
 
     func testSchemaEmitsSetVariableAction() throws {

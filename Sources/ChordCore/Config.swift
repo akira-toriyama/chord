@@ -193,6 +193,26 @@ public enum Config {
                                              sourceLine: line,
                                              warnings: &warnings)
         else { return nil }
+        guard let holdWhileTimeout = parseHoldWhileTimeout(
+            row: row, section: section,
+            name: name, source: source,
+            sourceLine: line,
+            warnings: &warnings)
+        else { return nil }
+        // hold-while and hold-while-timeout are mutually exclusive —
+        // they pick different lifecycles for the same variable. The
+        // user almost certainly meant one or the other; offer a clear
+        // error rather than silently picking.
+        if holdWhile.value != nil && holdWhileTimeout.value != nil {
+            warnings.append(ConfigWarning(
+                kind: .holdWhileParseError,
+                message:
+                    "\(section) '\(name)'\(source): " +
+                    "hold-while and hold-while-timeout are mutually " +
+                    "exclusive — pick one",
+                sourceLine: line, bindingName: name))
+            return nil
+        }
 
         var apps: [String]?
         if let arr = row["apps"]?.asArray {
@@ -207,6 +227,7 @@ public enum Config {
             condition: condition.value,
             onUpAction: onUpResult?.action,
             holdWhile: holdWhile.value,
+            holdWhileTimeoutMs: holdWhileTimeout.value,
             inputRaw: inputRaw,
             actionRaw: parsedAction.raw,
             aliasName: parsedAction.aliasName,
@@ -381,6 +402,41 @@ public enum Config {
             value = 1
         }
         return OptionalParse(value: .variable(name: varName, equals: value))
+    }
+
+    /// Parse the optional `hold-while-timeout = 800` field. Positive
+    /// integer in milliseconds; 0 / negative is a user error and
+    /// drops the binding (the field has no zero meaning — explicit
+    /// clear uses `action-set-value = 0`).
+    private static func parseHoldWhileTimeout(
+        row: [String: TOML.Value],
+        section: String, name: String, source: String,
+        sourceLine: Int?,
+        warnings: inout [ConfigWarning]
+    ) -> OptionalParse<Int>? {
+        guard let raw = row["hold-while-timeout"] else {
+            return OptionalParse(value: nil)
+        }
+        guard let v = raw.asInt else {
+            warnings.append(ConfigWarning(
+                kind: .holdWhileParseError,
+                message:
+                    "\(section) '\(name)'\(source): " +
+                    "hold-while-timeout must be an integer (ms)",
+                sourceLine: sourceLine, bindingName: name))
+            return nil
+        }
+        let ms = Int(v)
+        guard ms > 0 else {
+            warnings.append(ConfigWarning(
+                kind: .holdWhileParseError,
+                message:
+                    "\(section) '\(name)'\(source): " +
+                    "hold-while-timeout must be > 0 (got \(ms))",
+                sourceLine: sourceLine, bindingName: name))
+            return nil
+        }
+        return OptionalParse(value: ms)
     }
 
     /// Parse the optional `hold-while = "cmd + opt"` field into a

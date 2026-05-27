@@ -124,15 +124,20 @@ public enum BindingsSchema {
         /// v2: modifier-mask tying a variable's lifecycle to a held-
         /// down mod set. Tokens drawn from `modifier_token`.
         public let holdWhile: [String]?
+        /// v2.1: inactivity timeout (ms) lifecycle. Mutually
+        /// exclusive with [holdWhile]; the parser drops the binding
+        /// if both are set.
+        public let holdWhileTimeoutMs: Int?
         /// v2: secondary action that fires on the matching key's
         /// release. Same shape as `action`.
         public let actionOnUp: WireAction?
 
         enum CodingKeys: String, CodingKey {
             case index, name, input, apps, action, condition
-            case sourceLine  = "source_line"
-            case holdWhile   = "hold_while"
-            case actionOnUp  = "action_on_up"
+            case sourceLine         = "source_line"
+            case holdWhile          = "hold_while"
+            case holdWhileTimeoutMs = "hold_while_timeout"
+            case actionOnUp         = "action_on_up"
         }
     }
 
@@ -326,6 +331,7 @@ public enum BindingsSchema {
             && a.action == b.action
             && a.condition == b.condition
             && a.holdWhile == b.holdWhile
+            && a.holdWhileTimeoutMs == b.holdWhileTimeoutMs
             && a.actionOnUp == b.actionOnUp
     }
 
@@ -410,6 +416,7 @@ public enum BindingsSchema {
                                aliasName: b.aliasName),
             condition: b.condition.map(wireCondition),
             holdWhile: b.holdWhile.map { modifierTokens($0) },
+            holdWhileTimeoutMs: b.holdWhileTimeoutMs,
             actionOnUp: b.onUpAction.map {
                 wireAction(action: $0, raw: nil, aliasName: nil)
             })

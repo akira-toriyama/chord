@@ -80,7 +80,12 @@
           "type": "array",
           "items": { "$ref": "#/$defs/modifier_token" },
           "uniqueItems": true,
-          "description": "Modifier mask tying a variable's lifecycle to a held-down mod set. When all modifiers in this mask have left the OS-side flag state, chord clears every variable this binding's `set-variable` action wrote. Meaningful only when `action.kind == \"set-variable\"`."
+          "description": "Modifier mask tying a variable's lifecycle to a held-down mod set. When all modifiers in this mask have left the OS-side flag state, chord clears every variable this binding's `set-variable` action wrote. Meaningful only when `action.kind == \"set-variable\"`. Mutually exclusive with `hold_while_timeout`."
+        },
+        "hold_while_timeout": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "v2.1 — inactivity timeout (milliseconds) tying a variable's lifecycle to 'no relevant input within N ms'. Timer is scheduled when the binding's `set-variable` action fires and reset every time a binding gated on the same variable fires (B-α 'reset-on-use' semantics; matches Vim's `timeoutlen`). Designed for keyboards whose firmware emits modifier chords atomically (ZMK macros, Karabiner complex_modifications) — the modifier flag drops between primary keys so `hold_while` would clear the variable before the next primary arrived. Mutually exclusive with `hold_while`."
         },
         "action_on_up": {
           "$ref": "#/$defs/action",

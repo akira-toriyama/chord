@@ -263,6 +263,36 @@ event. Everything below depends on this contract:
   and keeps the parser surface bounded. Anything richer belongs
   in stroke or in Karabiner.
 
+### Variable lifecycle (v2.1 — `hold-while-timeout`)
+
+- **`hold-while`** ties the variable to a held modifier mask. Only
+  useful when the modifiers stay physically held at the OS level
+  across keystrokes. Many programmable keyboards (ZMK macros that
+  emit atomic strict-side chords; Karabiner complex_modifications)
+  drop the modifiers between primary keys — `hold-while` would
+  clear the variable before the next primary arrived. Verified by
+  observing flagsChanged transitions of 1-2ms duration immediately
+  after a `keyDown` on those setups.
+- **`hold-while-timeout`** (v2.1) is the inactivity-timer
+  lifecycle. The timer is scheduled from the tap thread via
+  `DispatchSource.makeTimerSource` on `stateTimerQueue` (a private
+  serial queue), and fires `Controller.timerFired(name:)` which
+  takes `stateLock` and removes the entry. B-α "reset-on-use":
+  every binding gated on the same variable extends the timer
+  before returning — sustained editing sessions don't time out.
+- **Mutual exclusion**: a binding writing both `hold-while` and
+  `hold-while-timeout` is dropped at parse time. They pick
+  different lifecycles for the same variable.
+- **Cleanup paths cancel timers**: reload (`resetState`),
+  modifier release (`clearStaleVariables`), explicit clear
+  (`action-set-value = 0`) all cancel the timer via
+  `cancelTimerLocked` so a delayed fire doesn't mutate stale
+  state.
+- **No global default**. Each `action-set-var` binding declares
+  its own timeout. Vim's `timeoutlen` global is a known pain
+  point — different leaders have different ergonomics
+  (window-management snap = fast, editing leader = slow).
+
 ### Key-up / paired consume (v2)
 
 - **EventTap.mask now includes `keyUp` and the three `*MouseUp`
