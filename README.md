@@ -101,6 +101,25 @@ input = "mouse.side1"
 action-keys = "cmd + shift - 4"
 ```
 
+### Shell + keys on one press
+
+Declare both `action-shell` and `action-keys` on a single binding to
+run a command **and** post keys on the same key-down — Karabiner's
+`to`-array shape. The shell fires first (fire-and-forget), then the
+keys are posted, so the focused app still receives them:
+
+```toml
+[[bindings]]
+name = "facet tree, then nav right"
+input = "ctrl - right"
+action-shell = "facet --view=tree --loading=2000"
+action-keys  = "ctrl - right"
+```
+
+The original `ctrl - right` is consumed; the re-posted one is tagged
+synthetic so it never re-triggers the binding. Only this pair
+combines — `action-noop` / `action-set-var` stay single-action.
+
 ### Leader-key modes (v2)
 
 Karabiner-style two-stroke bindings — press a "leader" chord to

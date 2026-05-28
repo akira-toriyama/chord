@@ -248,6 +248,33 @@ public enum Config {
                                        warnings: &warnings)
         guard let parsedAction = actionResult else { return nil }
 
+        // Karabiner-style multi-action on down: when a binding
+        // declares BOTH action-shell and action-keys, the shell runs
+        // first (parseAction's precedence makes it the primary
+        // `action`) and the keys are posted right after on the same
+        // key-down. Only this pair combines — noop / set-var stay
+        // single-action, so the existing first-wins precedence is
+        // unchanged for every other combination.
+        let extraDownActions: [Action]
+        if case .shell = parsedAction.action,
+           let keysStr = row["action-keys"]?.asString {
+            do {
+                let (mods, code) =
+                    try InputParser.parseKeyForOutput(keysStr)
+                extraDownActions = [.keys(mods, code)]
+            } catch {
+                warnings.append(ConfigWarning(
+                    kind: .actionKeysParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "action-keys: \(error)",
+                    sourceLine: line, bindingName: name))
+                return nil
+            }
+        } else {
+            extraDownActions = []
+        }
+
         // On-up action: optional. Failure to parse drops the binding —
         // a broken on-up declaration is a user error, not silent
         // ignore (same severity as a broken primary action-keys).
@@ -311,6 +338,7 @@ public enum Config {
             name: name, trigger: parsed.trigger,
             modifiers: parsed.modifiers, apps: apps,
             action: parsedAction.action,
+            extraDownActions: extraDownActions,
             condition: condition.value,
             onUpAction: onUpResult?.action,
             holdWhile: holdWhile.value,

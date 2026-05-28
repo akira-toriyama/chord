@@ -97,6 +97,26 @@ input = "mouse.side1"
 action-keys = "cmd + shift - 4"
 ```
 
+### 1 回の押下で shell + キー送信
+
+1 つのバインドに `action-shell` と `action-keys` の両方を書くと、
+同じキーダウンで「コマンド実行」と「キー送信」を両方行えます
+(Karabiner の `to` 配列に相当)。shell が先に発火し
+(撃ちっぱなし)、その後キーが送出されるので、フォーカス中の
+アプリにもキーが届きます:
+
+```toml
+[[bindings]]
+name = "facet tree, then nav right"
+input = "ctrl - right"
+action-shell = "facet --view=tree --loading=2000"
+action-keys  = "ctrl - right"
+```
+
+元の `ctrl - right` は consume され、再送する方は synthetic タグが
+付くのでバインドを再発火しません。組み合わせ可能なのはこのペアの
+みで、`action-noop` / `action-set-var` は単一アクションのままです。
+
 ### Leader-key モード (v2)
 
 Karabiner 流の 2 ストローク・バインド。リーダーコードでモードを

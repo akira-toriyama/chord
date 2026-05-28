@@ -140,6 +140,10 @@ public enum BindingsSchema {
         /// v2: secondary action that fires on the matching key's
         /// release. Same shape as `action`.
         public let actionOnUp: WireAction?
+        /// v3.x: additional actions that fire on the same key-down,
+        /// in order, after `action` (Karabiner `to`-array shape).
+        /// Absent when the binding has only the single primary action.
+        public let extraActions: [WireAction]?
 
         enum CodingKeys: String, CodingKey {
             case index, name, input, apps, action, condition
@@ -147,6 +151,7 @@ public enum BindingsSchema {
             case holdWhile          = "hold_while"
             case holdWhileTimeoutMs = "hold_while_timeout"
             case actionOnUp         = "action_on_up"
+            case extraActions       = "extra_actions"
         }
     }
 
@@ -359,6 +364,7 @@ public enum BindingsSchema {
             && a.holdWhile == b.holdWhile
             && a.holdWhileTimeoutMs == b.holdWhileTimeoutMs
             && a.actionOnUp == b.actionOnUp
+            && a.extraActions == b.extraActions
     }
 
     // MARK: - encoding
@@ -446,7 +452,11 @@ public enum BindingsSchema {
             holdWhileTimeoutMs: b.holdWhileTimeoutMs,
             actionOnUp: b.onUpAction.map {
                 wireAction(action: $0, raw: nil, aliasName: nil)
-            })
+            },
+            extraActions: b.extraDownActions.isEmpty ? nil
+                : b.extraDownActions.map {
+                    wireAction(action: $0, raw: nil, aliasName: nil)
+                })
     }
 
     private static func wireCondition(_ c: Condition) -> WireCondition {
