@@ -192,6 +192,16 @@ public struct Binding: Hashable, Sendable {
     public var apps: [String]?
     public var action: Action
 
+    /// Additional actions that fire on the same key-down, in order,
+    /// right after `action`. Karabiner's `to`-array shape: a single
+    /// chord can run a shell command AND post keys on one press.
+    /// chord's bounded form of that is the `action-shell` +
+    /// `action-keys` pair on one binding — the shell becomes `action`
+    /// (it runs first) and the keys land here. Empty for the common
+    /// single-action binding. `setVariable` / `noop` never combine, so
+    /// every element is `.shell` or `.keys`.
+    public var extraDownActions: [Action]
+
     /// Optional state-gate. When non-nil, the matcher consults the
     /// controller's variable snapshot and skips this binding when
     /// the predicate is false. `nil` = the binding fires whenever
@@ -251,6 +261,7 @@ public struct Binding: Hashable, Sendable {
 
     public init(name: String, trigger: Trigger, modifiers: Modifiers,
                 apps: [String]?, action: Action,
+                extraDownActions: [Action] = [],
                 condition: Condition? = nil,
                 onUpAction: Action? = nil,
                 holdWhile: Modifiers? = nil,
@@ -264,6 +275,7 @@ public struct Binding: Hashable, Sendable {
         self.modifiers = modifiers
         self.apps = apps
         self.action = action
+        self.extraDownActions = extraDownActions
         self.condition = condition
         self.onUpAction = onUpAction
         self.holdWhile = holdWhile

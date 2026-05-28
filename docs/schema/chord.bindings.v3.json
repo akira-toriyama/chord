@@ -95,6 +95,11 @@
         "action_on_up": {
           "$ref": "#/$defs/action",
           "description": "Secondary action that fires on the matching key's release. Same shape as `action`. The primary `action` always fires on key-down; both halves are implicitly consumed (the OS never sees the original down or up)."
+        },
+        "extra_actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" },
+          "description": "Additional actions that fire on the same key-down, in order, right after `action` (Karabiner `to`-array shape). chord's bounded form: a binding declaring BOTH `action-shell` and `action-keys` runs the shell as `action` (it fires first) and posts the keys here. Absent when the binding has only the single primary action."
         }
       }
     },

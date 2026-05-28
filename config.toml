@@ -58,12 +58,19 @@ exclude-apps = []
 #   See Sources/ChordCore/KeyCodes.swift for the full table.
 #   Anything else: use `keycode-N` (raw CGKeyCode).
 #
-# Exactly ONE primary action per binding:
+# One primary action per binding:
 #   action-shell    = "open -a Terminal"     — runs in /bin/zsh -l -c
 #   action-keys     = "cmd + shift - 4"      — chord posts these keys
 #   action-noop     = true                    — eats the event
 #   action-set-var  = "wm"                    — v2: sets wm = 1
 #                                                (use action-set-value=N for ≠1)
+#
+# Run shell AND post keys on the SAME press (Karabiner `to`-array
+# shape): declare both action-shell and action-keys on one binding.
+# The shell fires first, then the keys are posted:
+#   action-shell = "facet --view=tree --loading=2000"
+#   action-keys  = "ctrl - right"
+# (only this pair combines; noop / set-var stay single-action.)
 #
 # Optional secondary action that fires on the key's release:
 #   action-shell-on-up = "…"
@@ -127,6 +134,21 @@ exclude-apps = []
 # name = "screenshot whole screen"
 # input = "shift - mouse.side1"
 # action-keys = "cmd + shift - 3"
+
+
+# =====================================================================
+# Pattern 2b — shell + keys on one press (Karabiner `to`-array style)
+# =====================================================================
+# Flash a facet overlay when navigating, without losing the nav key.
+# The shell runs first (fire-and-forget), then chord posts ctrl+→ so
+# the focused app still receives it. The original ctrl+→ is consumed;
+# the re-posted one is tagged synthetic so it never re-triggers.
+#
+# [[bindings]]
+# name = "facet tree, then nav right"
+# input = "ctrl - right"
+# action-shell = "facet --view=tree --loading=2000"
+# action-keys  = "ctrl - right"
 
 
 # =====================================================================

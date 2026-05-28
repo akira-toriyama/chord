@@ -59,4 +59,61 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(r.config.bindings.count, 1)
         XCTAssertEqual(r.config.bindings[0].name, "good")
     }
+
+    func testShellPlusKeysCombineOnDown() throws {
+        let source = """
+        [[bindings]]
+        name = "facet then nav"
+        input = "ctrl - right"
+        action-shell = "facet --view=tree --loading=2000"
+        action-keys = "ctrl - right"
+        """
+        let r = try Config.parse(source)
+        XCTAssertEqual(r.droppedBindings, 0)
+        XCTAssertEqual(r.config.bindings.count, 1)
+        let b = r.config.bindings[0]
+        // Shell becomes the primary (it fires first on down)…
+        switch b.action {
+        case .shell(let s):
+            XCTAssertEqual(s, "facet --view=tree --loading=2000")
+        default: XCTFail("expected shell primary action")
+        }
+        // …and the keys land in extraDownActions (posted right after).
+        XCTAssertEqual(b.extraDownActions.count, 1)
+        switch b.extraDownActions.first {
+        case .keys(let mods, let code):
+            XCTAssertEqual(mods, [.ctrl])
+            XCTAssertEqual(code, 0x7C)
+        default: XCTFail("expected a chained keys action")
+        }
+    }
+
+    func testShellPlusBadKeysDropsBinding() throws {
+        let source = """
+        [[bindings]]
+        name = "broken combo"
+        input = "ctrl - right"
+        action-shell = "true"
+        action-keys = "no-such-key"
+        """
+        let r = try Config.parse(source)
+        XCTAssertEqual(r.droppedBindings, 1)
+        XCTAssertEqual(r.config.bindings.count, 0)
+    }
+
+    func testExtraActionsSurfaceInWireSchema() throws {
+        let source = """
+        [[bindings]]
+        name = "facet then nav"
+        input = "ctrl - right"
+        action-shell = "facet --view=tree"
+        action-keys = "ctrl - right"
+        """
+        let r = try Config.parse(source)
+        let doc = BindingsSchema.makeDocument(from: r)
+        let extra = doc.bindings[0].extraActions
+        XCTAssertEqual(extra?.count, 1)
+        XCTAssertEqual(extra?.first?.kind, "keys")
+        XCTAssertEqual(extra?.first?.key?.keycode, 0x7C)
+    }
 }

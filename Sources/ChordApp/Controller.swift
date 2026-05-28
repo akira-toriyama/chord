@@ -93,6 +93,15 @@ public final class Controller {
         } else {
             ActionDispatcher.dispatch(binding)
         }
+        // Karabiner-style multi-action on down: run any extra actions
+        // (only `.keys`, per the parser) in order, right after the
+        // primary. Swap `.action` and re-dispatch — same trick the
+        // on-up path uses; the dispatcher only reads `.action`.
+        for extra in binding.extraDownActions {
+            var b = binding
+            b.action = extra
+            ActionDispatcher.dispatch(b)
+        }
         // B-α reset-on-use: any binding gated on a variable extends
         // that variable's inactivity timer. Runs AFTER the primary
         // action so a setVariable + reset on the same binding still

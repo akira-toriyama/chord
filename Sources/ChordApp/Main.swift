@@ -17,7 +17,7 @@ enum ChordApp {
             printHelp(); exit(0)
         }
         if args.contains("--version") {
-            print("chord 0.6.0"); exit(0)
+            print("chord 0.7.0"); exit(0)
         }
         if args.contains("--validate") {
             exit(runValidate(strict: args.contains("--strict"),
@@ -274,7 +274,32 @@ enum ChordApp {
             print("  \(b.name)\(lineTag)")
             print("    input:  \(b.inputRaw)")
             print("    action: \(actionDesc)\(appsTag)")
+            for extra in b.extraDownActions {
+                if case .keys(let mods, let code) = extra {
+                    print("    + keys: \(describeKeys(mods, code))")
+                }
+            }
         }
+    }
+
+    /// Human-readable form of a chained `.keys` action for `--list`
+    /// text. Collapses L/R sides to the logical modifier — the plain
+    /// output is for humans; the JSON wire form carries the exact bits.
+    private static func describeKeys(_ mods: Modifiers,
+                                     _ code: UInt16) -> String {
+        var parts: [String] = []
+        if mods.contains(.cmd) || mods.contains(.lcmd)
+            || mods.contains(.rcmd) { parts.append("cmd") }
+        if mods.contains(.opt) || mods.contains(.lopt)
+            || mods.contains(.ropt) { parts.append("opt") }
+        if mods.contains(.ctrl) || mods.contains(.lctrl)
+            || mods.contains(.rctrl) { parts.append("ctrl") }
+        if mods.contains(.shift) || mods.contains(.lshift)
+            || mods.contains(.rshift) { parts.append("shift") }
+        if mods.contains(.fn) { parts.append("fn") }
+        let key = KeyCodes.name(forCode: code)
+        return parts.isEmpty ? key
+            : parts.joined(separator: " + ") + " - " + key
     }
 
     /// `chord --reload --dry-run` parses the on-disk config.toml
@@ -376,6 +401,9 @@ enum ChordApp {
             print("  + \(b.name)")
             print("      input:  \(b.input.raw)")
             print("      action: \(describe(b.action))")
+            for extra in b.extraActions ?? [] {
+                print("      + also: \(describe(extra))")
+            }
         }
         for b in removed {
             print("  - \(b.name)")
@@ -389,6 +417,14 @@ enum ChordApp {
                 print("      action: \(describe(c.old.action)) → " +
                       "\(describe(c.new.action))")
             }
+            if c.old.extraActions != c.new.extraActions {
+                func fmt(_ xs: [BindingsSchema.WireAction]?) -> String {
+                    let s = (xs ?? []).map(describe).joined(separator: ", ")
+                    return s.isEmpty ? "—" : s
+                }
+                print("      +also:  \(fmt(c.old.extraActions)) → " +
+                      "\(fmt(c.new.extraActions))")
+            }
             if c.old.apps != c.new.apps {
                 let oldApps = c.old.apps.map { "\($0)" } ?? "nil"
                 let newApps = c.new.apps.map { "\($0)" } ?? "nil"
@@ -401,7 +437,13 @@ enum ChordApp {
         -> String
     {
         switch action.kind {
-        case "keys":  return "keys \(action.raw ?? "")"
+        case "keys":
+            if let raw = action.raw, !raw.isEmpty { return "keys \(raw)" }
+            // Extras / on-up actions carry no raw string; rebuild a
+            // readable form from the canonical modifier + key fields.
+            let mods = (action.modifiers ?? []).joined(separator: " + ")
+            let key = action.key?.name ?? ""
+            return mods.isEmpty ? "keys \(key)" : "keys \(mods) - \(key)"
         case "shell":
             let aliasTag = action.alias.map { " (alias @\($0))" } ?? ""
             return "shell \(action.command ?? "")\(aliasTag)"
