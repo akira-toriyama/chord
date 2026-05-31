@@ -171,13 +171,18 @@ public enum Action: Hashable, Sendable {
 
 /// Predicate gate evaluated against the controller's state snapshot.
 ///
-/// v2 grammar is deliberately narrow — single-variable equality only.
-/// A richer expression language (`a == 1 && b == 2`) would need a
-/// parser; the leader-key state machines the canon migration
-/// needs fit equality alone. Add cases (not values) as the surface
-/// grows; renaming a case is a v3 bump.
+/// Grammar:
+///   * `.variable(name, equals:)` — single-variable equality (v2)
+///   * `.conjunction([Condition])` — AND of N conditions (chord 0.9.0+).
+///     Used by the `when-vars = { a = 1, b = 2 }` inline-table form.
+///
+/// OR / NOT are deliberately out of scope — they tip the predicate
+/// language toward a real expression grammar, which the canon
+/// migration's use cases do not need. Add cases (not enum values)
+/// as the surface grows; renaming a case is a v3 schema bump.
 public enum Condition: Hashable, Sendable {
     case variable(name: String, equals: Int)
+    indirect case conjunction([Condition])
 }
 
 /// One binding: trigger + modifiers + optional app scope → action.
