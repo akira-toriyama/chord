@@ -58,26 +58,22 @@ final class TestEventSourceTests: XCTestCase {
         XCTAssertEqual(result.droppedBindings, 0)
         let matcher = Matcher(bindings: result.config.bindings)
 
-        // Test harness emulates the Controller's state-var write path.
-        // Real Controller code lives in ChordApp/ behind AppKit/AX
-        // dependencies; here we just need the snapshot-mutation rule.
-        var state = StateSnapshot()
-        func applyAction(_ action: Action) {
-            if case .setVariable(let name, let value) = action {
-                var v = state.variables
-                if value == 0 { v[name] = nil } else { v[name] = value }
-                state = StateSnapshot(variables: v)
-            }
-        }
+        // Stand-in for the Controller's state-var store. The real
+        // Controller lives in ChordApp/ behind AppKit/AX deps; here we
+        // just need the snapshot-mutation rule (setVariable writes,
+        // explicit 0 clears, reload wipes). The closure passed to
+        // `src.start` is @Sendable under Swift 6 strict concurrency,
+        // so the mutable state needs a reference-type wrapper.
+        let state = StateBox()
 
         let src = TestEventSource()
         try src.start { event in
             let me = Matcher.Event(trigger: event.trigger,
                                    modifiers: event.modifiers,
                                    bundleID: event.frontmostBundleID,
-                                   state: state)
+                                   state: state.snapshot)
             guard let hit = matcher.find(me) else { return .passthrough }
-            applyAction(hit.action)
+            state.apply(hit.action)
             return .consume
         }
 
@@ -87,14 +83,14 @@ final class TestEventSourceTests: XCTestCase {
                                      frontmostBundleID: nil))
         XCTAssertEqual(kBefore, .passthrough,
                        "child must not fire before prefix sets _seq_j")
-        XCTAssertEqual(state.value("_seq_j"), 0)
+        XCTAssertEqual(state.snapshot.value("_seq_j"), 0)
 
         // 2. Prefix: enters mode, consumes, sets _seq_j = 1.
         let prefix = src.feed(.init(trigger: .key(0x26),        // j
                                     modifiers: [.lcmd, .lopt],
                                     frontmostBundleID: nil))
         XCTAssertEqual(prefix, .consume)
-        XCTAssertEqual(state.value("_seq_j"), 1)
+        XCTAssertEqual(state.snapshot.value("_seq_j"), 1)
 
         // 3. Child within mode: consumes (would emit return).
         let kAfter = src.feed(.init(trigger: .key(0x28),
@@ -108,12 +104,45 @@ final class TestEventSourceTests: XCTestCase {
                                      frontmostBundleID: nil))
         XCTAssertEqual(lInMode, .consume)
 
-        // 5. Simulate Controller's timeout clear: var → 0.
-        state = StateSnapshot()
+        // 5. Simulate Controller's timeout clear: wipe state.
+        state.reset()
         let kAfterTimeout = src.feed(.init(trigger: .key(0x28),
                                            modifiers: [.lcmd, .lopt],
                                            frontmostBundleID: nil))
         XCTAssertEqual(kAfterTimeout, .passthrough,
                        "child should stop firing after timeout-clear")
+    }
+}
+
+/// Mutable StateSnapshot wrapper for tests that need to feed a
+/// `@Sendable` handler closure (Swift 6 strict concurrency rejects
+/// capturing mutable `var state` from such a closure).
+///
+/// Internal locking is conservative — the test thread is the only
+/// writer in practice, but `TestEventSource` documents that callers
+/// MAY drive `feed` from another queue, and the same lock protects
+/// readers too. `@unchecked Sendable` is the same escape hatch
+/// chord's own `nonisolated(unsafe) sharedMatcher` uses.
+private final class StateBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = StateSnapshot()
+
+    var snapshot: StateSnapshot {
+        lock.lock(); defer { lock.unlock() }
+        return current
+    }
+
+    func apply(_ action: Action) {
+        lock.lock(); defer { lock.unlock() }
+        if case .setVariable(let name, let value) = action {
+            var v = current.variables
+            if value == 0 { v[name] = nil } else { v[name] = value }
+            current = StateSnapshot(variables: v)
+        }
+    }
+
+    func reset() {
+        lock.lock(); defer { lock.unlock() }
+        current = StateSnapshot()
     }
 }
