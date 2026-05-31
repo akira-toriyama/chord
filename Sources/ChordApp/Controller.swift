@@ -109,12 +109,19 @@ public final class Controller {
         if case .variable(let gated, _) = binding.condition {
             extendTimerIfPresent(name: gated)
         }
+        Control.writeStatus("fired \(binding.name)")
+        // chord 0.9.0+ passthrough: action fires above, but we let the
+        // original event reach the OS. No paired-up to capture (the
+        // OS sees both down + up natively), so skip the pendingUps
+        // registration too. action-keys / on-up / noop are forbidden
+        // on passthrough bindings at parse time, so reaching here is
+        // shell / setVariable only.
+        if binding.passthrough { return .passthrough }
         // Register pairing: B1 contract — the OS never saw this
         // down, so the corresponding up must also be consumed.
         // The binding (with its onUpAction) is what handleKeyUp
         // dispatches against.
         registerPendingUp(trigger: event.trigger, binding: binding)
-        Control.writeStatus("fired \(binding.name)")
         return .consume
     }
 

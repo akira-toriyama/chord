@@ -941,6 +941,62 @@ public enum Config {
             apps = strs.isEmpty || strs == ["*"] ? nil : strs
         }
 
+        // chord 0.9.0+ passthrough: fire action AND let the original
+        // event reach the OS. Restricted to `action-shell` only —
+        // posting `action-keys` while the original passes through
+        // would deliver two key events (duplicate). On-up doesn't
+        // fire either (we never register pendingUps), so reject that
+        // combination explicitly. `noop` + passthrough is also
+        // nonsense (the whole point of noop is to consume).
+        var passthrough = false
+        if let raw = row["passthrough"]?.asBool {
+            passthrough = raw
+        }
+        if passthrough {
+            if !extraDownActions.isEmpty {
+                warnings.append(ConfigWarning(
+                    kind: .actionKeysParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "passthrough is incompatible with action-keys " +
+                        "(the original event already reaches the OS)",
+                    sourceLine: line, bindingName: name))
+                return nil
+            }
+            switch parsedAction.action {
+            case .keys:
+                warnings.append(ConfigWarning(
+                    kind: .actionKeysParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "passthrough requires action-shell (or no action) — " +
+                        "action-keys would duplicate the keystroke",
+                    sourceLine: line, bindingName: name))
+                return nil
+            case .noop:
+                warnings.append(ConfigWarning(
+                    kind: .missingAction,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "passthrough is incompatible with action-noop " +
+                        "(noop = absorb; passthrough = relay)",
+                    sourceLine: line, bindingName: name))
+                return nil
+            case .shell, .setVariable:
+                break
+            }
+            if onUpResult != nil {
+                warnings.append(ConfigWarning(
+                    kind: .missingAction,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "passthrough cannot carry an action-*-on-up — " +
+                        "no paired-up is captured when the event flows through",
+                    sourceLine: line, bindingName: name))
+                return nil
+            }
+        }
+
         return Binding(
             name: name, trigger: parsed.trigger,
             modifiers: parsed.modifiers, apps: apps,
@@ -950,6 +1006,7 @@ public enum Config {
             onUpAction: onUpResult?.action,
             holdWhile: holdWhile.value,
             holdWhileTimeoutMs: holdWhileTimeout.value,
+            passthrough: passthrough,
             inputRaw: inputRaw,
             actionRaw: parsedAction.raw,
             aliasName: parsedAction.aliasName,

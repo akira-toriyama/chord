@@ -247,6 +247,14 @@ public struct Binding: Hashable, Sendable {
     /// Timeout-based lifetime sidesteps that constraint entirely.
     public var holdWhileTimeoutMs: Int?
 
+    /// chord 0.9.0+: when true, the binding fires its primary action
+    /// (currently only `action-shell` allowed) AND lets the original
+    /// event flow through to the OS. Replaces the v0.4.0 workaround of
+    /// posting `action-keys` with the same input as a re-send.
+    /// pendingUps registration is also skipped (no paired down/up to
+    /// reconcile — the OS sees both halves natively).
+    public var passthrough: Bool
+
     // — metadata (read by Schema.swift, not by Matcher) —
 
     /// Original `input = "..."` string as the user wrote it. Kept
@@ -272,6 +280,7 @@ public struct Binding: Hashable, Sendable {
                 onUpAction: Action? = nil,
                 holdWhile: Modifiers? = nil,
                 holdWhileTimeoutMs: Int? = nil,
+                passthrough: Bool = false,
                 inputRaw: String = "",
                 actionRaw: String? = nil,
                 aliasName: String? = nil,
@@ -286,6 +295,7 @@ public struct Binding: Hashable, Sendable {
         self.onUpAction = onUpAction
         self.holdWhile = holdWhile
         self.holdWhileTimeoutMs = holdWhileTimeoutMs
+        self.passthrough = passthrough
         self.inputRaw = inputRaw
         self.actionRaw = actionRaw
         self.aliasName = aliasName

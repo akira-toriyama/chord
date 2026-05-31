@@ -206,6 +206,7 @@ ChordConfig
 | `hold-while-timeout` | inactivity ms 経過で var clear | `hold-while` と相互排他 |
 | `action-*-on-up` | 対の key-up で発火する action | `action-keys-on-up` 等 |
 | `apps` | bundle id glob 配列 | `["*"]` は nil 扱い、`"!com.example"` で除外 |
+| `passthrough` | `true` で原イベントを OS にも流す (chord 0.9.0+) | `action-shell` / `action-set-var` のみ可、`action-keys` / `on-up` / `noop` とは相互排他 |
 
 ### Reference syntax
 
