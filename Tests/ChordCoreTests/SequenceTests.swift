@@ -131,7 +131,7 @@ final class SequenceTests: XCTestCase {
         // Child input should round-trip through the synthesized
         // "$ULTRA_LL - k" string.
         XCTAssertEqual(res.config.bindings[1].inputRaw, "$ULTRA_LL - k")
-        XCTAssertEqual(res.config.bindings[1].modifiers, [.rctrl, .ralt, .rshift])
+        XCTAssertEqual(res.config.bindings[1].modifiers, [.rctrl, .ropt, .rshift])
     }
 
     func testChildInheritsActionShellAndApps() throws {
