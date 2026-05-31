@@ -72,6 +72,10 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// modifiers without any modifier token, non-string map value,
         /// etc.).
         case remapParseError      = "remap-parse-error"
+        /// v0.8.0: `[[bindings.per-app]]` sub-row malformed (missing
+        /// bundle-id, empty per-app array, `apps` and `per-app`
+        /// simultaneously set).
+        case perAppParseError     = "per-app-parse-error"
         /// Reserved for future surface-area expansion (e.g.
         /// `[include]` cycles, option key typos). Kept as a catch-all
         /// so a downstream consumer's match-exhaustion never breaks.
