@@ -215,7 +215,8 @@ public enum BindingsSchema {
     }
 
     public struct WireAction: Codable, Sendable, Hashable {
-        /// `"keys"` | `"shell"` | `"noop"` | `"set-variable"` (v2).
+        /// `"keys"` | `"shell"` | `"noop"` | `"set-variable"` (v2) |
+        /// `"toggle-variable"` (chord 0.9.0+).
         public let kind: String
         /// `action-shell` / `action-keys` / `action-set-var`
         /// original user string. `nil` for `noop`.
@@ -613,6 +614,16 @@ public enum BindingsSchema {
                 alias: nil,
                 variable: name,
                 value: v)
+        case .toggleVariable(let name):
+            return WireAction(
+                kind: "toggle-variable",
+                raw: raw,
+                modifiers: nil,
+                key: nil,
+                command: nil,
+                alias: nil,
+                variable: name,
+                value: nil)
         }
     }
 

@@ -887,8 +887,23 @@ public enum Config {
         // On-up action: optional. Failure to parse drops the binding —
         // a broken on-up declaration is a user error, not silent
         // ignore (same severity as a broken primary action-keys).
+        // chord 0.9.0+: action-hold-var auto-synthesises an on-up
+        // (setVariable(name, 0)). If the user ALSO wrote an explicit
+        // action-*-on-up, that's a conflict — they're contradicting
+        // hold-var's contract.
         let onUpResult: ParsedAction?
-        if hasOnUpAction(row: row) {
+        let userWroteOnUp = hasOnUpAction(row: row)
+        if userWroteOnUp {
+            if parsedAction.autoOnUpAction != nil {
+                warnings.append(ConfigWarning(
+                    kind: .missingAction,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "action-hold-var owns the on-up half — remove " +
+                        "the explicit action-*-on-up entry",
+                    sourceLine: line, bindingName: name))
+                return nil
+            }
             onUpResult = parseAction(row: row,
                                      section: section,
                                      name: name,
@@ -900,6 +915,9 @@ public enum Config {
                                      allowReservedVarNames: allowReservedVarNames,
                                      warnings: &warnings)
             if onUpResult == nil { return nil }
+        } else if let auto = parsedAction.autoOnUpAction {
+            // hold-var synthetic on-up.
+            onUpResult = ParsedAction(action: auto)
         } else {
             onUpResult = nil
         }
@@ -1057,6 +1075,8 @@ public enum Config {
         let noopKey  = "action-noop\(suffix)"
         let setKey   = "action-set-var\(suffix)"
         let setValKey = "action-set-value\(suffix)"
+        let toggleKey = "action-toggle-var\(suffix)"
+        let holdVarKey = "action-hold-var\(suffix)"
         let fieldLabel = suffix.isEmpty ? "" : " (on-up)"
 
         if let shell = row[shellKey]?.asString {
@@ -1138,6 +1158,90 @@ public enum Config {
         if row[noopKey]?.asBool == true {
             return ParsedAction(action: .noop, raw: nil, aliasName: nil)
         }
+        // chord 0.9.0+ `action-toggle-var` — flip 0↔1 on each press.
+        // Standalone: action-set-value / hold-while / hold-while-timeout
+        // are rejected (toggle's lifecycle is "until next toggle"; the
+        // value is implicit). on-up variant is also rejected — toggle
+        // semantics belong on the primary action only.
+        if let varName = row[toggleKey]?.asString {
+            if !suffix.isEmpty {
+                warnings.append(ConfigWarning(
+                    kind: .actionSetParseError,
+                    message:
+                        "\(section) '\(name)'\(source)\(fieldLabel): " +
+                        "\(toggleKey) is not allowed on -on-up paths",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            if !allowReservedVarNames && varName.hasPrefix("_seq_") {
+                warnings.append(ConfigWarning(
+                    kind: .actionSetParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "\(toggleKey) name '_seq_*' is reserved for " +
+                        "[[sequence]] expansion",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            if row[setKey] != nil || row[setValKey] != nil
+                || row[holdVarKey] != nil
+            {
+                warnings.append(ConfigWarning(
+                    kind: .actionSetParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "\(toggleKey) is mutually exclusive with " +
+                        "action-set-var / action-set-value / action-hold-var",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            return ParsedAction(action: .toggleVariable(name: varName),
+                                raw: varName,
+                                aliasName: nil)
+        }
+
+        // chord 0.9.0+ `action-hold-var` — sugar for setVariable(name, 1)
+        // on down + setVariable(name, 0) on paired up. Standalone:
+        // action-set-var / set-value / hold-while* / explicit on-up
+        // are all rejected (the lifecycle is defined by the paired-up
+        // contract that this sugar owns).
+        if let varName = row[holdVarKey]?.asString {
+            if !suffix.isEmpty {
+                warnings.append(ConfigWarning(
+                    kind: .actionSetParseError,
+                    message:
+                        "\(section) '\(name)'\(source)\(fieldLabel): " +
+                        "\(holdVarKey) is not allowed on -on-up paths",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            if !allowReservedVarNames && varName.hasPrefix("_seq_") {
+                warnings.append(ConfigWarning(
+                    kind: .actionSetParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "\(holdVarKey) name '_seq_*' is reserved for " +
+                        "[[sequence]] expansion",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            if row[setKey] != nil || row[setValKey] != nil {
+                warnings.append(ConfigWarning(
+                    kind: .actionSetParseError,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "\(holdVarKey) is mutually exclusive with " +
+                        "action-set-var / action-set-value",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            return ParsedAction(
+                action: .setVariable(name: varName, value: 1),
+                autoOnUpAction: .setVariable(name: varName, value: 0),
+                raw: varName,
+                aliasName: nil)
+        }
+
         if let varName = row[setKey]?.asString {
             // Reservation: `_seq_*` belongs to [[sequence]] expansion
             // (the synthetic variable each sequence owns). Reject user
@@ -1413,15 +1517,23 @@ public enum Config {
         /// Empty for the common single-string action-keys path and
         /// for shell / noop / setVariable.
         let extraKeys: [Action]
+        /// chord 0.9.0+: `action-hold-var = "name"` synthesises
+        /// `setVariable(name, 1)` as the primary action AND a paired
+        /// `setVariable(name, 0)` on key-up. The caller (makeBinding)
+        /// plumbs this into `onUpAction` when the user didn't write
+        /// their own `action-*-on-up`.
+        let autoOnUpAction: Action?
         let raw: String?
         let aliasName: String?
 
         init(action: Action,
              extraKeys: [Action] = [],
+             autoOnUpAction: Action? = nil,
              raw: String? = nil,
              aliasName: String? = nil) {
             self.action = action
             self.extraKeys = extraKeys
+            self.autoOnUpAction = autoOnUpAction
             self.raw = raw
             self.aliasName = aliasName
         }

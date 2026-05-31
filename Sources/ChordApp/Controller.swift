@@ -80,17 +80,28 @@ public final class Controller {
                                bundleID: event.frontmostBundleID,
                                state: state)
         guard let binding = snapshot.find(me) else { return .passthrough }
-        // Intercept setVariable: state ownership lives here, not in
-        // the dispatcher (which is in the Adapter layer and has no
-        // legitimate reason to know about the controller's store).
-        if case .setVariable(let name, let value) = binding.action {
+        // Intercept state-mutating actions: state ownership lives here,
+        // not in the dispatcher (which is in the Adapter layer and has
+        // no legitimate reason to know about the controller's store).
+        switch binding.action {
+        case .setVariable(let name, let value):
             applyVariable(name: name, value: value,
                           holdWhile: binding.holdWhile,
                           timeoutMs: binding.holdWhileTimeoutMs)
             Log.debug("state: set \(name)=\(value) " +
                       "via '\(binding.name)'" +
                       lifecycleTag(binding))
-        } else {
+        case .toggleVariable(let name):
+            // Read current value at fire time (state-snapshot is the
+            // copy we already have for matching). Flip 0↔1; any non-zero
+            // value collapses to 0, matching the documented contract.
+            let current = me.state.value(name)
+            let next = current == 0 ? 1 : 0
+            applyVariable(name: name, value: next,
+                          holdWhile: nil, timeoutMs: nil)
+            Log.debug("state: toggle \(name) \(current)→\(next) " +
+                      "via '\(binding.name)'")
+        case .keys, .shell, .noop:
             ActionDispatcher.dispatch(binding)
         }
         // Karabiner-style multi-action on down: run any extra actions
