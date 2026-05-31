@@ -564,6 +564,9 @@ public enum BindingsSchema {
                                keycode: nil)
         case .anyKey:
             return WireTrigger(kind: "anyKey", name: nil, keycode: nil)
+        case .modifiersOnly:
+            return WireTrigger(kind: "modifiersOnly",
+                               name: nil, keycode: nil)
         }
     }
 

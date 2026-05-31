@@ -64,6 +64,8 @@ public final class Controller {
         case .modifiersChanged:
             Log.debug("flagsChanged: mods=0x\(String(event.modifiers.rawValue, radix: 16))")
             clearStaleVariables(currentMods: event.modifiers)
+            fireModifierOnlyBindings(currentMods: event.modifiers,
+                                     bundleID: event.frontmostBundleID)
             return .passthrough
         case .up:
             Log.debug("up: trigger=\(event.trigger) mods=0x\(String(event.modifiers.rawValue, radix: 16))")
@@ -300,6 +302,79 @@ public final class Controller {
         pendingUpsLock.lock()
         pendingUps = nil
         pendingUpsLock.unlock()
+        // chord 0.9.0+: also reset the modifier-only baseline so a
+        // reload doesn't spuriously fire entry actions for masks that
+        // were already in effect before the reload.
+        prevModsLock.lock()
+        sharedPrevMods = []
+        prevModsLock.unlock()
+    }
+
+    /// chord 0.9.0+ modifier-only triggers. Walks all bindings with
+    /// `trigger == .modifiersOnly` and fires entry / exit actions based
+    /// on the transition `prevMods → currentMods`:
+    ///   * `!prev satisfied && curr satisfied` → primary `action`
+    ///   * `prev satisfied && !curr satisfied` → `onUpAction` if any
+    /// Apps + condition filters still apply. Extras / passthrough do
+    /// not (modifier-only events never reach the consume/passthrough
+    /// decision — the tap callback always returns `.passthrough` on
+    /// `.modifiersChanged`).
+    nonisolated private func fireModifierOnlyBindings(
+        currentMods: Modifiers, bundleID: String?
+    ) {
+        let prev: Modifiers
+        prevModsLock.lock()
+        prev = sharedPrevMods
+        sharedPrevMods = currentMods
+        prevModsLock.unlock()
+        guard prev != currentMods else { return }
+
+        let snapshot = matcherSnapshot()
+        let state = stateSnapshot()
+        for b in snapshot.bindings where b.trigger == .modifiersOnly {
+            // App scope.
+            if let apps = b.apps {
+                guard let id = bundleID else { continue }
+                if !Matcher.appsAllow(id, patterns: apps) { continue }
+            }
+            // Condition gate.
+            if let cond = b.condition,
+               !Matcher.conditionHolds(cond, state: state)
+            {
+                continue
+            }
+            let prevSat = b.modifiers.matches(event: prev)
+            let curSat  = b.modifiers.matches(event: currentMods)
+            if !prevSat && curSat {
+                fireBindingAction(b, isOnUp: false)
+                Log.debug("modifiers-only entry: '\(b.name)'")
+            } else if prevSat && !curSat, let onUp = b.onUpAction {
+                var upBinding = b
+                upBinding.action = onUp
+                fireBindingAction(upBinding, isOnUp: true)
+                Log.debug("modifiers-only exit: '\(b.name)' (onUp)")
+            }
+        }
+    }
+
+    /// Internal: run the binding's action with the same state-mutation
+    /// interception logic as the regular .down path (Controller owns
+    /// state; the dispatcher only handles keys / shell / noop).
+    nonisolated private func fireBindingAction(
+        _ binding: Binding, isOnUp: Bool
+    ) {
+        switch binding.action {
+        case .setVariable(let name, let value):
+            applyVariable(name: name, value: value,
+                          holdWhile: binding.holdWhile,
+                          timeoutMs: binding.holdWhileTimeoutMs)
+        case .toggleVariable(let name):
+            let current = stateSnapshot().value(name)
+            applyVariable(name: name, value: current == 0 ? 1 : 0,
+                          holdWhile: nil, timeoutMs: nil)
+        case .keys, .shell, .noop:
+            ActionDispatcher.dispatch(binding)
+        }
     }
 
     /// Walk the variable store and remove any entry whose `holdWhile`
@@ -552,6 +627,15 @@ struct VariableEntry: Sendable {
 }
 nonisolated(unsafe) var sharedState: [String: VariableEntry]?
 let stateLock = NSLock()
+
+/// chord 0.9.0+ modifier-only trigger support: the last observed
+/// OS modifier mask, used to detect mask-entry / mask-exit transitions
+/// against each `Binding.trigger == .modifiersOnly` row. Updated on
+/// every `.modifiersChanged` event before firing the corresponding
+/// bindings. NSLock-guarded same as pendingUps / sharedState — tap
+/// thread is the sole writer.
+nonisolated(unsafe) var sharedPrevMods: Modifiers = []
+let prevModsLock = NSLock()
 
 // Per-variable inactivity timers (B-α). Lives under stateLock — the
 // timer fires on a private queue, then re-enters the lock to mutate

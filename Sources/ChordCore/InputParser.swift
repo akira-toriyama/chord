@@ -51,6 +51,7 @@ public enum InputParser {
 
     public static func parse(_ raw: String,
                              allowWildcard: Bool = false,
+                             allowModifiersOnly: Bool = false,
                              inputAliases: [String: Modifiers] = [:])
         throws -> Parsed
     {
@@ -68,6 +69,19 @@ public enum InputParser {
                                            allowWildcard: allowWildcard)
         {
             return Parsed(modifiers: [], trigger: trigger)
+        }
+
+        // chord 0.9.0+ modifier-only input: the whole string parses
+        // as a non-empty modifier mask (no primary key). Caller opts
+        // in via `allowModifiersOnly: true` — falls through to the
+        // legacy "missing primary" error path otherwise.
+        if allowModifiersOnly {
+            if let mods = try? parseModifiers(trimmed, context: raw,
+                                              inputAliases: inputAliases),
+               mods.rawValue != 0
+            {
+                return Parsed(modifiers: mods, trigger: .modifiersOnly)
+            }
         }
 
         // Otherwise, look for a modifier/primary separator. Split

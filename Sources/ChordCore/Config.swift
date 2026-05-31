@@ -817,9 +817,11 @@ public enum Config {
             return nil
         }
         let parsed: InputParser.Parsed
-        do { parsed = try InputParser.parse(inputRaw,
-                                            allowWildcard: isFallback,
-                                            inputAliases: inputAliases) }
+        do { parsed = try InputParser.parse(
+                inputRaw,
+                allowWildcard: isFallback,
+                allowModifiersOnly: !isFallback,
+                inputAliases: inputAliases) }
         catch let e as InputParser.InputParseError {
             // Differentiate `$name` typos (undefinedInputAlias) from
             // plain modifier typos (unknownToken) so CI / schema
