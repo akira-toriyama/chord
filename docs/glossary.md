@@ -201,6 +201,8 @@ ChordConfig
 | `action-noop` | true で吸収のみ | |
 | `action-set-var` | 書き換える変数名 | |
 | `action-set-value` | 書き込む値 (省略時 1, 0 で clear) | |
+| `action-toggle-var` | 押すたび 0↔1 反転 (chord 0.9.0+) | 値・hold-while* 系・on-up と相互排他 |
+| `action-hold-var` | down で 1, paired up で 0 を自動 set (chord 0.9.0+) | 暗黙の on-up を所有、他の on-up と相互排他 |
 | `when-var` | 発火を gate する変数名 | 等価値は `when-var-value` (省略時 1) |
 | `when-vars` | 複数変数 AND ゲート (chord 0.9.0+) | `{ a = 1, b = 2 }` inline-table。`when-var` と相互排他、1 要素は `.variable` に collapse |
 | `hold-while` | 修飾保持中だけ var 維持 | `hold-while-timeout` と相互排他 |

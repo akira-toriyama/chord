@@ -167,6 +167,14 @@ public enum Action: Hashable, Sendable {
     /// consumes the event (Karabiner-style leader keys swallow their
     /// trigger so the OS never sees the j of cmd+opt+j).
     case setVariable(name: String, value: Int)
+    /// chord 0.9.0+: flip a variable between 0 and 1 on each press.
+    /// Sourced from `action-toggle-var = "name"`. Implementation:
+    /// Controller reads the current value at key-down and writes
+    /// `1 - current` (any non-zero becomes 0). Hold-while /
+    /// hold-while-timeout do not apply (the lifecycle is "until next
+    /// toggle"). Single, value-less variant — `action-set-value` is
+    /// rejected for this action.
+    case toggleVariable(name: String)
 }
 
 /// Predicate gate evaluated against the controller's state snapshot.
