@@ -180,6 +180,7 @@ ChordConfig
 | `[options]` | グローバル設定 (`passthrough-unmatched`, `exclude-apps`) |
 | `[[bindings]]` | 通常 binding (document order, first-match-wins) |
 | `[[fallbacks]]` | bindings が全 miss した時だけ評価される binding 群。`*` ワイルドカードが許される唯一の場所 |
+| `[[sequence]]` | leader-key 用 sugar (chord 0.7.0+)。`prefix` + 子 `[[sequence.bindings]]` + `timeout-ms` から **state-var binding 群に parse 時展開**。詳細は §4 [sequence (leader-key sugar)](#sequence-leader-key-sugar) |
 | `[action-aliases]` | `@name → shell command` の置換テーブル |
 | `[input-aliases]` | `$name → "mod1 + mod2"` の置換テーブル |
 
@@ -323,6 +324,41 @@ ZMK macro が atomic emit する都合で modifier を即座に離す場合、`h
 Vim の `timeoutlen` セマンティクス。`when-var` で gate される binding が
 発火するたびに `hold-while-timeout` のタイマーが reset される運用。
 **chord 0.4.0 で採用**。
+
+### sequence (leader-key sugar)
+
+`[[sequence]]` セクションは **prefix + 子 binding 群 + timeout-ms** を
+1 ブロックで宣言し、parse 時に以下の通常 binding 群に展開する (chord 0.7.0+):
+
+- **prefix binding**: `action-set-var = "_seq_<name>"`, `hold-while-timeout = <timeout-ms>` を持つ無条件 binding
+- **子 binding**: `when-var = "_seq_<name>"` で gate された binding。`input` は **primary-only** で書き、prefix の modset を自動継承
+
+```toml
+[[sequence]]
+name = "j-layer"
+prefix = "$ULTRA_LL - j"
+timeout-ms = 1500
+
+  [[sequence.bindings]]
+  input = "k"
+  action-keys = "return"
+
+  [[sequence.bindings]]
+  input = "l"
+  action-keys = "backspace"
+```
+
+Matcher / Controller は展開後の binding しか知らない (= 新しい runtime
+概念は導入しない)。`_seq_` プレフィックスは **予約済み namespace** で、
+ユーザ binding は `action-set-var = "_seq_..."` を書けない (load 時 reject)。
+
+prefix が通常 `[[bindings]]` と `(trigger, modifiers)` 衝突する場合、
+**通常 binding が drop され sequence が勝つ** (warning 付き)。
+
+- code: [Sources/ChordCore/Config.swift](../Sources/ChordCore/Config.swift) `parseSequences`
+- config: `[[sequence]]` + `[[sequence.bindings]]`
+- runtime concept: なし (= ChordConfig.bindings に展開済み)
+- **Don't call it**: leader, layer, modal-state (説明文では可、概念名は sequence)
 
 ### pendingUps
 

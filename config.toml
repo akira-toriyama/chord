@@ -320,8 +320,11 @@ exclude-apps = []
 
 
 # =====================================================================
-# Pattern 9 — Leader-key mode with inactivity timeout (recommended)
+# Pattern 9 — Leader-key mode with inactivity timeout (low-level form)
 # =====================================================================
+# Spelled out as individual `[[bindings]]` rows. Useful for understanding
+# how leader-key mode works. **For new configs, prefer Pattern 11
+# (`[[sequence]]`)** — same semantics with less boilerplate.
 # Vim-style timeoutlen leader. Tap leader to "arm" the layer, then
 # tap follow-up keys within the timeout window. Each gated keypress
 # extends the timer (B-α reset-on-use), so a sustained editing
@@ -392,3 +395,38 @@ exclude-apps = []
 # when-var = "wm"
 # action-shell = "yabai -m window --grid 1:2:0:0:1:1"
 # action-shell-on-up = "yabai -m window --grid 1:2:1:0:1:1"
+
+
+# =====================================================================
+# Pattern 11 — `[[sequence]]` leader-key sugar (chord 0.7.0+, RECOMMENDED)
+# =====================================================================
+# Pattern 9 (state-var + hold-while-timeout) expressed compactly.
+# Each `[[sequence]]` block expands at parse time into:
+#   • one prefix binding (action-set-var = "_seq_<name>", hold-while-timeout)
+#   • one child binding per `[[sequence.bindings]]` row (when-var, action)
+# Matcher / Controller see only the expanded bindings — `[[sequence]]`
+# is pure syntactic sugar over the existing v2 state-machine.
+#
+# Children's `input` is **primary-only** — they inherit the prefix's
+# modifier set automatically. The `_seq_*` variable name is reserved
+# (user bindings cannot write `action-set-var = "_seq_..."`).
+#
+# Equivalent to the Pattern 9 example above, in one block:
+#
+# [[sequence]]
+# name = "j-layer"
+# prefix = "rctrl + ralt + rshift - j"
+# timeout-ms = 800
+#
+#   [[sequence.bindings]]
+#   input = "k"
+#   action-keys = "return"
+#
+#   [[sequence.bindings]]
+#   input = "l"
+#   action-keys = "backspace"
+#
+# If a regular `[[bindings]]` row has the same `(trigger, modifiers)`
+# as a sequence prefix, the regular row is **dropped with a warning**
+# (sequence wins). Duplicate sequence names are likewise rejected
+# (each sequence owns variable `_seq_<name>`).

@@ -9,7 +9,9 @@ import Foundation
 ///   • `key = value` at table scope
 ///   • dotted keys (`a.b.c = …`) collapse to nested tables
 ///   • `[table]` headers
-///   • `[[array-of-tables]]` headers
+///   • `[[array-of-tables]]` headers, including nested
+///     (`[[a.b]]` appends to `a[last].b` per TOML spec — used by
+///     `[[sequence]]` + `[[sequence.bindings]]`)
 ///   • values: string (`"…"` and `'…'`), int, float, bool, array
 ///     of those
 ///   • `#` comments through end of line
@@ -18,7 +20,8 @@ import Foundation
 ///   • inline tables `{ a = 1, b = 2 }`
 ///   • multi-line strings
 ///   • date / time literals
-///   • nested arrays of arrays
+///   • nested arrays of arrays (= array values whose elements are
+///     themselves arrays; distinct from the AoT nesting above)
 ///
 /// All keys are emitted as `String` and all leaf values as one of
 /// `String | Int64 | Double | Bool | [Any]`. Out-of-range parsing
@@ -244,6 +247,19 @@ public enum TOML {
             root[path[0]] = .arrayOfTables(rows)
             return
         }
+        // path.count >= 2: per TOML spec, `[[a.b]]` appends to
+        // `a[last].b`, so when `a` is already an array-of-tables we
+        // drill into its last row (NOT into a fresh empty table —
+        // that path would silently shadow the existing `[[a]]` rows).
+        if case .arrayOfTables(var rows) = root[path[0]], !rows.isEmpty {
+            var lastRow = rows[rows.count - 1]
+            appendArrayOfTablesRowInner(&lastRow,
+                                        path: Array(path.dropFirst()),
+                                        lineNo: lineNo)
+            rows[rows.count - 1] = lastRow
+            root[path[0]] = .arrayOfTables(rows)
+            return
+        }
         var inner: [String: Value]
         if case .table(let t) = root[path[0]] { inner = t } else { inner = [:] }
         appendArrayOfTablesRowInner(&inner,
@@ -262,6 +278,15 @@ public enum TOML {
                 rows = existing
             } else { rows = [] }
             rows.append(seed)
+            table[path[0]] = .arrayOfTables(rows)
+            return
+        }
+        if case .arrayOfTables(var rows) = table[path[0]], !rows.isEmpty {
+            var lastRow = rows[rows.count - 1]
+            appendArrayOfTablesRowInner(&lastRow,
+                                        path: Array(path.dropFirst()),
+                                        lineNo: lineNo)
+            rows[rows.count - 1] = lastRow
             table[path[0]] = .arrayOfTables(rows)
             return
         }
@@ -288,6 +313,18 @@ public enum TOML {
             root[path[0]] = .arrayOfTables(rows)
             return
         }
+        // Same nested-AoT drill as appendArrayOfTablesRow: when the
+        // current segment is itself an array-of-tables, the active
+        // row is its last entry.
+        if case .arrayOfTables(var rows) = root[path[0]], !rows.isEmpty {
+            var lastRow = rows[rows.count - 1]
+            writeIntoArrayOfTablesRowInner(&lastRow,
+                                           path: Array(path.dropFirst()),
+                                           key: key, value: value)
+            rows[rows.count - 1] = lastRow
+            root[path[0]] = .arrayOfTables(rows)
+            return
+        }
         guard case .table(var inner) = root[path[0]] else { return }
         writeIntoArrayOfTablesRowInner(&inner,
                                        path: Array(path.dropFirst()),
@@ -306,6 +343,15 @@ public enum TOML {
             var row = rows[rows.count - 1]
             writeInner(&row, path: key, value: value)
             rows[rows.count - 1] = row
+            table[path[0]] = .arrayOfTables(rows)
+            return
+        }
+        if case .arrayOfTables(var rows) = table[path[0]], !rows.isEmpty {
+            var lastRow = rows[rows.count - 1]
+            writeIntoArrayOfTablesRowInner(&lastRow,
+                                           path: Array(path.dropFirst()),
+                                           key: key, value: value)
+            rows[rows.count - 1] = lastRow
             table[path[0]] = .arrayOfTables(rows)
             return
         }
