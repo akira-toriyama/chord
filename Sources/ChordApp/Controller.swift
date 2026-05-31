@@ -80,6 +80,22 @@ public final class Controller {
                                bundleID: event.frontmostBundleID,
                                state: state)
         guard let binding = snapshot.find(me) else { return .passthrough }
+        // chord 0.9.0+ autorepeat strategy. macOS emits `keyDown` with
+        // the autorepeat flag set while a key is held; without a
+        // strategy, every typematic tick re-fires the action (a long
+        // press on `action-shell` would spam shell invocations).
+        // `.fireEach` (default) reproduces the pre-0.9.0 behaviour.
+        if event.isRepeat {
+            switch binding.repeatStrategy {
+            case .fireEach: break  // fall through to the dispatch below
+            case .ignore:
+                // Consume so the OS doesn't see a phantom repeat for
+                // a key whose initial down we already swallowed.
+                return .consume
+            case .passthrough:
+                return .passthrough
+            }
+        }
         // Intercept state-mutating actions: state ownership lives here,
         // not in the dispatcher (which is in the Adapter layer and has
         // no legitimate reason to know about the controller's store).

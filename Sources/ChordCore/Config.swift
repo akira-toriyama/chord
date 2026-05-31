@@ -683,7 +683,7 @@ public enum Config {
             "action-set-var-on-up", "action-set-value-on-up",
             "when-var", "when-var-value", "when-vars",
             "hold-while", "hold-while-timeout",
-            "passthrough",
+            "passthrough", "repeat",
         ]
 
         var out: [[String: TOML.Value]] = []
@@ -962,6 +962,25 @@ public enum Config {
             apps = strs.isEmpty || strs == ["*"] ? nil : strs
         }
 
+        // chord 0.9.0+ repeat strategy: how the binding reacts to
+        // macOS autorepeat events. Default `.fireEach` preserves
+        // pre-0.9.0 behaviour (every repeat invokes the action).
+        var repeatStrategy: RepeatStrategy = .fireEach
+        if let raw = row["repeat"]?.asString {
+            if let parsed = RepeatStrategy(rawValue: raw) {
+                repeatStrategy = parsed
+            } else {
+                warnings.append(ConfigWarning(
+                    kind: .other,
+                    message:
+                        "\(section) '\(name)'\(source): " +
+                        "repeat: unknown value '\(raw)' — " +
+                        "expected fire-each / ignore / passthrough",
+                    sourceLine: line, bindingName: name))
+                return nil
+            }
+        }
+
         // chord 0.9.0+ passthrough: fire action AND let the original
         // event reach the OS. Restricted to `action-shell` only —
         // posting `action-keys` while the original passes through
@@ -1028,6 +1047,7 @@ public enum Config {
             holdWhile: holdWhile.value,
             holdWhileTimeoutMs: holdWhileTimeout.value,
             passthrough: passthrough,
+            repeatStrategy: repeatStrategy,
             inputRaw: inputRaw,
             actionRaw: parsedAction.raw,
             aliasName: parsedAction.aliasName,

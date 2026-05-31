@@ -154,6 +154,10 @@ public enum BindingsSchema {
         /// OS in addition to firing `action`. Absent (= omitted from
         /// JSON) when `false` — the common case.
         public let passthrough: Bool?
+        /// chord 0.9.0+: typematic-repeat strategy. Omitted from JSON
+        /// when default (`fire-each`); emitted as the stable enum
+        /// string (`ignore` / `passthrough`) otherwise.
+        public let repeatStrategy: String?
 
         enum CodingKeys: String, CodingKey {
             case index, name, input, apps, action, condition
@@ -163,6 +167,7 @@ public enum BindingsSchema {
             case actionOnUp         = "action_on_up"
             case extraActions       = "extra_actions"
             case passthrough
+            case repeatStrategy     = "repeat"
         }
     }
 
@@ -475,7 +480,10 @@ public enum BindingsSchema {
                 : b.extraDownActions.map {
                     wireAction(action: $0, raw: nil, aliasName: nil)
                 },
-            passthrough: b.passthrough ? true : nil)
+            passthrough: b.passthrough ? true : nil,
+            repeatStrategy: b.repeatStrategy == .fireEach
+                ? nil
+                : b.repeatStrategy.rawValue)
     }
 
     private static func wireCondition(_ c: Condition) -> WireCondition {
