@@ -172,36 +172,52 @@ public enum Config {
         var bindings: [Binding] = seq.expanded
         var dropped = seq.dropped
         let rows = root["bindings"]?.asArrayOfTables ?? []
-        for (i, row) in rows.enumerated() {
-            guard let b = makeBinding(from: row, index: i,
-                                      isFallback: false,
-                                      actionAliases: actionAliases,
-                                      inputAliases: inputAliasesParsed,
-                                      warnings: &warnings)
-            else {
-                dropped += 1
-                continue
+        var bindingIndex = 0
+        for row in rows {
+            // v0.8.0 per-app sugar: a `[[bindings]]` row with a
+            // `[[bindings.per-app]]` AoT child expands to N siblings,
+            // one per per-app entry, with `apps = [bundle-id]` and
+            // the entry's action-* fields layered onto the base row.
+            let synthRows: [[String: TOML.Value]]
+            switch expandBindingPerApp(row, warnings: &warnings) {
+            case .single(let r): synthRows = [r]
+            case .many(let rs):  synthRows = rs
+            case .invalid:       dropped += 1; continue
             }
-            // Prefix collision: if a regular binding shares
-            // (trigger, modifiers) with a sequence's prefix binding,
-            // drop it with a warning. Children carry a `.variable`
-            // condition so they don't collide in the same way; only
-            // the prefix is unconditional.
-            if let collision = seq.prefixes.first(where: { p in
-                p.trigger == b.trigger && p.modifiers == b.modifiers
-            }) {
-                warnings.append(ConfigWarning(
-                    kind: .sequenceParseError,
-                    message:
-                        "[[bindings]] '\(b.name)'\(sourceTag(line: b.sourceLine))" +
-                        ": input '\(b.inputRaw)' collides with " +
-                        "[[sequence]] prefix '\(collision.name)' — " +
-                        "regular binding dropped (sequence wins)",
-                    sourceLine: b.sourceLine, bindingName: b.name))
-                dropped += 1
-                continue
+
+            for synth in synthRows {
+                guard let b = makeBinding(from: synth, index: bindingIndex,
+                                          isFallback: false,
+                                          actionAliases: actionAliases,
+                                          inputAliases: inputAliasesParsed,
+                                          warnings: &warnings)
+                else {
+                    dropped += 1
+                    continue
+                }
+                bindingIndex += 1
+                // Sequence-prefix collision: a regular binding sharing
+                // (trigger, modifiers) with a `[[sequence]]` prefix is
+                // dropped with a warning (sequence wins, document order).
+                // Children carry a `.variable` condition so they don't
+                // collide unconditionally.
+                if let collision = seq.prefixes.first(where: { p in
+                    p.trigger == b.trigger && p.modifiers == b.modifiers
+                }) {
+                    warnings.append(ConfigWarning(
+                        kind: .sequenceParseError,
+                        message:
+                            "[[bindings]] '\(b.name)'" +
+                            sourceTag(line: b.sourceLine) +
+                            ": input '\(b.inputRaw)' collides with " +
+                            "[[sequence]] prefix '\(collision.name)' — " +
+                            "regular binding dropped (sequence wins)",
+                        sourceLine: b.sourceLine, bindingName: b.name))
+                    dropped += 1
+                    continue
+                }
+                bindings.append(b)
             }
-            bindings.append(b)
         }
 
         // v0.8.0 [[remap]] sugar: expand each row into N action-keys
@@ -578,22 +594,135 @@ public enum Config {
         return (expanded, dropped)
     }
 
-    // MARK: - Fallback inputs[] expansion (chord 0.8.0+)
+    // MARK: - Row expansion (per-app, fallback inputs[])
 
-    /// Outcome of inspecting a single `[[fallbacks]]` row for the
-    /// `inputs = [...]` array sugar.
-    private enum FallbackExpansion {
-        /// Use the row as-is (no `inputs[]` present, classic single
-        /// `input = "..."` path).
+    /// Outcome of inspecting a single row for sugar that fans out
+    /// into multiple synthesised rows. Used by both `[[fallbacks]]
+    /// inputs[]` (chord 0.8.0+) and `[[bindings]] [[bindings.per-app]]`
+    /// (chord 0.8.0+).
+    private enum RowExpansion {
+        /// Use the row as-is (no sugar field present).
         case single([String: TOML.Value])
-        /// Expand into N rows, each a copy of the original with
-        /// `input` set to one element of `inputs[]`.
+        /// Expand into N rows. Caller threads each through makeBinding.
         case many([[String: TOML.Value]])
-        /// Validation failed (e.g. both `input` and `inputs[]` set,
-        /// empty `inputs[]`, non-string element). Warning already
-        /// appended; caller counts the drop.
+        /// Validation failed (mutually exclusive fields, empty list,
+        /// non-string member, etc.). Warning already appended; caller
+        /// counts the drop.
         case invalid
     }
+
+    /// Per-binding `[[bindings.per-app]]` sub-rows expand a single
+    /// `[[bindings]]` declaration into one binding per OS, each
+    /// scoped via `apps = [bundle-id]`. The per-app entry's
+    /// action-* / when-var / hold-while fields override the base
+    /// row's same fields; base-row fields not present in the entry
+    /// are inherited.
+    ///
+    /// Wire shape (issue #12):
+    /// ```toml
+    /// [[bindings]]
+    /// name = "tab-left"
+    /// input = "$ULTRA_LL - c"
+    ///
+    ///   [[bindings.per-app]]
+    ///   bundle-id = "com.google.Chrome"
+    ///   action-keys = "ctrl + shift - tab"
+    ///
+    ///   [[bindings.per-app]]
+    ///   bundle-id = "com.microsoft.VSCode"
+    ///   action-keys = "cmd + shift - ["
+    /// ```
+    ///
+    /// Constraints:
+    ///   * `apps` and `per-app` are mutually exclusive (the per-app
+    ///     entry's `bundle-id` becomes the binding's `apps`)
+    ///   * `bundle-id` is required on each per-app entry
+    ///   * empty `per-app` array drops the whole binding
+    private static func expandBindingPerApp(
+        _ row: [String: TOML.Value],
+        warnings: inout [ConfigWarning]
+    ) -> RowExpansion {
+        guard let perApp = row["per-app"]?.asArrayOfTables else {
+            return .single(row)
+        }
+        let line = row[TOML.lineKey]?.asInt.map { Int($0) }
+        let baseName = row["name"]?.asString
+        let displayName = baseName ?? "[[bindings]] entry"
+        let source = sourceTag(line: line)
+
+        if row["apps"] != nil {
+            warnings.append(ConfigWarning(
+                kind: .perAppParseError,
+                message:
+                    "[[bindings]] '\(displayName)'\(source): " +
+                    "'apps' and 'per-app' are mutually exclusive — " +
+                    "per-app entries provide their own bundle id",
+                sourceLine: line, bindingName: baseName))
+            return .invalid
+        }
+        if perApp.isEmpty {
+            warnings.append(ConfigWarning(
+                kind: .perAppParseError,
+                message:
+                    "[[bindings]] '\(displayName)'\(source): " +
+                    "per-app must contain at least one [[bindings.per-app]] entry",
+                sourceLine: line, bindingName: baseName))
+            return .invalid
+        }
+
+        // Field names whose per-app override layers onto the base.
+        // Everything binding-shape (input / when-var / hold-while /
+        // action-* / on-up variants) is layerable; metadata
+        // (`name`, `__line__`) is treated separately.
+        let layerableKeys: Set<String> = [
+            "input",
+            "action-shell", "action-keys", "action-noop",
+            "action-set-var", "action-set-value",
+            "action-shell-on-up", "action-keys-on-up",
+            "action-noop-on-up",
+            "action-set-var-on-up", "action-set-value-on-up",
+            "when-var", "when-var-value",
+            "hold-while", "hold-while-timeout",
+        ]
+
+        var out: [[String: TOML.Value]] = []
+        for entry in perApp {
+            let entryLine = entry[TOML.lineKey]?.asInt.map { Int($0) } ?? line
+            let entrySource = sourceTag(line: entryLine)
+            guard let bundleID = entry["bundle-id"]?.asString,
+                  !bundleID.isEmpty
+            else {
+                warnings.append(ConfigWarning(
+                    kind: .perAppParseError,
+                    message:
+                        "[[bindings.per-app]] for '\(displayName)'" +
+                        "\(entrySource): missing or empty 'bundle-id'",
+                    sourceLine: entryLine, bindingName: baseName))
+                return .invalid
+            }
+
+            var synth = row
+            synth["per-app"] = nil
+            synth["apps"] = .array([.string(bundleID)])
+            for key in layerableKeys {
+                if let v = entry[key] { synth[key] = v }
+            }
+            if let baseName {
+                synth["name"] = .string("\(baseName) — \(bundleID)")
+            }
+            // Attribute each expansion to the per-app entry's line
+            // when present (so warnings point at the override row),
+            // otherwise inherit the base row's line.
+            if let lv = entry[TOML.lineKey] { synth[TOML.lineKey] = lv }
+            out.append(synth)
+        }
+        return .many(out)
+    }
+
+    // MARK: - Fallback inputs[] expansion (chord 0.8.0+)
+
+    /// Alias for clarity — fallback expansion uses the same outcome shape.
+    private typealias FallbackExpansion = RowExpansion
 
     /// Validate + expand `[[fallbacks]]` `inputs = [a, b, c]` sugar
     /// into N synthesised rows. Each expansion clones the original

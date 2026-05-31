@@ -312,6 +312,39 @@ fn-auto-arrows = true
 
 
 # =====================================================================
+# Pattern 7a — Per-OS branching with [[bindings.per-app]] (chord 0.8.0+)
+# =====================================================================
+# When the SAME trigger should fire different actions per frontmost
+# application, the `[[bindings.per-app]]` AoT sub-row form keeps the
+# trigger declared once. Each per-app entry expands to a normal
+# binding with `apps = [bundle-id]` at parse time.
+#
+# Example: the canonical "tab-left" — Ctrl+Shift+Tab in Chrome,
+# Cmd+Shift+[ in VS Code, same chord ULTRA_LL+c.
+#
+# [[bindings]]
+# name = "tab-left"
+# input = "rctrl + ralt + rshift - c"
+#
+#   [[bindings.per-app]]
+#   bundle-id = "com.google.Chrome"
+#   action-keys = "ctrl + shift - tab"
+#
+#   [[bindings.per-app]]
+#   bundle-id = "com.microsoft.VSCode"
+#   action-keys = "cmd + shift - ["
+#
+# Constraints:
+#   • `apps = [...]` and `per-app` are mutually exclusive (the
+#     entry's `bundle-id` becomes the binding's `apps`).
+#   • `bundle-id` is required and non-empty on each entry.
+#   • A per-app entry without an action-* field inherits the base
+#     row's action — useful when only one OS needs an override.
+#   • The base row's `when-var` / `hold-while` / etc. layer the
+#     same way (entry overrides base; otherwise inherit).
+
+
+# =====================================================================
 # Pattern 7b — Bulk 1-to-1 remap with [[remap]] (chord 0.8.0+)
 # =====================================================================
 # When you want N keys to all carry the same modifier set and each
