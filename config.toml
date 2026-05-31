@@ -312,6 +312,31 @@ fn-auto-arrows = true
 
 
 # =====================================================================
+# Pattern 7b — Bulk 1-to-1 remap with [[remap]] (chord 0.8.0+)
+# =====================================================================
+# When you want N keys to all carry the same modifier set and each
+# emit a different action-keys, the `[[remap]]` table form collapses
+# the boilerplate. Each map entry expands to a normal binding at
+# parse time.
+#
+# Example: emacs / readline cursor remap under bare `ctrl`.
+#
+# [[remap]]
+# name = "emacs-readline"
+# modifiers = "ctrl"
+# map = { b = "left", f = "right", p = "up", n = "down", h = "backspace", d = "forward_delete", j = "return" }
+#
+# Constraints:
+#   • `modifiers` is required and must contain at least one modifier.
+#     `$alias` references into [input-aliases] are resolved here too.
+#   • `map` values are interpreted as `action-keys` strings.
+#   • `apps = [...]` is inherited verbatim by every expansion.
+#   • Regular `[[bindings]]` declared above (or below) override a
+#     remap entry with the same input — first-match-wins, and remap
+#     expansions are appended AFTER regular bindings.
+
+
+# =====================================================================
 # Pattern 8 — Fallback feedback ([[fallbacks]] section)
 # =====================================================================
 # `[[fallbacks]]` fires ONLY when no `[[bindings]]` row matched. Use
