@@ -22,14 +22,15 @@ final class RemapTableTests: XCTestCase {
     }
 
     func testInlineTableHandlesQuotedKeys() throws {
-        // Per-app branching (issue #12) will lean on this — bundle
-        // IDs are dotted strings and need to be writable as quoted keys.
+        // Inline-table keys may be quoted — needed when the key is
+        // a dotted bundle ID (used by per-app #12).
         let v = try TOML.parse("""
-        [bindings.per-app]
-        "com.google.Chrome" = "x"
+        [[remap]]
+        map = { "b" = "left", 'f' = "right" }
         """)
-        let pa = v["bindings"]?.asTable?["per-app"]?.asTable
-        XCTAssertEqual(pa?["com.google.Chrome"]?.asString, "x")
+        let map = v["remap"]?.asArrayOfTables?[0]["map"]?.asTable
+        XCTAssertEqual(map?["b"]?.asString, "left")
+        XCTAssertEqual(map?["f"]?.asString, "right")
     }
 
     // MARK: - Basic expansion
