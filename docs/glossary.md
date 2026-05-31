@@ -210,6 +210,7 @@ ChordConfig
 | `hold-while-timeout` | inactivity ms 経過で var clear | `hold-while` と相互排他 |
 | `action-*-on-up` | 対の key-up で発火する action | `action-keys-on-up` 等 |
 | `apps` | bundle id glob 配列 | `["*"]` は nil 扱い、`"!com.example"` で除外 |
+| `input-source` | macOS keyboard input source id glob 配列 (chord 0.9.0+) | `apps` と同じ semantics、string 単独形は 1 要素配列に sugar |
 | `passthrough` | `true` で原イベントを OS にも流す (chord 0.9.0+) | `action-shell` / `action-set-var` のみ可、`action-keys` / `on-up` / `noop` とは相互排他 |
 | `repeat` | typematic autorepeat 戦略 (chord 0.9.0+) | `"fire-each"` (default) / `"ignore"` (1回のみ発火) / `"passthrough"` (発火後は OS に流す) |
 

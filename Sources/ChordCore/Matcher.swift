@@ -45,14 +45,21 @@ public struct Matcher: Sendable {
         /// moment this event arrived. Defaulted to empty so existing
         /// call sites (synthetic tests, fallbacks) compile unchanged.
         public var state: StateSnapshot
+        /// chord 0.9.0+: the OS-side keyboard input source id at the
+        /// moment this event arrived (e.g.
+        /// `"com.apple.keylayout.US"`). `nil` when unknown / pre-init.
+        /// Matched against `Binding.inputSource` glob list.
+        public var inputSourceID: String?
 
         public init(trigger: Trigger, modifiers: Modifiers,
                     bundleID: String?,
-                    state: StateSnapshot = StateSnapshot()) {
+                    state: StateSnapshot = StateSnapshot(),
+                    inputSourceID: String? = nil) {
             self.trigger = trigger
             self.modifiers = modifiers
             self.bundleID = bundleID
             self.state = state
+            self.inputSourceID = inputSourceID
         }
     }
 
@@ -93,6 +100,14 @@ public struct Matcher: Sendable {
             if let apps = b.apps {
                 guard let id = event.bundleID else { continue }
                 if !Matcher.appsAllow(id, patterns: apps) { continue }
+            }
+            // chord 0.9.0+ input-source filter (same glob semantics
+            // as `apps`). When the current source is unknown, treat
+            // every `inputSource` binding as a miss — caller can opt
+            // out by leaving `inputSource` nil.
+            if let sources = b.inputSource {
+                guard let id = event.inputSourceID else { continue }
+                if !Matcher.appsAllow(id, patterns: sources) { continue }
             }
             // v2 state gate. Evaluated last because most bindings
             // have `condition == nil` and the modifier / apps tests

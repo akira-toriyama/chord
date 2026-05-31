@@ -158,6 +158,10 @@ public enum BindingsSchema {
         /// when default (`fire-each`); emitted as the stable enum
         /// string (`ignore` / `passthrough`) otherwise.
         public let repeatStrategy: String?
+        /// chord 0.9.0+: input-source-id glob filter list. Same
+        /// allow / `!`-deny / `*`-wildcard semantics as `apps`.
+        /// Omitted when nil.
+        public let inputSource: [String]?
 
         enum CodingKeys: String, CodingKey {
             case index, name, input, apps, action, condition
@@ -168,6 +172,7 @@ public enum BindingsSchema {
             case extraActions       = "extra_actions"
             case passthrough
             case repeatStrategy     = "repeat"
+            case inputSource        = "input_source"
         }
     }
 
@@ -483,7 +488,8 @@ public enum BindingsSchema {
             passthrough: b.passthrough ? true : nil,
             repeatStrategy: b.repeatStrategy == .fireEach
                 ? nil
-                : b.repeatStrategy.rawValue)
+                : b.repeatStrategy.rawValue,
+            inputSource: b.inputSource)
     }
 
     private static func wireCondition(_ c: Condition) -> WireCondition {
