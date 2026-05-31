@@ -1462,12 +1462,14 @@ public enum Config {
         }
         // Body has `{{N}}` but the user called bare? Reject — running
         // the body verbatim would leak `{{N}}` into the shell.
-        if maxPlaceholder(in: body) > 0 {
+        let needed = maxPlaceholder(in: body)
+        if needed > 0 {
             return .callError(
                 aliasName: name,
                 message:
-                    "alias '\(name)' uses {{N}} placeholders — " +
-                    "call it as @\(name)(arg) with arguments")
+                    "alias '\(name)' uses {{1}}..{{\(needed)}} " +
+                    "placeholders — call it as @\(name)(arg, …) " +
+                    "with arguments")
         }
         return .body(body, aliasName: name)
     }
