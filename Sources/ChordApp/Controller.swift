@@ -350,7 +350,8 @@ public final class Controller {
             self.matcher = Matcher(
                 bindings: result.config.bindings,
                 fallbacks: result.config.fallbacks,
-                excludeApps: result.config.options.excludeApps)
+                excludeApps: result.config.options.excludeApps,
+                fnAutoArrows: result.config.options.fnAutoArrows)
             publishMatcher()
             // Reload wipes the variable store — the new config may
             // have removed the binding that owned a variable, and a

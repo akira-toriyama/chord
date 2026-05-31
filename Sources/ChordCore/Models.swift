@@ -55,13 +55,19 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
     ///   • Neither set                             → both sides
     ///                                                must be absent.
     ///
-    /// `fn` is symmetric (no L/R variants) and matches strictly.
-    public func matches(event: Modifiers) -> Bool {
-        return matchCategory(any: .cmd,   l: .lcmd,   r: .rcmd,   event: event)
+    /// `fn` is symmetric (no L/R variants) and matches strictly,
+    /// *unless* the caller passes `ignoreFn: true` — the matcher
+    /// uses that override for arrow / nav keys (macOS always tags
+    /// them with `fn`, so a strict comparison would force every
+    /// arrow binding to spell out `+ fn`).
+    public func matches(event: Modifiers, ignoreFn: Bool = false) -> Bool {
+        let categoriesOK =
+               matchCategory(any: .cmd,   l: .lcmd,   r: .rcmd,   event: event)
             && matchCategory(any: .opt,   l: .lopt,   r: .ropt,   event: event)
             && matchCategory(any: .ctrl,  l: .lctrl,  r: .rctrl,  event: event)
             && matchCategory(any: .shift, l: .lshift, r: .rshift, event: event)
-            && self.contains(.fn) == event.contains(.fn)
+        if ignoreFn { return categoriesOK }
+        return categoriesOK && self.contains(.fn) == event.contains(.fn)
     }
 
     /// Subset check tailored for v2 `hold-while` lifecycle: does the
@@ -307,11 +313,20 @@ public struct ChordConfig: Sendable {
     public struct Options: Sendable {
         public var passthroughUnmatched: Bool
         public var excludeApps: [String]
+        /// When true (default), the strict `fn` comparison is skipped
+        /// for arrow / nav keys (left / right / up / down / home /
+        /// end / page_up / page_down / forward_delete). macOS always
+        /// sets `NSEventModifierFlagFunction` on those events, so
+        /// without this relaxation users would have to spell out
+        /// `ctrl + fn - right` for every arrow binding.
+        public var fnAutoArrows: Bool
 
         public init(passthroughUnmatched: Bool = true,
-                    excludeApps: [String] = []) {
+                    excludeApps: [String] = [],
+                    fnAutoArrows: Bool = true) {
             self.passthroughUnmatched = passthroughUnmatched
             self.excludeApps = excludeApps
+            self.fnAutoArrows = fnAutoArrows
         }
     }
 

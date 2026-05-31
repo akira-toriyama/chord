@@ -113,10 +113,16 @@ public enum BindingsSchema {
     public struct WireOptions: Codable, Sendable {
         public let passthroughUnmatched: Bool
         public let excludeApps: [String]
+        /// chord 0.8.0+: when true (default), arrow / nav triggers
+        /// ignore the `fn` bit during matching. Schema-v3.x
+        /// forward-compatible addition; older v3 consumers that
+        /// ignore unknown options keep working.
+        public let fnAutoArrows: Bool
 
         enum CodingKeys: String, CodingKey {
             case passthroughUnmatched = "passthrough_unmatched"
             case excludeApps          = "exclude_apps"
+            case fnAutoArrows         = "fn_auto_arrows"
         }
     }
 
@@ -387,7 +393,8 @@ public enum BindingsSchema {
                                    .withFractionalSeconds]
         let opts = WireOptions(
             passthroughUnmatched: result.config.options.passthroughUnmatched,
-            excludeApps: result.config.options.excludeApps)
+            excludeApps: result.config.options.excludeApps,
+            fnAutoArrows: result.config.options.fnAutoArrows)
         let bindings = result.config.bindings.enumerated().map { i, b in
             wire(binding: b, index: i)
         }

@@ -158,12 +158,17 @@ lock-free に読むため、Event に乗せて渡す。**unset == 0**。
 
 ```
 ChordConfig
-├── options          (passthroughUnmatched, excludeApps)
+├── options          (passthroughUnmatched, excludeApps, fnAutoArrows)
 ├── bindings         [Binding]
 ├── fallbacks        [Binding]   ← trigger に .anyKey を許す
 ├── actionAliases    [String: String]
 └── inputAliases     [String: String]
 ```
+
+`fnAutoArrows` (chord 0.8.0+): true (default) のとき、arrow / nav キー
+([KeyCodes.fnAutoNavKeycodes](../Sources/ChordCore/KeyCodes.swift) の 9 key)
+の matching で `fn` 比較をスキップする。macOS が arrow に常に
+`NSEventModifierFlagFunction` を付与する都合への対応。
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `ChordConfig`
 
