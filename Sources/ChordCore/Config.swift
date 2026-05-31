@@ -1003,7 +1003,7 @@ public enum Config {
                         "(noop = absorb; passthrough = relay)",
                     sourceLine: line, bindingName: name))
                 return nil
-            case .shell, .setVariable:
+            case .shell, .setVariable, .toggleVariable:
                 break
             }
             if onUpResult != nil {
