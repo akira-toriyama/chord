@@ -212,8 +212,8 @@ ChordConfig
 
 | 記法 | 意味 | 出現場所 |
 |---|---|---|
-| `@name` | action-alias 参照 | `action-shell` の値 |
-| `@name("arg")` | action-alias 引数付き (issue #26 で実装予定) | `action-shell` の値 |
+| `@name` | action-alias 参照 (引数なし alias 用) | `action-shell` の値 |
+| `@name(arg1, "arg 2")` | action-alias 引数付き (chord 0.9.0+)。alias body の `{{1}}` `{{2}}` …プレースホルダに **literal 置換** (escape なし、quote はユーザ責任) | `action-shell` の値 |
 | `$name` | input-alias 参照 | `input` の値 |
 | `*` | wildcard primary key | `[[fallbacks]]` の `input` のみ |
 | `keycode-NN` | 生 `CGKeyCode` の脱出口 | `input` / `action-keys` の key 部 |
