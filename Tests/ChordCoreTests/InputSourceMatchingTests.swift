@@ -137,8 +137,7 @@ final class InputSourceMatchingTests: XCTestCase {
         name = "us"
         input = "cmd - x"
         action-noop = true
-        input-source = ["com.apple.keylayout.US",
-                        "!com.apple.inputmethod.Kotoeri.*"]
+        input-source = ["com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"]
         """)
         let doc = BindingsSchema.makeDocument(from: res)
         let data = try BindingsSchema.encodeJSON(doc)
