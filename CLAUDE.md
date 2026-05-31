@@ -50,6 +50,25 @@ top-level code in a `main.swift`) so XCTest's executable-target
 lands. **Don't reintroduce a `main.swift` file** — same trap as
 stroke / facet / ws-tabs.
 
+## Source-of-truth references
+
+Two cross-cutting docs to consult before the layer-specific rules below:
+
+- **[docs/glossary.md](docs/glossary.md)** — chord の正規 (canonical)
+  用語表。同じ概念に複数の名前を当てない (= "alias" だけで input/action を
+  曖昧化しない、"state-store" と "variables" が混在しない、等) ための辞書。
+  各 entry に `Don't call it:` 欄があり、PR レビューでの即時 NG ワードの根拠
+  に使える。**コード変更で用語を新設 / rename した場合は同 PR で更新**
+  (PR template の glossary checkbox 参照)。
+- **[docs/non-goals.md](docs/non-goals.md)** — chord が **意図的に持たない
+  機能** と「再検討する条件」。隣接プロジェクト
+  (skhd / skhd.zig / Karabiner / ZMK) の機能を chord に取り込むべきか毎回
+  議論が再燃するのを防ぐ。
+
+実装ロードマップは
+[chord roadmap GitHub Project](https://github.com/users/akira-toriyama/projects/2)
+で管理 (v0.7.0 / v0.8.0 / v0.9.0 / Backlog milestones)。
+
 ## Non-obvious constraints — read before editing
 
 ### Layer rules (the spine of the project)
