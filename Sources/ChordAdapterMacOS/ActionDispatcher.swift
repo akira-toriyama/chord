@@ -30,6 +30,10 @@ public enum ActionDispatcher {
             // calling dispatch, so reaching here is a no-op safety
             // net for tests that exercise the dispatcher directly.
             Log.debug("dispatch.setVariable: \(binding.name) → \(name)=\(value)")
+        case .toggleVariable(let name):
+            // Same safety net as setVariable — Controller owns the
+            // store and intercepts toggleVariable before dispatch.
+            Log.debug("dispatch.toggleVariable: \(binding.name) → \(name)")
         }
     }
 
