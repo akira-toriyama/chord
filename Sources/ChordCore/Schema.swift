@@ -150,6 +150,10 @@ public enum BindingsSchema {
         /// in order, after `action` (Karabiner `to`-array shape).
         /// Absent when the binding has only the single primary action.
         public let extraActions: [WireAction]?
+        /// chord 0.9.0+: when `true`, the original event reaches the
+        /// OS in addition to firing `action`. Absent (= omitted from
+        /// JSON) when `false` — the common case.
+        public let passthrough: Bool?
 
         enum CodingKeys: String, CodingKey {
             case index, name, input, apps, action, condition
@@ -158,6 +162,7 @@ public enum BindingsSchema {
             case holdWhileTimeoutMs = "hold_while_timeout"
             case actionOnUp         = "action_on_up"
             case extraActions       = "extra_actions"
+            case passthrough
         }
     }
 
@@ -463,7 +468,8 @@ public enum BindingsSchema {
             extraActions: b.extraDownActions.isEmpty ? nil
                 : b.extraDownActions.map {
                     wireAction(action: $0, raw: nil, aliasName: nil)
-                })
+                },
+            passthrough: b.passthrough ? true : nil)
     }
 
     private static func wireCondition(_ c: Condition) -> WireCondition {
