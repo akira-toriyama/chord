@@ -5,9 +5,9 @@ import Foundation
 ///
 /// `Log.line` is always on (operational events the user should be
 /// able to see in a bug report). `Log.debug` is gated by
-/// `Log.debugMode`, set from `chord --debug` at startup.
+/// `Log.debugMode`, set from the `CHORD_DEBUG` env var at startup.
 ///
-/// Both write to `/tmp/chord.log`. `--debug` also mirrors to stderr
+/// Both write to `/tmp/chord.log`. `CHORD_DEBUG` also mirrors to stderr
 /// so foreground users see events live and bug reports can capture
 /// them with `2>&1 | tee bug.log`. Non-debug runs stay quiet on
 /// stderr so a backgrounded `chord &` doesn't pollute the launching

@@ -22,9 +22,9 @@ if [[ "${1:-}" == "--app" ]]; then
   if [[ ! -d Chord.app ]]; then
     ./package.sh
   fi
-  echo "→ open Chord.app"
-  open Chord.app
+  echo "→ open Chord.app (CHORD_DEBUG=1)"
+  open Chord.app --env CHORD_DEBUG=1
 else
-  echo "→ launching .build/release/chord --debug (foreground, logging to $LOG)"
-  .build/release/chord --debug 2>&1 | tee "$LOG"
+  echo "→ launching CHORD_DEBUG=1 .build/release/chord (foreground, logging to $LOG)"
+  CHORD_DEBUG=1 .build/release/chord 2>&1 | tee "$LOG"
 fi

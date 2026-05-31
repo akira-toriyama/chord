@@ -405,8 +405,9 @@ event. Everything below depends on this contract:
 - **`Log` lives in `ChordCore`** so both the Adapter and App
   modules can call it without crossing layer rules. Two
   functions: `Log.line` (always on) and `Log.debug` (gated by
-  `debugMode`, set from `chord --debug` at startup).
-- **Both write to `/tmp/chord.log`**; `--debug` also mirrors to
+  `debugMode`, set from the `CHORD_DEBUG` env var at startup —
+  run.sh sets it; brew / raw launch stays quiet).
+- **Both write to `/tmp/chord.log`**; `CHORD_DEBUG` also mirrors to
   stderr so foreground users see events live.
 - **Use `Log.debug` liberally** in EventTap / dispatch hot paths.
   It costs one bool check when disabled. Skip per-mouseMoved
@@ -419,8 +420,8 @@ chord is **headless** (`LSUIElement`, no Dock icon, no window).
 The agent cannot "look at the screen" to see what it's doing — so
 the daemon is built to be debuggable entirely from the terminal.
 
-1. **Run in the foreground with `--debug`** so events stream live:
-   `.build/debug/chord --debug`. This sets `debugMode = true` and
+1. **Run in the foreground with `CHORD_DEBUG=1`** so events stream live:
+   `CHORD_DEBUG=1 .build/debug/chord`. This sets `debugMode = true` and
    mirrors every log line to stderr in addition to `/tmp/chord.log`.
 2. **Tail the log** from a second shell: `tail -f /tmp/chord.log`.
    This is the single source of observability — there is nothing
@@ -433,7 +434,7 @@ the daemon is built to be debuggable entirely from the terminal.
    ```
    The `dispatch.*` line missing means the matcher found nothing
    — re-check the `input` field's modifier mask vs. what the OS
-   sees (use `--debug` and trigger the chord).
+   sees (use `CHORD_DEBUG=1` and trigger the chord).
 4. **Check config** with `chord --validate` (exit 0 + binding
    count, or exit 2). The `chord --doctor` form additionally
    reports Accessibility status and whether the daemon is
@@ -488,11 +489,13 @@ stray instances before relaunching.
 
 ### CLI surface
 
-- **Flags**: `--debug` (server, verbose), `--validate` /
+- **Flags**: `--validate` /
   `--doctor` / `--help` / `--version` (standalone),
   `--reload` / `--quit` / `--pause` / `--resume` / `--status`
   (client). Any unrecognised flag exits `2` with a stderr message
-  (no silent fallback — *Rule of Repair*).
+  (no silent fallback — *Rule of Repair*). Verbose logging is
+  env-var-triggered (`CHORD_DEBUG=1`, set by run.sh) — not a flag,
+  so a brew / raw launch stays quiet.
 - **`--pause` / `--resume`** flip a single `pausedFlag` guarded by
   `pauseLock`, read from the tap callback's hot path before the
   matcher snapshot is even consulted. `--pause` returns
