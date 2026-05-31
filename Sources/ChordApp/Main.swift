@@ -77,6 +77,9 @@ enum ChordApp {
         if args.contains("--resign") {
             exit(runResign())
         }
+        if args.contains("--watch") {
+            exit(runWatch())
+        }
 
         // Server flags. Debug is env-var-triggered (run.sh sets
         // CHORD_DEBUG=1) — there is no `--debug` flag, so a brew /
@@ -472,6 +475,46 @@ enum ChordApp {
     ///   0 — re-signed (and restart attempted)
     ///   1 — codesign failed
     ///   2 — no Chord.app found in any expected location
+    /// `chord --watch` — live per-event trace (chord 0.9.0+).
+    /// Truncates `/tmp/chord-watch.log` (= "subscribe" signal) and
+    /// then `tail -F`s it to stderr. The running daemon emits one
+    /// line per event while the file exists. Exit on Ctrl-C; the
+    /// file is left behind so a subsequent `chord --watch` keeps
+    /// receiving lines. To stop the daemon from writing, the user
+    /// can `rm /tmp/chord-watch.log`.
+    ///
+    /// Exit codes:
+    ///   0 — clean exit (Ctrl-C, tail terminated)
+    ///   1 — couldn't spawn `tail` / filesystem error
+    private static func runWatch() -> Int32 {
+        let path = Log.watchPath
+        // Truncate / create the file. Daemon checks existence on each
+        // event; presence is enough to enable per-event logging.
+        guard FileManager.default.createFile(atPath: path, contents: nil)
+        else {
+            fputs("chord: --watch: cannot create \(path)\n", stderr)
+            return 1
+        }
+        fputs("chord: --watch — tailing \(path) (Ctrl-C to exit; " +
+              "rm the file to silence the daemon)\n", stderr)
+        let tail = Process()
+        tail.executableURL = URL(fileURLWithPath: "/usr/bin/tail")
+        // `-F` follows by name (handles truncate / rotate), `-n0`
+        // suppresses the historical lines so the watch starts from
+        // the moment the user invoked it.
+        tail.arguments = ["-F", "-n", "0", path]
+        tail.standardOutput = FileHandle.standardError
+        tail.standardError = FileHandle.standardError
+        do {
+            try tail.run()
+            tail.waitUntilExit()
+        } catch {
+            fputs("chord: --watch: failed to spawn tail — \(error)\n", stderr)
+            return 1
+        }
+        return 0
+    }
+
     ///   3 — chord-dev identity missing from the login keychain
     ///       (user needs to run setup-signing-cert.sh once)
     private static func runResign() -> Int32 {
@@ -665,6 +708,8 @@ enum ChordApp {
           chord --resume       re-enable bindings
           chord --toggle       flip paused ↔ resumed (handy as a hotkey)
           chord --status       print the last status line
+          chord --watch        live per-event trace (subscribes via
+                               /tmp/chord-watch.log; Ctrl-C to exit)
 
           chord --help         this text
           chord --version      print version

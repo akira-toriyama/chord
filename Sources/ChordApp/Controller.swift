@@ -54,7 +54,10 @@ public final class Controller {
         // snapshot `matcher` once (assignment is atomic enough at
         // value-type granularity in Swift) and act without
         // bouncing to main — main bounces would deadlock the tap.
-        if isPaused() { return .passthrough }
+        if isPaused() {
+            emitWatch(event: event, outcome: "passthrough (paused)")
+            return .passthrough
+        }
 
         // Branch on event kind before consulting the matcher. The
         // matcher only deals with `.down` events; `.up` flows
@@ -67,10 +70,15 @@ public final class Controller {
             clearStaleVariables(currentMods: event.modifiers)
             fireModifierOnlyBindings(currentMods: event.modifiers,
                                      bundleID: event.frontmostBundleID)
+            emitWatch(event: event, outcome: "passthrough (modifiers-only event)")
             return .passthrough
         case .up:
             Log.debug("up: trigger=\(event.trigger) mods=0x\(String(event.modifiers.rawValue, radix: 16))")
-            return handleKeyUp(trigger: event.trigger)
+            let outcome = handleKeyUp(trigger: event.trigger)
+            emitWatch(event: event,
+                      outcome: outcome == .consume ? "consume (paired up)"
+                                                   : "passthrough (no pending up)")
+            return outcome
         case .down:
             Log.debug("down: trigger=\(event.trigger) mods=0x\(String(event.modifiers.rawValue, radix: 16))")
             break
@@ -83,7 +91,10 @@ public final class Controller {
                                bundleID: event.frontmostBundleID,
                                state: state,
                                inputSourceID: event.inputSourceID)
-        guard let binding = snapshot.find(me) else { return .passthrough }
+        guard let binding = snapshot.find(me) else {
+            emitWatch(event: event, outcome: "passthrough (no match)")
+            return .passthrough
+        }
         // chord 0.9.0+ autorepeat strategy. macOS emits `keyDown` with
         // the autorepeat flag set while a key is held; without a
         // strategy, every typematic tick re-fires the action (a long
@@ -95,8 +106,12 @@ public final class Controller {
             case .ignore:
                 // Consume so the OS doesn't see a phantom repeat for
                 // a key whose initial down we already swallowed.
+                emitWatch(event: event,
+                          outcome: "consume (repeat ignored, match='\(binding.name)')")
                 return .consume
             case .passthrough:
+                emitWatch(event: event,
+                          outcome: "passthrough (repeat, match='\(binding.name)')")
                 return .passthrough
             }
         }
@@ -147,13 +162,53 @@ public final class Controller {
         // registration too. action-keys / on-up / noop are forbidden
         // on passthrough bindings at parse time, so reaching here is
         // shell / setVariable only.
-        if binding.passthrough { return .passthrough }
+        if binding.passthrough {
+            emitWatch(event: event,
+                      outcome: "passthrough (match='\(binding.name)' passthrough=true)")
+            return .passthrough
+        }
         // Register pairing: B1 contract — the OS never saw this
         // down, so the corresponding up must also be consumed.
         // The binding (with its onUpAction) is what handleKeyUp
         // dispatches against.
         registerPendingUp(trigger: event.trigger, binding: binding)
+        emitWatch(event: event,
+                  outcome: "consume (match='\(binding.name)' action=\(describeAction(binding.action)))")
         return .consume
+    }
+
+    /// Compact action description for `chord --watch` lines.
+    nonisolated private func describeAction(_ a: Action) -> String {
+        switch a {
+        case .keys:           return "keys"
+        case .shell:          return "shell"
+        case .noop:           return "noop"
+        case .setVariable:    return "set-variable"
+        case .toggleVariable: return "toggle-variable"
+        }
+    }
+
+    /// One-line structured per-event log for `chord --watch`. Emits
+    /// to `/tmp/chord-watch.log` only when the file exists (= a watch
+    /// client has been started). Format:
+    /// ```
+    /// event(<kind>, trigger=<…>, mods=0x<hex>, app=<bundle-id>) → <outcome>
+    /// ```
+    nonisolated private func emitWatch(event: InputEvent, outcome: String) {
+        let kind: String
+        switch event.kind {
+        case .down:
+            kind = event.isRepeat ? "down-repeat" : "down"
+        case .up:
+            kind = "up"
+        case .modifiersChanged:
+            kind = "modsChanged"
+        }
+        let mods = String(event.modifiers.rawValue, radix: 16)
+        let app = event.frontmostBundleID ?? "?"
+        let isrc = event.inputSourceID.map { ", input-source=\($0)" } ?? ""
+        Log.watch("event(\(kind), trigger=\(event.trigger), " +
+                  "mods=0x\(mods), app=\(app)\(isrc)) → \(outcome)")
     }
 
     /// Format the lifecycle suffix for the state-set log line.

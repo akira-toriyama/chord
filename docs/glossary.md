@@ -555,7 +555,7 @@ chord 用語ではない)。
 | `--doctor` | validate + AX 権限 + daemon liveness | 0 / 1 (何か NG) |
 | `--help` / `--version` | print + exit | 0 |
 | `--resign` | brew sandbox 後の Chord.app 再署名 + 再起動 | 0 (署名成功なら) |
-| `--watch` | **計画中** (issue #15) — live event trace | — |
+| `--watch` | live per-event trace (chord 0.9.0+) — `/tmp/chord-watch.log` を truncate して `tail -F`、daemon は存在する間だけ書く | 0 / 1 (spawn 失敗) |
 
 ### Client subcommands (DNC で daemon と通信)
 
@@ -580,6 +580,7 @@ chord 用語ではない)。
 | `/tmp/chord.log` | persistent log。常時書く、CHORD_DEBUG で stderr mirror |
 | `/tmp/chord.status` | daemon 状態の逆方向 IPC ファイル (DNC 単方向の補完) |
 | `/tmp/chord-loaded.json` | 直近 reload 時の binding スナップショット。`--reload --dry-run` の diff 元 |
+| `/tmp/chord-watch.log` | `chord --watch` 用 per-event structured log (chord 0.9.0+)。**ファイル存在 = subscribe シグナル**。daemon は存在する間だけ書く。`rm` で daemon を silent に |
 
 ### DNC channel
 
