@@ -1119,6 +1119,25 @@ public enum Config {
         let holdVarKey = "action-hold-var\(suffix)"
         let fieldLabel = suffix.isEmpty ? "" : " (on-up)"
 
+        // chord 0.9.0+ native action sugar: each `action-<native>` is
+        // desugared to a fixed `.keys` primary action targeting the
+        // macOS default shortcut. No shell-out, no new Action case;
+        // the rest of the pipeline (Controller / Dispatcher / Schema /
+        // `--list --json`) sees a plain keys binding. Caveat: if the
+        // user has remapped the shortcut in System Settings → Keyboard,
+        // the action effectively re-binds to whatever they assigned.
+        // on-up variants are not supported (suffix must be empty).
+        if suffix.isEmpty {
+            switch parseNativeAction(row: row, section: section,
+                                     name: name, source: source,
+                                     sourceLine: sourceLine,
+                                     warnings: &warnings) {
+            case .absent: break          // fall through to other action-*
+            case .ok(let pa): return pa
+            case .invalid:    return nil // warning already emitted
+            }
+        }
+
         if let shell = row[shellKey]?.asString {
             switch resolveAlias(shell, actionAliases: actionAliases) {
             case .body(let body, let aliasName):
@@ -1577,6 +1596,72 @@ public enum Config {
             self.raw = raw
             self.aliasName = aliasName
         }
+    }
+
+    /// chord 0.9.0+ native action desugar. Each `action-<native>`
+    /// maps to the macOS-default keyboard shortcut for that system
+    /// action; the rest of the pipeline sees a plain `.keys` action.
+    private enum NativeActionOutcome {
+        case absent
+        case ok(ParsedAction)
+        case invalid     // warning already appended
+    }
+    private static func parseNativeAction(
+        row: [String: TOML.Value],
+        section: String, name: String, source: String,
+        sourceLine: Int?,
+        warnings: inout [ConfigWarning]
+    ) -> NativeActionOutcome {
+        func warn(_ msg: String) {
+            warnings.append(ConfigWarning(
+                kind: .actionKeysParseError,
+                message: "\(section) '\(name)'\(source): \(msg)",
+                sourceLine: sourceLine, bindingName: name))
+        }
+
+        if let target = row["action-mission-control"]?.asString {
+            switch target {
+            case "show-all-windows":
+                // ctrl + ↑ — macOS Mission Control default.
+                return .ok(ParsedAction(
+                    action: .keys([.ctrl], 0x7E),
+                    raw: "action-mission-control:show-all-windows"))
+            case "show-app-windows":
+                // ctrl + ↓ — App Exposé default.
+                return .ok(ParsedAction(
+                    action: .keys([.ctrl], 0x7D),
+                    raw: "action-mission-control:show-app-windows"))
+            default:
+                warn("action-mission-control: unknown value '\(target)' " +
+                     "(expected show-all-windows / show-app-windows)")
+                return .invalid
+            }
+        }
+        if let target = row["action-screenshot"]?.asString {
+            switch target {
+            case "selection":
+                // cmd + shift + 4 (selection-to-file).
+                return .ok(ParsedAction(
+                    action: .keys([.cmd, .shift], 0x15),
+                    raw: "action-screenshot:selection"))
+            case "screen":
+                // cmd + shift + 3 (full screen-to-file).
+                return .ok(ParsedAction(
+                    action: .keys([.cmd, .shift], 0x14),
+                    raw: "action-screenshot:screen"))
+            default:
+                warn("action-screenshot: unknown value '\(target)' " +
+                     "(expected selection / screen)")
+                return .invalid
+            }
+        }
+        if row["action-spotlight"]?.asBool == true {
+            // cmd + space — Spotlight default.
+            return .ok(ParsedAction(
+                action: .keys([.cmd], 0x31),
+                raw: "action-spotlight:true"))
+        }
+        return .absent
     }
 
     /// Parse `action-keys` value (string or array) into one or more
