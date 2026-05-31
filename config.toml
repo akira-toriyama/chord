@@ -326,6 +326,16 @@ fn-auto-arrows = true
 # name = "ULTRA_LL undefined feedback"
 # input = "rctrl + ralt + rshift - *"
 # action-shell = "afplay /System/Library/Sounds/Pop.aiff"
+#
+# When several modifier sets share the same feedback action, the
+# `inputs = [...]` array form (chord 0.8.0+) collapses N copy-pasted
+# rows into one. Each entry expands to its own fallback at parse time.
+# (The hand-rolled TOML parser requires the array on a single line.)
+#
+# [[fallbacks]]
+# name = "undefined feedback (4 modsets)"
+# inputs = ["rctrl + ralt + rshift - *", "rctrl + rcmd + rshift - *", "rctrl + rcmd + ralt - *", "rcmd + ralt + rshift - *"]
+# action-shell = "afplay /System/Library/Sounds/Pop.aiff"
 
 
 # =====================================================================

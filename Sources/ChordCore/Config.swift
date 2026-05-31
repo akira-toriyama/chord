@@ -206,15 +206,38 @@ public enum Config {
 
         var fallbacks: [Binding] = []
         let fbRows = root["fallbacks"]?.asArrayOfTables ?? []
-        for (i, row) in fbRows.enumerated() {
-            if let b = makeBinding(from: row, index: i,
-                                   isFallback: true,
-                                   actionAliases: actionAliases,
-                                   inputAliases: inputAliasesParsed,
-                                   warnings: &warnings)
-            {
-                fallbacks.append(b)
-            } else {
+        var fbExpansionIndex = 0
+        for row in fbRows {
+            let expanded = expandFallbackRow(row,
+                                             warnings: &warnings)
+            switch expanded {
+            case .single(let r):
+                if let b = makeBinding(from: r, index: fbExpansionIndex,
+                                       isFallback: true,
+                                       actionAliases: actionAliases,
+                                       inputAliases: inputAliasesParsed,
+                                       warnings: &warnings)
+                {
+                    fallbacks.append(b)
+                    fbExpansionIndex += 1
+                } else {
+                    dropped += 1
+                }
+            case .many(let rows):
+                for r in rows {
+                    if let b = makeBinding(from: r, index: fbExpansionIndex,
+                                           isFallback: true,
+                                           actionAliases: actionAliases,
+                                           inputAliases: inputAliasesParsed,
+                                           warnings: &warnings)
+                    {
+                        fallbacks.append(b)
+                        fbExpansionIndex += 1
+                    } else {
+                        dropped += 1
+                    }
+                }
+            case .invalid:
                 dropped += 1
             }
         }
@@ -433,6 +456,95 @@ public enum Config {
 
         return SequenceParse(expanded: expanded, prefixes: prefixes,
                              dropped: dropped)
+    }
+
+    // MARK: - Fallback inputs[] expansion (chord 0.8.0+)
+
+    /// Outcome of inspecting a single `[[fallbacks]]` row for the
+    /// `inputs = [...]` array sugar.
+    private enum FallbackExpansion {
+        /// Use the row as-is (no `inputs[]` present, classic single
+        /// `input = "..."` path).
+        case single([String: TOML.Value])
+        /// Expand into N rows, each a copy of the original with
+        /// `input` set to one element of `inputs[]`.
+        case many([[String: TOML.Value]])
+        /// Validation failed (e.g. both `input` and `inputs[]` set,
+        /// empty `inputs[]`, non-string element). Warning already
+        /// appended; caller counts the drop.
+        case invalid
+    }
+
+    /// Validate + expand `[[fallbacks]]` `inputs = [a, b, c]` sugar
+    /// into N synthesised rows. Each expansion clones the original
+    /// row, replaces `input` with one element, and (when the user
+    /// provided a `name`) appends `" — <input>"` so warnings /
+    /// `--list --json` distinguish the siblings.
+    ///
+    /// The `__line__` synthetic metadata key is preserved verbatim
+    /// across expansions (all expanded fallbacks attribute back to
+    /// the source `[[fallbacks]]` header line).
+    private static func expandFallbackRow(
+        _ row: [String: TOML.Value],
+        warnings: inout [ConfigWarning]
+    ) -> FallbackExpansion {
+        guard let inputsRaw = row["inputs"] else {
+            return .single(row)
+        }
+        let line = row[TOML.lineKey]?.asInt.map { Int($0) }
+        let baseName = row["name"]?.asString
+        let displayName = baseName ?? "[[fallbacks]] entry"
+        let source = sourceTag(line: line)
+
+        guard case .array(let arr) = inputsRaw else {
+            warnings.append(ConfigWarning(
+                kind: .missingInput,
+                message:
+                    "[[fallbacks]] '\(displayName)'\(source): " +
+                    "inputs must be an array of strings",
+                sourceLine: line, bindingName: baseName))
+            return .invalid
+        }
+        if row["input"] != nil {
+            warnings.append(ConfigWarning(
+                kind: .missingInput,
+                message:
+                    "[[fallbacks]] '\(displayName)'\(source): " +
+                    "'input' and 'inputs' are mutually exclusive — pick one",
+                sourceLine: line, bindingName: baseName))
+            return .invalid
+        }
+        if arr.isEmpty {
+            warnings.append(ConfigWarning(
+                kind: .missingInput,
+                message:
+                    "[[fallbacks]] '\(displayName)'\(source): " +
+                    "inputs[] must contain at least one entry",
+                sourceLine: line, bindingName: baseName))
+            return .invalid
+        }
+        let inputStrings = arr.compactMap(\.asString)
+        if inputStrings.count != arr.count {
+            warnings.append(ConfigWarning(
+                kind: .missingInput,
+                message:
+                    "[[fallbacks]] '\(displayName)'\(source): " +
+                    "every inputs[] element must be a string",
+                sourceLine: line, bindingName: baseName))
+            return .invalid
+        }
+
+        var out: [[String: TOML.Value]] = []
+        for inputStr in inputStrings {
+            var synth = row
+            synth["input"] = .string(inputStr)
+            synth["inputs"] = nil
+            if let baseName {
+                synth["name"] = .string("\(baseName) — \(inputStr)")
+            }
+            out.append(synth)
+        }
+        return .many(out)
     }
 
     private static func makeBinding(
