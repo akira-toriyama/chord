@@ -854,20 +854,20 @@ public enum Config {
                                        warnings: &warnings)
         guard let parsedAction = actionResult else { return nil }
 
-        // Karabiner-style multi-action on down: when a binding
-        // declares BOTH action-shell and action-keys, the shell runs
-        // first (parseAction's precedence makes it the primary
-        // `action`) and the keys are posted right after on the same
-        // key-down. Only this pair combines — noop / set-var stay
-        // single-action, so the existing first-wins precedence is
-        // unchanged for every other combination.
+        // Multi-action on down. Three sources combine here:
+        //   1. action-shell as primary + sibling action-keys (string or
+        //      array — chord 0.9.0+). Karabiner-style: shell first, then
+        //      one or more synthetic key posts.
+        //   2. action-keys ARRAY as primary (chord 0.9.0+). parseAction
+        //      already split the first element into `action` and parked
+        //      the rest in `parsedAction.extraKeys`.
+        //   3. All other primaries (noop / setVariable): no extras.
         let extraDownActions: [Action]
         if case .shell = parsedAction.action,
-           let keysStr = row["action-keys"]?.asString {
+           let keysVal = row["action-keys"] {
             do {
-                let (mods, code) =
-                    try InputParser.parseKeyForOutput(keysStr)
-                extraDownActions = [.keys(mods, code)]
+                let parsed = try parseKeysListValue(keysVal)
+                extraDownActions = parsed.map { .keys($0.0, $0.1) }
             } catch {
                 warnings.append(ConfigWarning(
                     kind: .actionKeysParseError,
@@ -877,6 +877,8 @@ public enum Config {
                     sourceLine: line, bindingName: name))
                 return nil
             }
+        } else if !parsedAction.extraKeys.isEmpty {
+            extraDownActions = parsedAction.extraKeys
         } else {
             extraDownActions = []
         }
@@ -1077,13 +1079,17 @@ public enum Config {
                 return nil
             }
         }
-        if let keysStr = row[keysKey]?.asString {
+        if let keysVal = row[keysKey] {
+            // chord 0.9.0+: action-keys accepts string OR string array.
+            // - string  → single .keys action, no extras
+            // - array   → primary = .keys(first), extras = .keys(rest...)
+            //   Carried in `ParsedAction.extraKeys` so the caller can
+            //   layer extras onto Binding.extraDownActions.
+            // on-up does not support arrays (Binding.onUpAction holds
+            // a single Action; multiple wouldn't fire).
+            let parsed: [(Modifiers, UInt16)]
             do {
-                let (mods, code) =
-                    try InputParser.parseKeyForOutput(keysStr)
-                return ParsedAction(action: .keys(mods, code),
-                                    raw: keysStr,
-                                    aliasName: nil)
+                parsed = try parseKeysListValue(keysVal)
             } catch {
                 warnings.append(ConfigWarning(
                     kind: .actionKeysParseError,
@@ -1093,6 +1099,32 @@ public enum Config {
                     sourceLine: sourceLine, bindingName: name))
                 return nil
             }
+            if parsed.isEmpty {
+                warnings.append(ConfigWarning(
+                    kind: .actionKeysParseError,
+                    message:
+                        "\(section) '\(name)'\(source)\(fieldLabel): " +
+                        "\(keysKey): must contain at least one keystroke",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            if !suffix.isEmpty && parsed.count > 1 {
+                warnings.append(ConfigWarning(
+                    kind: .actionKeysParseError,
+                    message:
+                        "\(section) '\(name)'\(source)\(fieldLabel): " +
+                        "\(keysKey): array form is not supported for on-up " +
+                        "(use a single string)",
+                    sourceLine: sourceLine, bindingName: name))
+                return nil
+            }
+            let (mods, code) = parsed[0]
+            let extras = parsed.dropFirst().map { Action.keys($0.0, $0.1) }
+            let rawString = keysVal.asString
+            return ParsedAction(action: .keys(mods, code),
+                                extraKeys: Array(extras),
+                                raw: rawString,
+                                aliasName: nil)
         }
         if row[noopKey]?.asBool == true {
             return ParsedAction(action: .noop, raw: nil, aliasName: nil)
@@ -1290,8 +1322,50 @@ public enum Config {
     /// and the alias name when `@name` resolved successfully.
     private struct ParsedAction {
         let action: Action
+        /// chord 0.9.0+: when `action-keys = [a, b, …]` (array form),
+        /// the first element becomes `action`, the rest are surfaced
+        /// here so makeBinding can drop them onto `extraDownActions`.
+        /// Empty for the common single-string action-keys path and
+        /// for shell / noop / setVariable.
+        let extraKeys: [Action]
         let raw: String?
         let aliasName: String?
+
+        init(action: Action,
+             extraKeys: [Action] = [],
+             raw: String? = nil,
+             aliasName: String? = nil) {
+            self.action = action
+            self.extraKeys = extraKeys
+            self.raw = raw
+            self.aliasName = aliasName
+        }
+    }
+
+    /// Parse `action-keys` value (string or array) into one or more
+    /// (Modifiers, keycode) pairs. Used by both primary and on-up
+    /// action-keys paths.
+    private static func parseKeysListValue(
+        _ v: TOML.Value
+    ) throws -> [(Modifiers, UInt16)] {
+        if let s = v.asString {
+            return [try InputParser.parseKeyForOutput(s)]
+        }
+        if let arr = v.asArray {
+            var out: [(Modifiers, UInt16)] = []
+            for (i, item) in arr.enumerated() {
+                guard let s = item.asString else {
+                    throw InputParser.InputParseError.unknownToken(
+                        "non-string element at index \(i)",
+                        context: "action-keys array")
+                }
+                out.append(try InputParser.parseKeyForOutput(s))
+            }
+            return out
+        }
+        throw InputParser.InputParseError.unknownToken(
+            "action-keys must be a string or array of strings",
+            context: "action-keys")
     }
 
     private enum AliasResolution {
