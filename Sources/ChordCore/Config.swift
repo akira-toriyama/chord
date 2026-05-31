@@ -1042,6 +1042,11 @@ public enum Config {
             || row["action-keys-on-up"] != nil
             || row["action-noop-on-up"] != nil
             || row["action-set-var-on-up"] != nil
+            // chord 0.9.0+: detect to-on-up forms so parseAction can
+            // emit the "not allowed on -on-up paths" rejection
+            // instead of silently dropping the field on the floor.
+            || row["action-toggle-var-on-up"] != nil
+            || row["action-hold-var-on-up"] != nil
     }
 
     /// Pick the binding's [Action] from one of `action-shell` /
