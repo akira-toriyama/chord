@@ -111,7 +111,13 @@ public struct Matcher: Sendable {
     /// calls into it lock-free (the snapshot was already copied in).
     /// An unset variable reads as 0; `Condition.variable(_, equals: 0)`
     /// is the idiomatic "mode is cleared" predicate.
-    static func conditionHolds(_ c: Condition, state: StateSnapshot) -> Bool {
+    ///
+    /// Public so the Controller's modifier-only / flagsChanged path
+    /// can apply the same gate semantics without going through
+    /// `find(_:)` (which insists on a concrete .key / .mouse / .scroll
+    /// event trigger).
+    public static func conditionHolds(_ c: Condition,
+                                      state: StateSnapshot) -> Bool {
         switch c {
         case .variable(let name, let expected):
             return state.value(name) == expected
@@ -137,8 +143,10 @@ public struct Matcher: Sendable {
 
     /// `["*"]` is treated as "any" by the caller (apps == nil); this
     /// function handles the mixed allow/deny list otherwise. One
-    /// exclusion match wins over any allowlist match.
-    static func appsAllow(_ id: String, patterns: [String]) -> Bool {
+    /// exclusion match wins over any allowlist match. Public so the
+    /// Controller's modifier-only flagsChanged path can re-use the
+    /// same glob semantics without going through `find(_:)`.
+    public static func appsAllow(_ id: String, patterns: [String]) -> Bool {
         var anyExcl = false
         var anyAllow = false
         var matched = false
