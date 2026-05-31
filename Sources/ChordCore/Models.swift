@@ -130,6 +130,13 @@ public enum Trigger: Hashable, Sendable {
     case mouseButton(MouseButton)
     case scroll(ScrollDirection)
     case anyKey
+    /// chord 0.9.0+: fires when the OS-side modifier mask **enters**
+    /// the binding's required mask (transition `prev !satisfied →
+    /// current satisfied`). Optional `onUpAction` fires on the
+    /// reverse transition (`current → !satisfied`). Used to attach
+    /// effects to bare modifier chords (e.g. "play a tone when
+    /// ULTRA_LL is pressed").
+    case modifiersOnly
 }
 
 public enum MouseButton: Int, Hashable, Sendable, Codable {
