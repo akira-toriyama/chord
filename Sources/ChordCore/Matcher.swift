@@ -115,6 +115,8 @@ public struct Matcher: Sendable {
         switch c {
         case .variable(let name, let expected):
             return state.value(name) == expected
+        case .conjunction(let parts):
+            return parts.allSatisfy { conditionHolds($0, state: state) }
         }
     }
 

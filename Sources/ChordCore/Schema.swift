@@ -167,11 +167,16 @@ public enum BindingsSchema {
     }
 
     public struct WireCondition: Codable, Sendable, Hashable {
-        /// Discriminator. v2 only emits `"variable"`; richer
-        /// predicates (and/or, comparisons) live behind future kinds.
+        /// Discriminator. `"variable"` is the v2 single-equality
+        /// shape; `"all"` (chord 0.9.0+) is the AND-of-N form whose
+        /// `conditions[]` carries nested predicates.
         public let kind: String
-        public let variable: String
-        public let equals: Int
+        /// Populated when `kind == "variable"`.
+        public let variable: String?
+        public let equals: Int?
+        /// Populated when `kind == "all"`. Nested WireConditions
+        /// follow the same shape recursively.
+        public let conditions: [WireCondition]?
     }
 
     public struct WireInput: Codable, Sendable, Hashable {
@@ -476,7 +481,12 @@ public enum BindingsSchema {
         switch c {
         case .variable(let name, let equals):
             return WireCondition(kind: "variable",
-                                 variable: name, equals: equals)
+                                 variable: name, equals: equals,
+                                 conditions: nil)
+        case .conjunction(let parts):
+            return WireCondition(kind: "all",
+                                 variable: nil, equals: nil,
+                                 conditions: parts.map(wireCondition))
         }
     }
 
