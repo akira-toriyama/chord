@@ -12,13 +12,16 @@ import Foundation
 ///   • `[[array-of-tables]]` headers, including nested
 ///     (`[[a.b]]` appends to `a[last].b` per TOML spec — used by
 ///     `[[sequence]]` + `[[sequence.bindings]]`)
+///   • inline tables `{ a = 1, b = "x" }` (single-line, used by
+///     `[[remap]]` map = {...} and `[bindings.per-app]` rows)
 ///   • values: string (`"…"` and `'…'`), int, float, bool, array
-///     of those
+///     of those, inline table of those
 ///   • `#` comments through end of line
 ///
 /// NOT supported (by design):
-///   • inline tables `{ a = 1, b = 2 }`
 ///   • multi-line strings
+///   • multi-line arrays / inline tables (= line breaks inside
+///     `[…]` or `{…}`)
 ///   • date / time literals
 ///   • nested arrays of arrays (= array values whose elements are
 ///     themselves arrays; distinct from the AoT nesting above)
@@ -152,12 +155,51 @@ public enum TOML {
                                  message: "unterminated array")
             }
             let inner = String(raw.dropFirst().dropLast())
-            let items = splitArray(inner)
+            let items = splitCommaSeparated(inner)
             return .array(try items.map { try parseValue($0, lineNo: lineNo) })
+        }
+        if raw.hasPrefix("{") {
+            // Inline table: `{ key = value, "quoted key" = value, … }`.
+            // Single-line only (`splitCommaSeparated` walks one string).
+            guard raw.hasSuffix("}") else {
+                throw ParseError(line: lineNo,
+                                 message: "unterminated inline table")
+            }
+            let inner = String(raw.dropFirst().dropLast())
+            let entries = splitCommaSeparated(inner)
+            var t: [String: Value] = [:]
+            for entry in entries {
+                guard let eq = entry.firstIndex(of: "=") else {
+                    throw ParseError(line: lineNo,
+                                     message: "inline table entry '\(entry)' missing '='")
+                }
+                let rawKey = String(entry[..<eq])
+                    .trimmingCharacters(in: .whitespaces)
+                let rhs = String(entry[entry.index(after: eq)...])
+                    .trimmingCharacters(in: .whitespaces)
+                let key = unquoteKey(rawKey)
+                t[key] = try parseValue(rhs, lineNo: lineNo)
+            }
+            return .table(t)
         }
         if let i = Int64(raw) { return .int(i) }
         if let d = Double(raw) { return .double(d) }
         throw ParseError(line: lineNo, message: "unrecognised value '\(raw)'")
+    }
+
+    /// Strip surrounding quotes from a key like `"com.foo"` so the
+    /// inline-table table is keyed by the natural string. Both `"` and
+    /// `'` are accepted (matches value-side quoting).
+    private static func unquoteKey(_ raw: String) -> String {
+        if raw.count >= 2 {
+            let first = raw.first!
+            let last = raw.last!
+            if (first == "\"" && last == "\"")
+                || (first == "'" && last == "'") {
+                return String(raw.dropFirst().dropLast())
+            }
+        }
+        return raw
     }
 
     private static func unquote(_ raw: String) -> String {
@@ -170,7 +212,12 @@ public enum TOML {
         return s
     }
 
-    private static func splitArray(_ raw: String) -> [String] {
+    /// Comma-split the inside of an array (`[a, b, c]`) or inline
+    /// table (`{a = 1, b = 2}`). Quote-aware (commas inside strings
+    /// aren't separators) and bracket-depth-aware (commas inside
+    /// nested `[...]` / `{...}` aren't separators either, so an
+    /// inline table whose value is itself an inline table works).
+    private static func splitCommaSeparated(_ raw: String) -> [String] {
         var out: [String] = []
         var depth = 0
         var inStr = false
@@ -182,9 +229,9 @@ public enum TOML {
                 if c == quote { inStr = false }
             } else if c == "\"" || c == "'" {
                 inStr = true; quote = c; current.append(c)
-            } else if c == "[" {
+            } else if c == "[" || c == "{" {
                 depth += 1; current.append(c)
-            } else if c == "]" {
+            } else if c == "]" || c == "}" {
                 depth -= 1; current.append(c)
             } else if c == "," && depth == 0 {
                 let trimmed = current.trimmingCharacters(in: .whitespaces)

@@ -186,6 +186,7 @@ ChordConfig
 | `[[bindings]]` | 通常 binding (document order, first-match-wins) |
 | `[[fallbacks]]` | bindings が全 miss した時だけ評価される binding 群。`*` ワイルドカードが許される唯一の場所 |
 | `[[sequence]]` | leader-key 用 sugar (chord 0.7.0+)。`prefix` + 子 `[[sequence.bindings]]` + `timeout-ms` から **state-var binding 群に parse 時展開**。詳細は §4 [sequence (leader-key sugar)](#sequence-leader-key-sugar) |
+| `[[remap]]` | 1 対 1 リマップ用 sugar (chord 0.8.0+)。`modifiers` + `map = { k1 = "a", k2 = "b" }` から N 個の `.keys` binding に parse 時展開 |
 | `[action-aliases]` | `@name → shell command` の置換テーブル |
 | `[input-aliases]` | `$name → "mod1 + mod2"` の置換テーブル |
 

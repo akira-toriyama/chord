@@ -122,10 +122,18 @@ public enum InputParser {
     ]
 
     /// Parse a modifier-only chain like `"cmd + opt"` or
-    /// `"hyper"`. Used by v2's `hold-while` field — the modifier mask
-    /// that ties a variable's lifecycle to a held-down mod set. An
-    /// empty string returns the empty mask (no auto-clear).
-    public static func parseModifiersOnly(_ raw: String) throws -> Modifiers {
+    /// `"hyper"`. Used by v2's `hold-while` and v0.8.0's
+    /// `[[remap]] modifiers = …` field — the modifier mask the
+    /// downstream caller composes with a key into a binding.
+    /// An empty string returns the empty mask (no modifiers).
+    ///
+    /// `inputAliases` mirrors the map passed to [parse]; pass it when
+    /// `$alias` references are legal at this call site
+    /// (e.g. `modifiers = "$ULTRA_LL"` in `[[remap]]`).
+    public static func parseModifiersOnly(
+        _ raw: String,
+        inputAliases: [String: Modifiers] = [:]
+    ) throws -> Modifiers {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty { return [] }
         // The internal modifier parser splits on `+`. Strip a trailing
@@ -135,7 +143,8 @@ public enum InputParser {
         let body = trimmed.hasSuffix("-")
             ? String(trimmed.dropLast()).trimmingCharacters(in: .whitespaces)
             : trimmed
-        return try parseModifiers(body, context: raw)
+        return try parseModifiers(body, context: raw,
+                                  inputAliases: inputAliases)
     }
 
     /// Subset of `parse` that returns the keys form only (for

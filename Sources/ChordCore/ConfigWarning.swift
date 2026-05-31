@@ -68,6 +68,10 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// without modifier, etc.) or a regular `[[bindings]]` row
         /// collides with a sequence prefix.
         case sequenceParseError   = "sequence-parse-error"
+        /// v0.8.0: `[[remap]]` row malformed (missing modifiers / map,
+        /// modifiers without any modifier token, non-string map value,
+        /// etc.).
+        case remapParseError      = "remap-parse-error"
         /// Reserved for future surface-area expansion (e.g.
         /// `[include]` cycles, option key typos). Kept as a catch-all
         /// so a downstream consumer's match-exhaustion never breaks.
