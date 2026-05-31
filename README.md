@@ -162,7 +162,6 @@ option commented inline.
 
 ```
 chord                run the daemon (default)
-chord --debug        run the daemon with verbose logging
 chord --validate          parse config.toml; exit 0 on clean
 chord --validate --strict warnings + drops fail with exit 1 (for CI)
 chord --validate --json   chord.bindings.v1 document + validation block
@@ -194,7 +193,8 @@ input = "hyper - p"
 action-shell = "chord --toggle"
 ```
 
-Logs go to `/tmp/chord.log`. `--debug` also mirrors to stderr.
+Logs go to `/tmp/chord.log`. Set `CHORD_DEBUG=1` (e.g. via `./run.sh`)
+to also mirror to stderr. There is no `--debug` flag — passing one exits `2`.
 
 ## Architecture
 

@@ -78,8 +78,10 @@ enum ChordApp {
             exit(runResign())
         }
 
-        // Server flags.
-        Log.debugMode = args.contains("--debug")
+        // Server flags. Debug is env-var-triggered (run.sh sets
+        // CHORD_DEBUG=1) — there is no `--debug` flag, so a brew /
+        // raw `open Chord.app` launch stays quiet by default.
+        Log.debugMode = ProcessInfo.processInfo.environment["CHORD_DEBUG"] != nil
 
         // Anything else unrecognised → exit 2 (Rule of Repair).
         for a in args {
@@ -87,8 +89,7 @@ enum ChordApp {
             // re-appear here for the same invocation (e.g.
             // `--validate --strict`); silently accept them.
             switch a {
-            case "--debug",
-                 "--strict",
+            case "--strict",
                  "--json",
                  "--include-dropped",
                  "--dry-run":
@@ -645,7 +646,6 @@ enum ChordApp {
 
         USAGE
           chord                run the daemon (default)
-          chord --debug        run the daemon with verbose logging
 
           chord --validate          parse config.toml; exit 0 on clean
           chord --validate --strict warnings + drops fail with exit 1

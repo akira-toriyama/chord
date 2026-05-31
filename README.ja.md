@@ -158,7 +158,6 @@ action-shell-on-up  = "yabai -m window --grid 1:2:1:0:1:1"
 
 ```
 chord                デーモンを起動 (デフォルト)
-chord --debug        詳細ログ付きでデーモンを起動
 chord --validate          config.toml を検証 (エラー0で exit 0)
 chord --validate --strict 警告 / drop が 1 件でもあれば exit 1 (CI 用)
 chord --validate --json   chord.bindings.v1 ドキュメント + validation ブロック
@@ -177,7 +176,8 @@ chord --help         このテキスト
 chord --version      バージョンを表示
 ```
 
-ログは `/tmp/chord.log`。`--debug` 時は stderr にもミラーされます。
+ログは `/tmp/chord.log`。`CHORD_DEBUG=1` (例: `./run.sh`) で stderr にも
+ミラーされます。`--debug` flag は無く、渡すと exit `2`。
 
 ## アーキテクチャ
 
