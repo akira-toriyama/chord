@@ -271,6 +271,8 @@ enum ChordApp {
             case .noop: actionDesc = "noop"
             case .setVariable(let n, let v):
                 actionDesc = "set-variable → \(n)=\(v)"
+            case .toggleVariable(let n):
+                actionDesc = "toggle-variable → \(n)"
             }
             print("  \(b.name)\(lineTag)")
             print("    input:  \(b.inputRaw)")
