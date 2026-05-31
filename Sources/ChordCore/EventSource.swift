@@ -70,17 +70,25 @@ public struct InputEvent: Sendable, Hashable {
     /// Only meaningful on `.down`; always false on `.up` /
     /// `.modifiersChanged`.
     public var isRepeat: Bool
+    /// chord 0.9.0+: current keyboard input-source id (Carbon TIS,
+    /// e.g. `"com.apple.keylayout.US"`) as observed at the time of
+    /// the event. `nil` when the tracker hasn't started yet or the
+    /// adapter chose not to surface it. Matcher.find consults this
+    /// against `Binding.inputSource`.
+    public var inputSourceID: String?
 
     public init(trigger: Trigger, modifiers: Modifiers,
                 frontmostBundleID: String?,
                 kind: EventKind = .down,
                 isSynthetic: Bool = false,
-                isRepeat: Bool = false) {
+                isRepeat: Bool = false,
+                inputSourceID: String? = nil) {
         self.trigger = trigger
         self.modifiers = modifiers
         self.frontmostBundleID = frontmostBundleID
         self.kind = kind
         self.isSynthetic = isSynthetic
         self.isRepeat = isRepeat
+        self.inputSourceID = inputSourceID
     }
 }

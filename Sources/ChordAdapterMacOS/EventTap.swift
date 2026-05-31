@@ -133,6 +133,7 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
     ) -> InputEvent? {
         let mods = readModifiers(event.flags)
         let frontmost = FrontmostTracker.shared.bundleID
+        let inputSourceID = InputSourceTracker.shared.id
 
         switch type {
         case .keyDown:
@@ -151,7 +152,8 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
                 modifiers: mods,
                 frontmostBundleID: frontmost,
                 kind: .down,
-                isRepeat: isRepeat
+                isRepeat: isRepeat,
+                inputSourceID: inputSourceID
             )
 
         case .keyUp:
@@ -160,7 +162,8 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
                 trigger: .key(UInt16(truncatingIfNeeded: raw)),
                 modifiers: mods,
                 frontmostBundleID: frontmost,
-                kind: .up
+                kind: .up,
+                inputSourceID: inputSourceID
             )
 
         case .flagsChanged:
@@ -173,43 +176,50 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
                 trigger: .key(0),
                 modifiers: mods,
                 frontmostBundleID: frontmost,
-                kind: .modifiersChanged
+                kind: .modifiersChanged,
+                inputSourceID: inputSourceID
             )
 
         case .leftMouseDown:
             return InputEvent(trigger: .mouseButton(.left),
                               modifiers: mods,
                               frontmostBundleID: frontmost,
-                              kind: .down)
+                              kind: .down,
+                              inputSourceID: inputSourceID)
         case .leftMouseUp:
             return InputEvent(trigger: .mouseButton(.left),
                               modifiers: mods,
                               frontmostBundleID: frontmost,
-                              kind: .up)
+                              kind: .up,
+                              inputSourceID: inputSourceID)
         case .rightMouseDown:
             return InputEvent(trigger: .mouseButton(.right),
                               modifiers: mods,
                               frontmostBundleID: frontmost,
-                              kind: .down)
+                              kind: .down,
+                              inputSourceID: inputSourceID)
         case .rightMouseUp:
             return InputEvent(trigger: .mouseButton(.right),
                               modifiers: mods,
                               frontmostBundleID: frontmost,
-                              kind: .up)
+                              kind: .up,
+                              inputSourceID: inputSourceID)
         case .otherMouseDown:
             let n = event.getIntegerValueField(.mouseEventButtonNumber)
             let btn = MouseButton(rawValue: Int(n)) ?? .middle
             return InputEvent(trigger: .mouseButton(btn),
                               modifiers: mods,
                               frontmostBundleID: frontmost,
-                              kind: .down)
+                              kind: .down,
+                              inputSourceID: inputSourceID)
         case .otherMouseUp:
             let n = event.getIntegerValueField(.mouseEventButtonNumber)
             let btn = MouseButton(rawValue: Int(n)) ?? .middle
             return InputEvent(trigger: .mouseButton(btn),
                               modifiers: mods,
                               frontmostBundleID: frontmost,
-                              kind: .up)
+                              kind: .up,
+                              inputSourceID: inputSourceID)
 
         case .scrollWheel:
             // Wheel deltas: positive Y = up, positive X = right
@@ -226,7 +236,8 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
             }
             return InputEvent(trigger: .scroll(dir),
                               modifiers: mods,
-                              frontmostBundleID: frontmost)
+                              frontmostBundleID: frontmost,
+                              inputSourceID: inputSourceID)
 
         default:
             return nil

@@ -684,6 +684,7 @@ public enum Config {
             "when-var", "when-var-value", "when-vars",
             "hold-while", "hold-while-timeout",
             "passthrough", "repeat",
+            "input-source",
         ]
 
         var out: [[String: TOML.Value]] = []
@@ -964,6 +965,17 @@ public enum Config {
             apps = strs.isEmpty || strs == ["*"] ? nil : strs
         }
 
+        // chord 0.9.0+ input-source filter — same glob semantics as
+        // `apps` (allow / `!`-prefix deny / `["*"]` → nil). String
+        // form is sugar for a one-element list.
+        var inputSource: [String]?
+        if let arr = row["input-source"]?.asArray {
+            let strs = arr.compactMap(\.asString)
+            inputSource = strs.isEmpty || strs == ["*"] ? nil : strs
+        } else if let s = row["input-source"]?.asString {
+            inputSource = [s]
+        }
+
         // chord 0.9.0+ repeat strategy: how the binding reacts to
         // macOS autorepeat events. Default `.fireEach` preserves
         // pre-0.9.0 behaviour (every repeat invokes the action).
@@ -1050,6 +1062,7 @@ public enum Config {
             holdWhileTimeoutMs: holdWhileTimeout.value,
             passthrough: passthrough,
             repeatStrategy: repeatStrategy,
+            inputSource: inputSource,
             inputRaw: inputRaw,
             actionRaw: parsedAction.raw,
             aliasName: parsedAction.aliasName,

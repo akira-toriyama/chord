@@ -235,6 +235,12 @@ public struct Binding: Hashable, Sendable {
     /// `["*"]` is treated identically to `nil`.
     /// Exclusion via `!com.example`; any exclusion wins.
     public var apps: [String]?
+    /// chord 0.9.0+: input-source-id glob patterns
+    /// (e.g. `"com.apple.keylayout.US"`, `"com.apple.inputmethod.Kotoeri.*"`).
+    /// `nil` = no filter. Same `!`-prefix exclusion semantics as `apps`.
+    /// The Controller resolves the current source via Carbon TIS and
+    /// the Matcher applies the glob check during `find(_:)`.
+    public var inputSource: [String]?
     public var action: Action
 
     /// Additional actions that fire on the same key-down, in order,
@@ -325,6 +331,7 @@ public struct Binding: Hashable, Sendable {
                 holdWhileTimeoutMs: Int? = nil,
                 passthrough: Bool = false,
                 repeatStrategy: RepeatStrategy = .fireEach,
+                inputSource: [String]? = nil,
                 inputRaw: String = "",
                 actionRaw: String? = nil,
                 aliasName: String? = nil,
@@ -341,6 +348,7 @@ public struct Binding: Hashable, Sendable {
         self.holdWhileTimeoutMs = holdWhileTimeoutMs
         self.passthrough = passthrough
         self.repeatStrategy = repeatStrategy
+        self.inputSource = inputSource
         self.inputRaw = inputRaw
         self.actionRaw = actionRaw
         self.aliasName = aliasName

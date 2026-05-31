@@ -22,6 +22,7 @@ public final class Controller {
     public func start() throws {
         loadConfig(reason: "startup")
         FrontmostTracker.shared.start()
+        InputSourceTracker.shared.start()
 
         // Strong, Sendable capture for the synchronous tap handler.
         let weakSelf = WeakWrap(self)
@@ -80,7 +81,8 @@ public final class Controller {
         let me = Matcher.Event(trigger: event.trigger,
                                modifiers: event.modifiers,
                                bundleID: event.frontmostBundleID,
-                               state: state)
+                               state: state,
+                               inputSourceID: event.inputSourceID)
         guard let binding = snapshot.find(me) else { return .passthrough }
         // chord 0.9.0+ autorepeat strategy. macOS emits `keyDown` with
         // the autorepeat flag set while a key is held; without a
