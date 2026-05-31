@@ -147,6 +147,25 @@ public enum ScrollDirection: String, Hashable, Sendable, Codable {
     case up, down, left, right
 }
 
+/// chord 0.9.0+: how a binding reacts to macOS autorepeat events
+/// while the trigger key is held down. The OS sends an unbounded
+/// stream of `keyDown` events with the autorepeat flag set; without
+/// this strategy a long press on a `action-shell` binding would
+/// invoke the shell over and over.
+public enum RepeatStrategy: String, Hashable, Sendable, Codable {
+    /// Fire the action on every repeat. Default for backward
+    /// compatibility (pre-0.9.0 chord had no concept of repeats).
+    case fireEach = "fire-each"
+    /// Fire on the first key-down only, swallow repeats (still
+    /// consumed — the OS never sees them). Use for shell actions
+    /// that shouldn't run on every typematic tick.
+    case ignore
+    /// Fire on the first key-down only, let repeats reach the OS.
+    /// Niche — the OS never saw the original down, so apps may
+    /// receive `keyDown` without a paired up. Use carefully.
+    case passthrough
+}
+
 /// What chord does when a binding matches.
 public enum Action: Hashable, Sendable {
     /// Post a synthetic key event. `keys` is the key + modifiers to
@@ -267,6 +286,10 @@ public struct Binding: Hashable, Sendable {
     /// pendingUps registration is also skipped (no paired down/up to
     /// reconcile — the OS sees both halves natively).
     public var passthrough: Bool
+    /// chord 0.9.0+: per-binding strategy for typematic autorepeat
+    /// events on the trigger key. Default `.fireEach` keeps the
+    /// pre-0.9.0 behaviour (every repeat invokes the action).
+    public var repeatStrategy: RepeatStrategy
 
     // — metadata (read by Schema.swift, not by Matcher) —
 
@@ -294,6 +317,7 @@ public struct Binding: Hashable, Sendable {
                 holdWhile: Modifiers? = nil,
                 holdWhileTimeoutMs: Int? = nil,
                 passthrough: Bool = false,
+                repeatStrategy: RepeatStrategy = .fireEach,
                 inputRaw: String = "",
                 actionRaw: String? = nil,
                 aliasName: String? = nil,
@@ -309,6 +333,7 @@ public struct Binding: Hashable, Sendable {
         self.holdWhile = holdWhile
         self.holdWhileTimeoutMs = holdWhileTimeoutMs
         self.passthrough = passthrough
+        self.repeatStrategy = repeatStrategy
         self.inputRaw = inputRaw
         self.actionRaw = actionRaw
         self.aliasName = aliasName

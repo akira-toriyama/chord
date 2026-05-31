@@ -63,15 +63,24 @@ public struct InputEvent: Sendable, Hashable {
     /// `action-keys` post). The tap tags these so the callback
     /// short-circuits before they re-enter the matcher.
     public var isSynthetic: Bool
+    /// chord 0.9.0+: macOS sends additional `keyDown` events while a
+    /// key is physically held (typematic autorepeat). `isRepeat == true`
+    /// flags these so the Controller can apply per-binding
+    /// `repeat = "fire-each" | "ignore" | "passthrough"` strategy.
+    /// Only meaningful on `.down`; always false on `.up` /
+    /// `.modifiersChanged`.
+    public var isRepeat: Bool
 
     public init(trigger: Trigger, modifiers: Modifiers,
                 frontmostBundleID: String?,
                 kind: EventKind = .down,
-                isSynthetic: Bool = false) {
+                isSynthetic: Bool = false,
+                isRepeat: Bool = false) {
         self.trigger = trigger
         self.modifiers = modifiers
         self.frontmostBundleID = frontmostBundleID
         self.kind = kind
         self.isSynthetic = isSynthetic
+        self.isRepeat = isRepeat
     }
 }

@@ -137,6 +137,11 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
         switch type {
         case .keyDown:
             let raw = event.getIntegerValueField(.keyboardEventKeycode)
+            // macOS sends `keyDown` events with the autorepeat flag set
+            // for typematic repeats while a key is held. Surface that
+            // here so the Controller can apply per-binding RepeatStrategy.
+            let isRepeat = event.getIntegerValueField(
+                .keyboardEventAutorepeat) != 0
             // Strip the modifier bits from the modifiers we expose
             // to bindings — the raw flag mask includes the
             // numeric-keypad / device-dependent bits we don't
@@ -145,7 +150,8 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
                 trigger: .key(UInt16(truncatingIfNeeded: raw)),
                 modifiers: mods,
                 frontmostBundleID: frontmost,
-                kind: .down
+                kind: .down,
+                isRepeat: isRepeat
             )
 
         case .keyUp:
