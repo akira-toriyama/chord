@@ -34,6 +34,28 @@ public enum KeyCodes {
         return "keycode-\(code)"
     }
 
+    /// Keycodes for arrow keys and the nav cluster that macOS
+    /// **always** decorates with `NSEventModifierFlagFunction`
+    /// regardless of whether the user is physically holding `fn`.
+    /// Matcher uses this set to apply `Options.fnAutoArrows` —
+    /// when the option is on (default), the strict `fn` comparison
+    /// is skipped for these keys so users don't have to write
+    /// `ctrl + fn - right` in place of the natural `ctrl - right`.
+    public static let fnAutoNavKeycodes: Set<UInt16> = [
+        0x7B, 0x7C, 0x7D, 0x7E,   // arrow_left, arrow_right, arrow_down, arrow_up
+        0x73, 0x77,               // home, end
+        0x74, 0x79,               // page_up, page_down
+        0x75,                     // forward_delete (fn+delete on laptops)
+    ]
+
+    /// `true` when the trigger is one of the keys macOS always
+    /// tags with `fn` (arrow / nav cluster). Returns `false` for
+    /// mouse / scroll / wildcard / non-nav keys.
+    public static func isFnAutoNav(_ trigger: Trigger) -> Bool {
+        guard case .key(let kc) = trigger else { return false }
+        return fnAutoNavKeycodes.contains(kc)
+    }
+
     private static let table: [String: UInt16] = {
         var t: [String: UInt16] = [
             // Letters (US ANSI; physical-position keycodes).

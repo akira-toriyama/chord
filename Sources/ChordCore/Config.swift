@@ -68,6 +68,9 @@ public enum Config {
             if let arr = opts["exclude-apps"]?.asArray {
                 options.excludeApps = arr.compactMap(\.asString)
             }
+            if let b = opts["fn-auto-arrows"]?.asBool {
+                options.fnAutoArrows = b
+            }
         }
 
         // [actionAliases] — flat `name = "command"` lookup. Validation is

@@ -21,12 +21,20 @@ public struct Matcher: Sendable {
     /// fire for any keyboard key not already handled above.
     public let fallbacks: [Binding]
     public let excludeApps: [String]
+    /// When true, arrow / nav triggers (see [KeyCodes.fnAutoNavKeycodes])
+    /// match regardless of the binding's / event's `fn` bit. macOS
+    /// always tags those keys with `fn`, so the strict comparison
+    /// would force every arrow binding to spell out `+ fn`. Mirrors
+    /// `ChordConfig.Options.fnAutoArrows`.
+    public let fnAutoArrows: Bool
 
     public init(bindings: [Binding], fallbacks: [Binding] = [],
-                excludeApps: [String] = []) {
+                excludeApps: [String] = [],
+                fnAutoArrows: Bool = true) {
         self.bindings = bindings
         self.fallbacks = fallbacks
         self.excludeApps = excludeApps
+        self.fnAutoArrows = fnAutoArrows
     }
 
     public struct Event: Hashable, Sendable {
@@ -68,7 +76,19 @@ public struct Matcher: Sendable {
             // Predicate match (NOT ==): the binding constraint may
             // ask for any-side `ctrl`, the event carries side-
             // specific `lctrl`/`rctrl`. See `Modifiers.matches`.
-            guard b.modifiers.matches(event: event.modifiers)
+            //
+            // `ignoreFn` relaxes the strict `fn` comparison for arrow
+            // / nav keys when the option is on. macOS always sets `fn`
+            // on those events; without relaxation `input = "ctrl - right"`
+            // would silently never match an actual ctrl+→ keystroke.
+            // For the wildcard fallback (`.anyKey`), the event's
+            // concrete trigger drives the decision.
+            let triggerForFn: Trigger
+            if case .anyKey = b.trigger { triggerForFn = event.trigger }
+            else { triggerForFn = b.trigger }
+            let ignoreFn = fnAutoArrows && KeyCodes.isFnAutoNav(triggerForFn)
+            guard b.modifiers.matches(event: event.modifiers,
+                                      ignoreFn: ignoreFn)
             else { continue }
             if let apps = b.apps {
                 guard let id = event.bundleID else { continue }

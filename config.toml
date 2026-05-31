@@ -33,6 +33,15 @@ passthrough-unmatched = true
 # Glob (`*` / `?`) supported.
 exclude-apps = []
 
+# Treat arrow / nav keys (left/right/up/down/home/end/page_up/page_down/
+# forward_delete) as fn-agnostic. macOS unconditionally tags those keys
+# with NSEventModifierFlagFunction, so without this relaxation a binding
+# written `input = "ctrl - right"` would never match a real ctrl+→
+# keystroke (you'd have to write `ctrl + fn - right`). Default true.
+# Set false only if you intentionally want to distinguish a hypothetical
+# "fn-less arrow" event source.
+fn-auto-arrows = true
+
 
 # =====================================================================
 # Grammar reference
