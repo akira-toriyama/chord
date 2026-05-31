@@ -63,6 +63,11 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         case holdWhileParseError  = "hold-while-parse-error"
         /// v2: `action-set-var` / `action-set-value` malformed.
         case actionSetParseError  = "action-set-parse-error"
+        /// v0.7.0: `[[sequence]]` row malformed (missing prefix /
+        /// timeout-ms / bindings, duplicate sequence name, prefix
+        /// without modifier, etc.) or a regular `[[bindings]]` row
+        /// collides with a sequence prefix.
+        case sequenceParseError   = "sequence-parse-error"
         /// Reserved for future surface-area expansion (e.g.
         /// `[include]` cycles, option key typos). Kept as a catch-all
         /// so a downstream consumer's match-exhaustion never breaks.
