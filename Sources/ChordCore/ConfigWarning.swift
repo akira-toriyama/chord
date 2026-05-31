@@ -76,6 +76,10 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// bundle-id, empty per-app array, `apps` and `per-app`
         /// simultaneously set).
         case perAppParseError     = "per-app-parse-error"
+        /// v0.9.0: `@name(args)` call-site error — alias body has
+        /// `{{N}}` placeholder but the call doesn't supply enough
+        /// args, or the parenthesised arg list is malformed.
+        case actionAliasCallError = "action-alias-call-error"
         /// Reserved for future surface-area expansion (e.g.
         /// `[include]` cycles, option key typos). Kept as a catch-all
         /// so a downstream consumer's match-exhaustion never breaks.
