@@ -23,6 +23,9 @@ jobs:
           swift --version
           xcodebuild -version
 
+      - name: check version sync (Swift / Info.plist / Info.plist.dev)
+        run: ./scripts/check-version-sync.sh
+
       - name: swift build
         run: swift build -c release
 
