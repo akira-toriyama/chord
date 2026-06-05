@@ -12,73 +12,14 @@ enum ChordApp {
     static func main() {
         let args = Array(CommandLine.arguments.dropFirst())
 
-        // Standalone flags first (each prints + exits).
-        if args.contains("--help") || args.contains("-h") {
-            printHelp(); exit(0)
-        }
-        if args.contains("--version") {
-            print("chord \(ChordVersion.current)"); exit(0)
-        }
-        if args.contains("--validate") {
-            exit(runValidate(strict: args.contains("--strict"),
-                             json: args.contains("--json")))
-        }
-        if args.contains("--list") {
-            exit(runList(json: args.contains("--json"),
-                         includeDropped: args.contains("--include-dropped")))
-        }
-        if args.contains("--doctor")   { exit(runDoctor()) }
-
-        // Client flags: post + exit.
-        if args.contains("--reload") {
-            if args.contains("--dry-run") {
-                exit(runReloadDryRun())
-            }
-            let ok = Control.postAndWait(Control.reload)
-            if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
-            print("chord: reloaded"); exit(0)
-        }
-        if args.contains("--quit") {
-            let ok = Control.postAndWait(Control.quit)
-            if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
-            print("chord: quit"); exit(0)
-        }
-        if args.contains("--pause") {
-            let ok = Control.postAndWait(Control.pause)
-            if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
-            print("chord: paused"); exit(0)
-        }
-        if args.contains("--resume") {
-            let ok = Control.postAndWait(Control.resume)
-            if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
-            print("chord: resumed"); exit(0)
-        }
-        if args.contains("--toggle") {
-            // Read the most recent status line and infer pause state.
-            // The daemon writes "paused bindings=N" / "resumed
-            // bindings=N" / "fired …" / "started …" etc.; a line
-            // starting with "paused" is the only signal of paused
-            // state, since `--resume` and `fired` both overwrite it.
-            let status = Control.readStatus() ?? ""
-            let isPaused = status.contains("\tpaused ")
-                         || status.hasPrefix("paused ")
-                         || status.contains("\tpaused\n")
-            let cmd = isPaused ? Control.resume : Control.pause
-            let label = isPaused ? "resumed" : "paused"
-            let ok = Control.postAndWait(cmd)
-            if !ok { fputs("chord: no daemon running\n", stderr); exit(3) }
-            print("chord: \(label)"); exit(0)
-        }
-        if args.contains("--status") {
-            if let s = Control.readStatus() { print(s, terminator: "") }
-            else { fputs("chord: no status file\n", stderr); exit(3) }
-            exit(0)
-        }
-        if args.contains("--resign") {
-            exit(runResign())
-        }
-        if args.contains("--watch") {
-            exit(runWatch())
+        // Standalone + client subcommands: dispatch through the
+        // declarative table. The table preserves prior priority
+        // order (document order = first-match-wins), and every
+        // handler returns a SubcommandOutcome rather than calling
+        // exit() itself — exit() lives at exactly one site
+        // (applyOutcome) so the dispatch is unit-testable.
+        if let outcome = dispatchSubcommand(args) {
+            applyOutcome(outcome)
         }
 
         // Server flags. Debug is env-var-triggered (run.sh sets
@@ -86,11 +27,94 @@ enum ChordApp {
         // raw `open Chord.app` launch stays quiet by default.
         Log.debugMode = ProcessInfo.processInfo.environment["CHORD_DEBUG"] != nil
 
-        // Anything else unrecognised → exit 2 (Rule of Repair).
+        // Anything unrecognised → exit 2 (Rule of Repair). Modifier
+        // flags consumed by a handler above (--strict / --json / …)
+        // re-surface here as plain args; they are silently accepted.
+        if let outcome = checkUnknownFlags(args) {
+            applyOutcome(outcome)
+        }
+
+        runServer()
+    }
+
+    // MARK: - subcommand dispatch (#7 + #2)
+
+    /// Result of a subcommand invocation. `stdout` / `stderr` are
+    /// written verbatim by `applyOutcome` — handlers are responsible
+    /// for trailing newlines (mirrors `print` vs `print(terminator:)`).
+    /// Centralising exit() lets the dispatch be tested without
+    /// hijacking the process.
+    struct SubcommandOutcome {
+        var exitCode: Int32
+        var stdout: String? = nil
+        var stderr: String? = nil
+
+        /// stdout terminated with `\n`, exit 0.
+        static func ok(_ line: String? = nil) -> Self {
+            .init(exitCode: 0, stdout: line.map { $0 + "\n" })
+        }
+        /// stderr terminated with `\n`, custom exit code.
+        static func fail(_ code: Int32, stderr msg: String) -> Self {
+            .init(exitCode: code, stderr: msg + "\n")
+        }
+        /// Pass-through for handlers that already printed via
+        /// Swift's `print(...)` (runValidate / runList / runDoctor
+        /// / runResign / runWatch all do this — their output is
+        /// streaming or schema-shaped).
+        static func code(_ n: Int32) -> Self {
+            .init(exitCode: n)
+        }
+    }
+
+    /// Declarative subcommand entry. `flags` is any-of; the first
+    /// table row whose flag set intersects argv wins.
+    struct Subcommand {
+        let flags: [String]
+        /// Closure isolation lives on the function type (Swift 6),
+        /// not the storage property — Swift 6 rejects `@MainActor
+        /// let handler: …` because the synthesised memberwise init
+        /// would have to be both nonisolated (struct default) and
+        /// MainActor-isolated.
+        let handler: @MainActor ([String]) -> SubcommandOutcome
+    }
+
+    /// Subcommand registry. Order = priority (matches the previous
+    /// if-chain in main()). Edit here, not in main(), to add a flag.
+    @MainActor
+    private static let subcommands: [Subcommand] = [
+        // Standalone (no daemon contact).
+        .init(flags: ["--help", "-h"],  handler: { _ in cmdHelp() }),
+        .init(flags: ["--version"],     handler: { _ in cmdVersion() }),
+        .init(flags: ["--validate"],    handler: cmdValidate),
+        .init(flags: ["--list"],        handler: cmdList),
+        .init(flags: ["--doctor"],      handler: { _ in cmdDoctor() }),
+        // Client flags (post + wait + report).
+        .init(flags: ["--reload"],      handler: cmdReload),
+        .init(flags: ["--quit"],        handler: { _ in cmdControl(Control.quit, label: "quit") }),
+        .init(flags: ["--pause"],       handler: { _ in cmdControl(Control.pause, label: "paused") }),
+        .init(flags: ["--resume"],      handler: { _ in cmdControl(Control.resume, label: "resumed") }),
+        .init(flags: ["--toggle"],      handler: { _ in cmdToggle() }),
+        .init(flags: ["--status"],      handler: { _ in cmdStatus() }),
+        .init(flags: ["--resign"],      handler: { _ in cmdResign() }),
+        .init(flags: ["--watch"],       handler: { _ in cmdWatch() }),
+    ]
+
+    @MainActor
+    static func dispatchSubcommand(_ args: [String]) -> SubcommandOutcome? {
+        for cmd in subcommands {
+            if cmd.flags.contains(where: { args.contains($0) }) {
+                return cmd.handler(args)
+            }
+        }
+        return nil
+    }
+
+    /// Repair check: report the first unknown flag. Modifier flags
+    /// (--strict / --json / --include-dropped / --dry-run) re-appear
+    /// here after their primary subcommand consumed them — they are
+    /// silently accepted.
+    static func checkUnknownFlags(_ args: [String]) -> SubcommandOutcome? {
         for a in args {
-            // Flags consumed by handlers above this point may
-            // re-appear here for the same invocation (e.g.
-            // `--validate --strict`); silently accept them.
             switch a {
             case "--strict",
                  "--json",
@@ -98,15 +122,114 @@ enum ChordApp {
                  "--dry-run":
                 continue
             default:
-                fputs("chord: unknown flag '\(a)'. See --help.\n", stderr)
-                exit(2)
+                return .fail(2, stderr: "chord: unknown flag '\(a)'. See --help.")
             }
         }
+        return nil
+    }
 
-        runServer()
+    /// Single exit() site. Writes verbatim to stdout / stderr (no
+    /// added newlines — handlers control terminators).
+    @MainActor
+    private static func applyOutcome(_ outcome: SubcommandOutcome) -> Never {
+        if let s = outcome.stdout, !s.isEmpty {
+            FileHandle.standardOutput.write(Data(s.utf8))
+        }
+        if let s = outcome.stderr, !s.isEmpty {
+            FileHandle.standardError.write(Data(s.utf8))
+        }
+        exit(outcome.exitCode)
+    }
+
+    // MARK: - subcommand handlers (thin wrappers over the runXxx
+    // worker functions further below)
+
+    private static func cmdHelp() -> SubcommandOutcome {
+        .ok(helpText())
+    }
+
+    private static func cmdVersion() -> SubcommandOutcome {
+        .ok("chord \(ChordVersion.current)")
+    }
+
+    private static func cmdValidate(_ args: [String]) -> SubcommandOutcome {
+        .code(runValidate(strict: args.contains("--strict"),
+                          json: args.contains("--json")))
+    }
+
+    private static func cmdList(_ args: [String]) -> SubcommandOutcome {
+        .code(runList(json: args.contains("--json"),
+                      includeDropped: args.contains("--include-dropped")))
+    }
+
+    @MainActor
+    private static func cmdDoctor() -> SubcommandOutcome {
+        .code(runDoctor())
+    }
+
+    private static func cmdReload(_ args: [String]) -> SubcommandOutcome {
+        if args.contains("--dry-run") {
+            return .code(runReloadDryRun())
+        }
+        if Control.postAndWait(Control.reload) {
+            return .ok("chord: reloaded")
+        }
+        return .fail(3, stderr: "chord: no daemon running")
+    }
+
+    /// Shared body for `--quit` / `--pause` / `--resume`. Posts a
+    /// `Control` notification name (string constant) to the running
+    /// daemon and reports either the labelled success ("chord: \(label)")
+    /// or "no daemon running" on stderr with exit 3.
+    private static func cmdControl(_ message: String,
+                                   label: String) -> SubcommandOutcome {
+        if Control.postAndWait(message) {
+            return .ok("chord: \(label)")
+        }
+        return .fail(3, stderr: "chord: no daemon running")
+    }
+
+    /// `--toggle` reads the last status line and flips paused ↔
+    /// resumed. The daemon writes "paused bindings=N" /
+    /// "resumed bindings=N" / "fired …" etc.; a line that starts
+    /// with "paused" (with optional leading timestamp/tab) is the
+    /// only signal of paused state, since `--resume` and `fired`
+    /// both overwrite it.
+    private static func cmdToggle() -> SubcommandOutcome {
+        let status = Control.readStatus() ?? ""
+        let isPaused = status.contains("\tpaused ")
+                     || status.hasPrefix("paused ")
+                     || status.contains("\tpaused\n")
+        return cmdControl(isPaused ? Control.resume : Control.pause,
+                          label: isPaused ? "resumed" : "paused")
+    }
+
+    /// `--status` writes the verbatim last status line (no extra
+    /// newline — the file already includes one when it has content).
+    private static func cmdStatus() -> SubcommandOutcome {
+        if let s = Control.readStatus() {
+            return SubcommandOutcome(exitCode: 0, stdout: s)
+        }
+        return .fail(3, stderr: "chord: no status file")
+    }
+
+    @MainActor
+    private static func cmdResign() -> SubcommandOutcome {
+        .code(runResign())
+    }
+
+    private static func cmdWatch() -> SubcommandOutcome {
+        .code(runWatch())
     }
 
     // MARK: - server
+    //
+    // Daemon boot. Unlike the CLI subcommands above this is the
+    // long-running path; exit() inside runServer is reserved for
+    // startup-fatal conditions (no Accessibility grant, Controller
+    // refuses to start) and is intentionally NOT routed through
+    // applyOutcome — there is no caller to test, and a real
+    // app.run() never returns anyway.
 
     @MainActor
     private static func runServer() {
@@ -685,8 +808,8 @@ enum ChordApp {
         return bad ? 1 : 0
     }
 
-    private static func printHelp() {
-        print("""
+    private static func helpText() -> String {
+        """
         chord — global keyboard + mouse hotkey daemon for macOS.
 
         USAGE
@@ -717,6 +840,6 @@ enum ChordApp {
         CONFIG
           \(ChordConfig.path)
           See https://github.com/akira-toriyama/chord
-        """)
+        """
     }
 }
