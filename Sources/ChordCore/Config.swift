@@ -276,323 +276,14 @@ public enum Config {
                            droppedBindings: dropped, sourcePath: nil)
     }
 
-    // MARK: - Sequence sugar
-
-    /// Result of expanding the `[[sequence]]` section:
-    ///   • `expanded`  — prefix + child bindings in document order
-    ///                   (per-sequence, prefix first then its children).
-    ///   • `prefixes`  — just the prefix bindings, used by the main
-    ///                   loop to detect collisions with regular
-    ///                   `[[bindings]]` rows.
-    ///   • `dropped`   — count of malformed sequences / children for
-    ///                   the `--validate --strict` exit code.
-    private struct SequenceParse {
-        var expanded: [Binding]
-        var prefixes: [Binding]
-        var dropped: Int
-    }
-
-    /// Expand `[[sequence]]` rows into ordinary Binding values.
-    /// Pure syntactic sugar over v2 state-var:
-    ///   * the prefix becomes `action-set-var = "_seq_<name>"` with
-    ///     `hold-while-timeout = <timeout-ms>`
-    ///   * each child becomes a binding gated by `when-var = "_seq_<name>"`,
-    ///     with its `input` composed as `"<prefix-modset> - <child input>"`
-    /// Matcher / Controller see only the resulting bindings; there is
-    /// no runtime concept of "sequence".
-    ///
-    /// Per the v0.7.0 issue, narrow surface intentionally:
-    ///   * `timeout-ms` is required (the `hold-while` lifecycle does
-    ///     not survive atomic ZMK chords, so the alternative would
-    ///     defeat the leader-key use case)
-    ///   * the prefix must include at least one modifier (a bare-key
-    ///     leader would swallow every primary press)
-    ///   * children's `input` are primary-only — they inherit the
-    ///     prefix's modset
-    ///   * nested `[[sequence.sequence]]` is rejected (out of scope)
-    private static func parseSequences(
-        root: [String: TOML.Value],
-        actionAliases: [String: String],
-        inputAliases: [String: Modifiers],
-        warnings: inout [ConfigWarning]
-    ) -> SequenceParse {
-        var expanded: [Binding] = []
-        var prefixes: [Binding] = []
-        var dropped = 0
-        var seenNames: Set<String> = []
-
-        let rows = root["sequence"]?.asArrayOfTables ?? []
-        for (i, row) in rows.enumerated() {
-            let line = row[TOML.lineKey]?.asInt.map { Int($0) }
-            let source = sourceTag(line: line)
-            let rawName = row["name"]?.asString
-            let seqName = rawName ?? "sequence-\(i + 1)"
-
-            func failSeq(_ msg: String) {
-                warnings.append(ConfigWarning(
-                    kind: .sequenceParseError,
-                    message: "[[sequence]] '\(seqName)'\(source): \(msg)",
-                    sourceLine: line, bindingName: seqName))
-                dropped += 1
-            }
-
-            // Reject `name = "_seq_..."` — the name maps directly to
-            // the synthetic variable `_seq_<name>`, and `_seq_` is
-            // the reservation surface we enforce on user `action-set-var`.
-            if let n = rawName, n.hasPrefix("_seq_") {
-                failSeq("sequence name must not start with '_seq_' (reserved)")
-                continue
-            }
-
-            if seenNames.contains(seqName) {
-                failSeq("duplicate sequence name (each sequence " +
-                        "owns variable '_seq_\(seqName)' — names " +
-                        "must be unique)")
-                continue
-            }
-            seenNames.insert(seqName)
-
-            if row["sequence"] != nil {
-                failSeq("nested [[sequence.sequence]] is not supported")
-                continue
-            }
-
-            guard let prefixRaw = row["prefix"]?.asString else {
-                failSeq("missing 'prefix'")
-                continue
-            }
-            guard let timeoutRaw = row["timeout-ms"]?.asInt else {
-                failSeq("missing or non-integer 'timeout-ms'")
-                continue
-            }
-            let timeoutMs = Int(timeoutRaw)
-            guard timeoutMs > 0 else {
-                failSeq("timeout-ms must be > 0 (got \(timeoutMs))")
-                continue
-            }
-
-            // Verify the prefix parses and has at least one modifier.
-            let prefixParsed: InputParser.Parsed
-            do {
-                prefixParsed = try InputParser.parse(
-                    prefixRaw,
-                    allowWildcard: false,
-                    inputAliases: inputAliases)
-            } catch {
-                failSeq("prefix: \(error)")
-                continue
-            }
-            guard prefixParsed.modifiers.rawValue != 0 else {
-                failSeq("prefix must include at least one modifier " +
-                        "(a bare-key leader would swallow every press)")
-                continue
-            }
-
-            // Extract the modset substring from the prefix raw. The
-            // InputParser splits on the first `-` whenever the whole
-            // string isn't itself a primary token — since we just
-            // verified prefixParsed.modifiers is non-empty, that branch
-            // ran and the first `-` IS the separator.
-            let trimmedPrefix = prefixRaw.trimmingCharacters(in: .whitespaces)
-            guard let dashIdx = trimmedPrefix.firstIndex(of: "-") else {
-                failSeq("internal error: prefix parsed with modifiers but no separator")
-                continue
-            }
-            let modsetStr = String(trimmedPrefix[..<dashIdx])
-                .trimmingCharacters(in: .whitespaces)
-
-            let childRows = row["bindings"]?.asArrayOfTables ?? []
-            guard !childRows.isEmpty else {
-                failSeq("no [[sequence.bindings]] children declared")
-                continue
-            }
-
-            let varName = "_seq_\(seqName)"
-
-            // Prefix binding — synthesize a row and reuse makeBinding so
-            // all the v2 validation (hold-while-timeout positive, etc.)
-            // runs uniformly. allowReservedVarNames bypasses the
-            // `_seq_*` guard for this synthetic row only.
-            var prefixRow: [String: TOML.Value] = [
-                "name": .string("\(seqName) [enter]"),
-                "input": .string(prefixRaw),
-                "action-set-var": .string(varName),
-                "hold-while-timeout": .int(Int64(timeoutMs)),
-            ]
-            if let lv = row[TOML.lineKey] { prefixRow[TOML.lineKey] = lv }
-            guard let prefixBinding = makeBinding(
-                from: prefixRow, index: i, isFallback: false,
-                actionAliases: actionAliases,
-                inputAliases: inputAliases,
-                allowReservedVarNames: true,
-                warnings: &warnings)
-            else {
-                // makeBinding already appended its own warning.
-                dropped += 1
-                continue
-            }
-            expanded.append(prefixBinding)
-            prefixes.append(prefixBinding)
-
-            // Child bindings.
-            for (ci, child) in childRows.enumerated() {
-                let childLine = child[TOML.lineKey]?.asInt.map { Int($0) } ?? line
-                let childSrc = sourceTag(line: childLine)
-                let childName = child["name"]?.asString
-                    ?? "\(seqName).\(ci + 1)"
-
-                guard let childInputRaw = child["input"]?.asString else {
-                    warnings.append(ConfigWarning(
-                        kind: .missingInput,
-                        message:
-                            "[[sequence.bindings]] '\(childName)'\(childSrc): " +
-                            "missing 'input'",
-                        sourceLine: childLine, bindingName: childName))
-                    dropped += 1
-                    continue
-                }
-
-                // Compose: prefix modset + " - " + child primary.
-                // Children are primary-only by design (issue spec) —
-                // if the user wrote their own modifier prefix, the
-                // composed string will fail to parse and makeBinding
-                // surfaces a clear "unknown-input-token" warning.
-                let composedInput = "\(modsetStr) - \(childInputRaw)"
-                var childRow = child
-                childRow["name"] = .string(childName)
-                childRow["input"] = .string(composedInput)
-                childRow["when-var"] = .string(varName)
-                if childRow[TOML.lineKey] == nil,
-                   let lv = row[TOML.lineKey] {
-                    childRow[TOML.lineKey] = lv
-                }
-
-                if let b = makeBinding(
-                    from: childRow, index: ci, isFallback: false,
-                    actionAliases: actionAliases,
-                    inputAliases: inputAliases,
-                    allowReservedVarNames: true,
-                    warnings: &warnings)
-                {
-                    expanded.append(b)
-                } else {
-                    dropped += 1
-                }
-            }
-        }
-
-        return SequenceParse(expanded: expanded, prefixes: prefixes,
-                             dropped: dropped)
-    }
-
-    // MARK: - Remap table sugar (chord 0.8.0+)
-
-    /// Expand `[[remap]]` rows into ordinary `.keys`-action bindings.
-    /// Pure syntactic sugar over `[[bindings]] input = "<mods> - <key>"
-    /// action-keys = "<value>"`. Each map entry becomes one binding.
-    ///
-    /// Constraints (issue #13):
-    ///   * `modifiers` is required and must include at least one
-    ///     modifier — bare-key remap would swallow every primary
-    ///     press, same trap as a bare-key sequence prefix.
-    ///   * `map` must be a non-empty inline table whose values are
-    ///     all strings (interpreted as `action-keys`).
-    ///   * `apps` is optional and inherited verbatim by every
-    ///     expanded binding.
-    ///   * `action-shell` is intentionally not supported — the issue
-    ///     spec restricts remap to action-keys only.
-    private static func parseRemaps(
-        root: [String: TOML.Value],
-        actionAliases: [String: String],
-        inputAliases: [String: Modifiers],
-        warnings: inout [ConfigWarning]
-    ) -> (expanded: [Binding], dropped: Int) {
-        var expanded: [Binding] = []
-        var dropped = 0
-        let rows = root["remap"]?.asArrayOfTables ?? []
-        for (ri, row) in rows.enumerated() {
-            let line = row[TOML.lineKey]?.asInt.map { Int($0) }
-            let source = sourceTag(line: line)
-            let baseName = row["name"]?.asString ?? "remap-\(ri + 1)"
-
-            func failRemap(_ msg: String) {
-                warnings.append(ConfigWarning(
-                    kind: .remapParseError,
-                    message: "[[remap]] '\(baseName)'\(source): \(msg)",
-                    sourceLine: line, bindingName: baseName))
-                dropped += 1
-            }
-
-            guard let modsRaw = row["modifiers"]?.asString,
-                  !modsRaw.trimmingCharacters(in: .whitespaces).isEmpty
-            else {
-                failRemap("missing 'modifiers' (bare-key remap is not allowed)")
-                continue
-            }
-            do {
-                let mask = try InputParser.parseModifiersOnly(
-                    modsRaw, inputAliases: inputAliases)
-                guard mask.rawValue != 0 else {
-                    failRemap("modifiers resolved to an empty mask " +
-                              "(at least one modifier required)")
-                    continue
-                }
-            } catch {
-                failRemap("modifiers: \(error)")
-                continue
-            }
-
-            guard let mapValue = row["map"] else {
-                failRemap("missing 'map' (inline table of key → action-keys)")
-                continue
-            }
-            guard case .table(let mapTable) = mapValue else {
-                failRemap("'map' must be an inline table " +
-                          "(`{ b = \"left\", … }`)")
-                continue
-            }
-            if mapTable.isEmpty {
-                failRemap("map must contain at least one entry")
-                continue
-            }
-
-            // Sort by key for deterministic ordering. Inline-table key
-            // iteration is unordered in Swift dictionaries, and that
-            // would surface as non-deterministic `--list --json` output.
-            for key in mapTable.keys.sorted() {
-                let entryName = "\(baseName).\(key)"
-                guard let valueStr = mapTable[key]?.asString else {
-                    warnings.append(ConfigWarning(
-                        kind: .remapParseError,
-                        message:
-                            "[[remap]] '\(baseName)'\(source): " +
-                            "map['\(key)']: value must be a string " +
-                            "(interpreted as action-keys)",
-                        sourceLine: line, bindingName: entryName))
-                    dropped += 1
-                    continue
-                }
-                let composedInput = "\(modsRaw) - \(key)"
-                var synth: [String: TOML.Value] = [
-                    "name": .string(entryName),
-                    "input": .string(composedInput),
-                    "action-keys": .string(valueStr),
-                ]
-                if let apps = row["apps"] { synth["apps"] = apps }
-                if let lv = row[TOML.lineKey] { synth[TOML.lineKey] = lv }
-                if let b = makeBinding(from: synth, index: ri,
-                                       isFallback: false,
-                                       actionAliases: actionAliases,
-                                       inputAliases: inputAliases,
-                                       warnings: &warnings) {
-                    expanded.append(b)
-                } else {
-                    dropped += 1
-                }
-            }
-        }
-        return (expanded, dropped)
-    }
+    // MARK: - Sugar parsers (extracted to extension files in #51)
+    //
+    // Sources/ChordCore/Config+Sequence.swift — parseSequences +
+    //   SequenceParse (the `[[sequence]]` leader-key sugar).
+    // Sources/ChordCore/Config+Remap.swift — parseRemaps (the
+    //   `[[remap]]` table sugar).
+    // Both stay members of `enum Config` via `extension Config { ... }`
+    // in those files; call sites are unchanged.
 
     // MARK: - Row expansion (per-app, fallback inputs[])
 
@@ -798,7 +489,10 @@ public enum Config {
         return .many(out)
     }
 
-    private static func makeBinding(
+    /// Internal so extracted parser files (Config+Sequence.swift,
+    /// Config+Remap.swift, etc.) can synthesize TOML rows and route
+    /// them through the same validation as user-authored rows.
+    static func makeBinding(
         from row: [String: TOML.Value], index: Int,
         isFallback: Bool,
         actionAliases: [String: String],
@@ -1560,7 +1254,9 @@ public enum Config {
     /// warnings. Returns the empty string when the parser couldn't
     /// resolve a line — better to drop the suffix than print
     /// "config.toml:?".
-    private static func sourceTag(line: Int?) -> String {
+    /// Internal so extension parsers can format `(config.toml:N)`
+    /// suffixes consistently with the in-file warning emitters.
+    static func sourceTag(line: Int?) -> String {
         guard let line else { return "" }
         return " (config.toml:\(line))"
     }
