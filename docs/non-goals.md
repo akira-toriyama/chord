@@ -145,6 +145,35 @@ chord は TOML 一本で十分。JSON 入力サポートを追加する利得が
 
 ---
 
+## 6. HUD / 視覚的 mode インジケータ
+
+*(reviewed 2026-06-06)*
+
+**出元**: [Karabiner-Elements notification window](https://karabiner-elements.pqrs.org/docs/json/complex-modifications-manipulator-definition/to/set_notification_message/) / [Hammerspoon `hs.alert`](https://www.hammerspoon.org/docs/hs.alert.html) / 旧 Issue #25
+
+mode 入出・state-var 変化時に画面上にオーバーレイで現状を表示する案。
+chord daemon 内蔵としては **採用しない**:
+
+- **headless 不変条件との衝突**: chord は `LSUIElement=true` のヘッドレス
+  daemon。AppKit overlay window を内包すると、Dock 不在 / Menu Bar 不在 /
+  GUI 非干渉という配布性質の根幹が崩れる。
+- **Adapter 層の肥大化**: ChordAdapterMacOS は CGEventTap / AX / NSWorkspace
+  に限定された "OS と接する層" として定義されている (`Package.swift` コメント
+  参照)。NSWindow / NSAttributedString が入ると Adapter の責務境界が拡散する。
+- **`action-shell` で代替可能**: 視覚通知が欲しいユースケースは現状
+  `action-shell = "osascript -e 'display notification \"j-layer ON\"'"` /
+  `terminal-notifier` / `hs -c "hs.alert.show(...)"` 等で外部委譲できる。
+  daemon 本体が描画責務を持つ必要がない。
+- **音 (`@play-undef` 等) で同等の即時 feedback が既に成立**:
+  [private_config.toml](https://github.com/akira-toriyama/dotfiles/blob/main/chezmoi/dot_config/chord/private_config.toml)
+  の `play-undef` パターンの拡張で視覚以外の feedback バリエーションは賄える。
+
+**もし視覚 HUD が必要なら**: 別プロセス `chord-hud` を独立配布物として書き、
+[`chord --query`](https://github.com/akira-toriyama/chord/issues/32) で
+daemon 状態を読んで自前で描画する。daemon の責務外として完全に分離する。
+
+---
+
 ## When these become Yes
 
 各 non-goal が **採用検討に値する状況になる条件**:
@@ -156,6 +185,7 @@ chord は TOML 一本で十分。JSON 入力サポートを追加する利得が
 | 3. dead-key origination | chord 側から F21-F24 等を発信する具体的ユースケースが現れたとき |
 | 4. BLE | (原理的に不可。再検討の余地なし) |
 | 5. JSON config | TOML パーサが致命的なエッジケースで詰まり、JSON への乗り換えが TOML 修正より小さくなったとき |
+| 6. HUD notification | `action-shell` 外部委譲ではどうしても解決できない要件 (例: tap callback と同期した zero-latency 視覚表示) が複数ユーザから具体報告されたとき |
 
 いずれも **「USP を犠牲にしても得たい何か」が具体的に存在する** のが前提。
 抽象的な「あれば便利」では再検討しない。
