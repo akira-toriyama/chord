@@ -157,4 +157,54 @@ final class MatcherTests: XCTestCase {
                          modifiers: .lctrl, bundleID: nil))
         )
     }
+
+    // MARK: - globMatch behavioral coverage
+
+    /// Empty pattern matches only empty input.
+    func testGlobEmptyPattern() {
+        XCTAssertTrue(Matcher.globMatch("", pattern: ""))
+        XCTAssertFalse(Matcher.globMatch("x", pattern: ""))
+    }
+
+    /// Bare "*" matches everything including empty.
+    func testGlobBareStarMatchesAnything() {
+        XCTAssertTrue(Matcher.globMatch("", pattern: "*"))
+        XCTAssertTrue(Matcher.globMatch("com.apple.Safari", pattern: "*"))
+    }
+
+    /// "?" matches exactly one character.
+    func testGlobQuestionMark() {
+        XCTAssertTrue(Matcher.globMatch("ab", pattern: "?b"))
+        XCTAssertFalse(Matcher.globMatch("b",  pattern: "?b"))
+        XCTAssertFalse(Matcher.globMatch("abb", pattern: "?b"))
+    }
+
+    /// Multiple "*" segments collapse correctly.
+    func testGlobMultipleStars() {
+        XCTAssertTrue(Matcher.globMatch("com.google.Chrome",
+                                        pattern: "*goog*chrome*"))
+        XCTAssertTrue(Matcher.globMatch("com.google.Chrome",
+                                        pattern: "*.*.*"))
+        XCTAssertFalse(Matcher.globMatch("com.google.Chrome",
+                                         pattern: "*xyz*"))
+    }
+
+    /// Case-insensitive (bundle ids are reverse-DNS).
+    func testGlobCaseInsensitive() {
+        XCTAssertTrue(Matcher.globMatch("Com.Apple.Safari",
+                                        pattern: "*safari*"))
+    }
+
+    /// Adversarial: prior recursive impl was exponential on `*a*a*…*b`
+    /// against `aaaa…`. With the linear impl this completes promptly.
+    /// Regression guard: if someone reverts to a naive recursion, this
+    /// either hangs the test target or fails the deadline check below.
+    func testGlobNoExponentialBlowup() {
+        let s = String(repeating: "a", count: 80)
+        let p = String(repeating: "a*", count: 40) + "b"
+        let start = Date()
+        XCTAssertFalse(Matcher.globMatch(s, pattern: p))
+        XCTAssertLessThan(Date().timeIntervalSince(start), 1.0,
+                          "globMatch took too long — exponential regression")
+    }
 }

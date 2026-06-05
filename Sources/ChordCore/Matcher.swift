@@ -187,26 +187,37 @@ public struct Matcher: Sendable {
     /// Lightweight glob: `*` matches any run of characters, `?`
     /// matches one character; matching is case-insensitive (bundle
     /// ids are reverse-DNS so this is safe).
+    ///
+    /// Iterative star-backtrack: O(n·m) worst case, O(n+m) on inputs
+    /// without ambiguous `*` runs. Replaced the previous recursive
+    /// implementation whose `for k in i...s.count { glob(...) }` loop
+    /// is exponential on patterns like `*a*a*a*` against `aaaa...b`
+    /// (never observed in bundle-id workloads, but the linear form
+    /// is also simpler).
     public static func globMatch(_ s: String, pattern: String) -> Bool {
         let a = Array(s.lowercased())
         let p = Array(pattern.lowercased())
-        return glob(a, 0, p, 0)
-    }
-
-    private static func glob(_ s: [Character], _ i: Int,
-                             _ p: [Character], _ j: Int) -> Bool {
-        if j == p.count { return i == s.count }
-        if p[j] == "*" {
-            if j + 1 == p.count { return true }
-            for k in i...s.count {
-                if glob(s, k, p, j + 1) { return true }
+        var i = 0
+        var j = 0
+        var starJ = -1
+        var matchI = 0
+        while i < a.count {
+            if j < p.count && (p[j] == "?" || p[j] == a[i]) {
+                i += 1
+                j += 1
+            } else if j < p.count && p[j] == "*" {
+                starJ = j
+                matchI = i
+                j += 1
+            } else if starJ != -1 {
+                j = starJ + 1
+                matchI += 1
+                i = matchI
+            } else {
+                return false
             }
-            return false
         }
-        if i == s.count { return false }
-        if p[j] == "?" || p[j] == s[i] {
-            return glob(s, i + 1, p, j + 1)
-        }
-        return false
+        while j < p.count && p[j] == "*" { j += 1 }
+        return j == p.count
     }
 }
