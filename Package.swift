@@ -49,6 +49,12 @@ let package = Package(
         .testTarget(name: "ChordCoreTests", dependencies: ["ChordCore"]),
         .testTarget(
             name: "ChordIntegrationTests",
-            dependencies: ["ChordCore", "ChordAdapterTest"]),
+            // ChordApp is included so CLIDispatchTests can
+            // `@testable import ChordApp` and exercise the
+            // SubcommandOutcome / dispatchSubcommand surface
+            // without spawning a child process. The `@main enum
+            // ChordApp` shape was specifically chosen to keep
+            // @testable import working (Main.swift docstring).
+            dependencies: ["ChordCore", "ChordAdapterTest", "ChordApp"]),
     ]
 )
