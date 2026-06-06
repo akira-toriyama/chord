@@ -128,28 +128,29 @@ event. Everything below depends on this contract:
   document order. The matcher is intentionally not "best-match" —
   the user already ordered them.
 
-### `chord --list` and the chord.bindings.v1 schema
+### `chord --list` and the chord.bindings.v3 schema
 
 - **JSON output is the contract**, plain-text output is just for
   humans. The schema lives at
-  [docs/schema/chord.bindings.v1.json](docs/schema/chord.bindings.v1.json)
+  [docs/schema/chord.bindings.v3.json](docs/schema/chord.bindings.v3.json)
   and is the authority — any wire-format change must update both
   [Sources/ChordCore/Schema.swift](Sources/ChordCore/Schema.swift)
   AND the schema file in the same commit, OR the consumer-facing
-  contract drifts silently.
+  contract drifts silently. v1 / v2 JSON files are kept under
+  `docs/schema/` for history; do not edit them.
 - **Consumer pinning guidance**: external repos integrating this
-  schema should pin to a **tagged URL** (`…/v0.3.1/…`), not
+  schema should pin to a **tagged URL** (`…/v0.8.0/…`), not
   `…/main/…` — `main` moves under their feet, a tag does not.
   Stronger still: vendor the file into the consumer repo
-  (`docs/external/chord.bindings.v1.json`). Mirror this advice in
+  (`docs/external/chord.bindings.v3.json`). Mirror this advice in
   the schema's `description` field too (single source of truth
   for future consumers reading the schema cold).
 - **Renaming any `ConfigWarning.Kind` raw value or any enum
   value in the schema (trigger.kind, action.kind, dropped.kind,
-  side_requirement, modifier_token) is a v2 bump**. Adding new
-  values to those enums is forward-compatible if existing
-  consumers treat unknown values gracefully — schema docs say so;
-  honour it.
+  side_requirement, modifier_token) is a schema major bump**
+  (e.g. v3 → v4). Adding new values to those enums is forward-
+  compatible if existing consumers treat unknown values gracefully
+  — schema docs say so; honour it.
 - **stdout vs stderr separation is strict**: `--list --json` puts
   JSON on stdout, every warning / log line on stderr.
   `chord --list --json | jq …` must never break because chord
@@ -158,9 +159,14 @@ event. Everything below depends on this contract:
   canon Q1-2 — keeps consumer code clean (checking "ctrl
   is held" is one field lookup, not an OR over `ctrl|lctrl|rctrl`).
   Don't flatten.
-- **`apps: null` vs `apps: []` is meaningful**. `null` = user did
-  not write `apps` (matches every app). `[]` is reserved / future.
-  Today the parser folds `["*"]` to `null`.
+- **`apps: null` vs `apps: []` semantics**. `null` = user did not
+  write `apps` (matches every app). `["*"]` is folded to `null` by
+  the loader. `apps: []` (empty array) falls through to
+  `Matcher.appsAllow`, which with no allowlist and no exclusion
+  returns `false` — i.e. the binding never fires for any app. This
+  is almost certainly a user mistake, not a useful zero-binding
+  shape; flag it (TODO: warning kind) rather than treating it as
+  configuration.
 - **`dropped[]` is populated regardless of `--include-dropped`**;
   the flag only controls text rendering. Machine consumers always
   see drops.
@@ -180,27 +186,48 @@ event. Everything below depends on this contract:
   `parsed_counts` / `dropped_count` / `warning_count` /
   `undefined_aliases`). `--list --json` does NOT include this
   block — the field is documented as optional in the schema, so
-  both emitters produce valid v1 documents. The `ok` flag already
+  both emitters produce valid v3 documents. The `ok` flag already
   accounts for `--strict`, so a consumer just branches on
   `validation.ok` instead of re-computing from counts. Exit code
   matches `validation.ok` (0 vs 1).
 - **Stable sort**: JSONEncoder uses `.sortedKeys`, so the output
   diff-friendly. Don't switch to insertion order.
 
-### Aliases (the `[aliases]` table)
+### Aliases (the `[action-aliases]` and `[input-aliases]` tables)
 
-- **Flat name → command lookup**. The TOML table accepts only
-  `string` values; anything else is dropped with a warning.
-- **Applies to `action-shell` only**. `action-keys` is parsed
-  through `InputParser` and treats `@name` as an unknown token
-  (drops the binding via the existing parse-error path) — by
-  design, canon confirmed `action-keys` reuse is not a
-  needed case.
-- **Single-token `@name` only**. `@name arg` syntax is reserved
-  for a future expansion; in v1 a value containing whitespace
-  after `@name` falls through as a literal command (so the user
-  who really meant to pass an argument doesn't get a silent
-  malfunction). Document this clearly in any user-facing changes.
+The original v0.5 single `[aliases]` table was split in v0.6 into
+**two tables with different semantics**:
+
+- `[action-aliases]` → `@name` references in `action-shell` (was
+  the original `[aliases]`)
+- `[input-aliases]` → `$name` references in `input = "..."`
+  (modifier-set naming, new in v0.6)
+
+`[aliases]` is dead — do not reintroduce it; the v3 schema's
+`ConfigWarning.Kind` values carry the new names
+(`action-alias-non-string`, `input-alias-non-string`, etc.).
+Rules:
+
+- **Flat name → string lookup, per table**. Both accept only
+  `string` values; anything else is dropped with a warning
+  (`action-alias-non-string` / `input-alias-non-string`).
+- **`[action-aliases]` applies to `action-shell` only**.
+  `action-keys` is parsed through `InputParser` and treats `@name`
+  as an unknown token (drops the binding via the existing
+  parse-error path) — canon confirmed `action-keys` reuse is not
+  needed.
+- **`@name(args)` is supported since chord 0.9.0** — the alias
+  body uses `{{1}}` / `{{2}}` placeholders, the call site supplies
+  positional args. Malformed calls (missing args, unbalanced
+  parens) surface as `action-alias-call-error`. The pre-0.9.0
+  "single-token `@name` only" rule still applies when the body
+  has no placeholders.
+- **`[input-aliases]` rules**: names must NOT shadow built-in
+  modifier tokens (`cmd`, `ctrl`, `shift`, `opt`, `fn`, plus
+  L/R-prefixed variants) — collision yields
+  `input-alias-shadows-modifier`. Bodies must be made of built-in
+  tokens only — no nested alias references (= cycle-free by
+  construction).
 - **Undefined `@name` drops the binding with a warning** in the
   exact format canon asked for:
   ```
@@ -508,13 +535,32 @@ stray instances before relaunching.
 
 ### CLI surface
 
-- **Flags**: `--validate` /
-  `--doctor` / `--help` / `--version` (standalone),
-  `--reload` / `--quit` / `--pause` / `--resume` / `--status`
-  (client). Any unrecognised flag exits `2` with a stderr message
-  (no silent fallback — *Rule of Repair*). Verbose logging is
-  env-var-triggered (`CHORD_DEBUG=1`, set by run.sh) — not a flag,
-  so a brew / raw launch stays quiet.
+- **Flags**: standalone — `--validate` (`--strict` / `--json`) /
+  `--list` (`--json` / `--include-dropped`) / `--doctor` /
+  `--help` (alias `-h`) / `--version` / `--resign` / `--watch`.
+  Client (DNC → daemon) — `--reload` (`--dry-run`) / `--quit` /
+  `--pause` / `--resume` / `--toggle` / `--status`. Any
+  unrecognised flag exits `2` with a stderr message (no silent
+  fallback — *Rule of Repair*). Verbose logging is env-var-
+  triggered (`CHORD_DEBUG=1`, set by run.sh) — not a flag, so a
+  brew / raw launch stays quiet.
+- **Subcommand dispatch is declarative** (PR #57, #63). A
+  `Subcommand` value in
+  [Sources/ChordApp/Main.swift](Sources/ChordApp/Main.swift)
+  carries `(flags, modifierFlags, handler)`; `dispatchSubcommand`
+  walks the registry in document order (= priority), and a token
+  outside the winner's `flags ∪ modifierFlags ∪ allSubcommandFlags`
+  is rejected as "has no effect with --X" (exit 2). This is what
+  closed the pre-#63 silent-drop hole (`chord --quit --json` used
+  to silently ignore `--json`). When adding a new flag, add a row
+  to the registry — do NOT bolt an `if args.contains(...)` into
+  `main()`.
+- **Single `exit()` site** lives in `applyOutcome`. Handlers
+  return `SubcommandOutcome { exitCode, stdout?, stderr? }` and
+  the dispatch entry calls `applyOutcome(_:) -> Never`. The two
+  `exit()` calls inside `runServer` are intentional (daemon
+  startup-fatal paths, no caller to test). Do NOT scatter `exit()`
+  across handlers.
 - **`--pause` / `--resume`** flip a single `pausedFlag` guarded by
   `pauseLock`, read from the tap callback's hot path before the
   matcher snapshot is even consulted. `--pause` returns
