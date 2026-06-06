@@ -70,6 +70,14 @@ enum ChordApp {
     /// table row whose flag set intersects argv wins.
     struct Subcommand {
         let flags: [String]
+        /// Modifier flags this subcommand honours, e.g. `--validate`
+        /// reads `--strict` / `--json`. Any modifier flag absent from
+        /// this list, when combined with this subcommand, becomes
+        /// "has no effect" — reported as exit 2 by `dispatchSubcommand`
+        /// rather than silently swallowed. Subcommand flags from
+        /// OTHER rows (e.g. `chord --validate --quit`) are tolerated
+        /// as priority-losers and not flagged.
+        let modifierFlags: [String]
         /// Closure isolation lives on the function type (Swift 6),
         /// not the storage property — Swift 6 rejects `@MainActor
         /// let handler: …` because the synthesised memberwise init
@@ -83,47 +91,72 @@ enum ChordApp {
     @MainActor
     private static let subcommands: [Subcommand] = [
         // Standalone (no daemon contact).
-        .init(flags: ["--help", "-h"],  handler: { _ in cmdHelp() }),
-        .init(flags: ["--version"],     handler: { _ in cmdVersion() }),
-        .init(flags: ["--validate"],    handler: cmdValidate),
-        .init(flags: ["--list"],        handler: cmdList),
-        .init(flags: ["--doctor"],      handler: { _ in cmdDoctor() }),
+        .init(flags: ["--help", "-h"], modifierFlags: [],
+              handler: { _ in cmdHelp() }),
+        .init(flags: ["--version"], modifierFlags: [],
+              handler: { _ in cmdVersion() }),
+        .init(flags: ["--validate"], modifierFlags: ["--strict", "--json"],
+              handler: cmdValidate),
+        .init(flags: ["--list"], modifierFlags: ["--json", "--include-dropped"],
+              handler: cmdList),
+        .init(flags: ["--doctor"], modifierFlags: [],
+              handler: { _ in cmdDoctor() }),
         // Client flags (post + wait + report).
-        .init(flags: ["--reload"],      handler: cmdReload),
-        .init(flags: ["--quit"],        handler: { _ in cmdControl(Control.quit, label: "quit") }),
-        .init(flags: ["--pause"],       handler: { _ in cmdControl(Control.pause, label: "paused") }),
-        .init(flags: ["--resume"],      handler: { _ in cmdControl(Control.resume, label: "resumed") }),
-        .init(flags: ["--toggle"],      handler: { _ in cmdToggle() }),
-        .init(flags: ["--status"],      handler: { _ in cmdStatus() }),
-        .init(flags: ["--resign"],      handler: { _ in cmdResign() }),
-        .init(flags: ["--watch"],       handler: { _ in cmdWatch() }),
+        .init(flags: ["--reload"], modifierFlags: ["--dry-run"],
+              handler: cmdReload),
+        .init(flags: ["--quit"], modifierFlags: [],
+              handler: { _ in cmdControl(Control.quit, label: "quit") }),
+        .init(flags: ["--pause"], modifierFlags: [],
+              handler: { _ in cmdControl(Control.pause, label: "paused") }),
+        .init(flags: ["--resume"], modifierFlags: [],
+              handler: { _ in cmdControl(Control.resume, label: "resumed") }),
+        .init(flags: ["--toggle"], modifierFlags: [],
+              handler: { _ in cmdToggle() }),
+        .init(flags: ["--status"], modifierFlags: [],
+              handler: { _ in cmdStatus() }),
+        .init(flags: ["--resign"], modifierFlags: [],
+              handler: { _ in cmdResign() }),
+        .init(flags: ["--watch"], modifierFlags: [],
+              handler: { _ in cmdWatch() }),
     ]
+
+    /// All declared subcommand flags, used for the "priority-loser"
+    /// tolerance in `dispatchSubcommand` (so `chord --validate --quit`
+    /// still runs validate without rejecting the unused `--quit`).
+    @MainActor
+    private static var allSubcommandFlags: Set<String> {
+        Set(subcommands.flatMap(\.flags))
+    }
 
     @MainActor
     static func dispatchSubcommand(_ args: [String]) -> SubcommandOutcome? {
         for cmd in subcommands {
             if cmd.flags.contains(where: { args.contains($0) }) {
+                // Reject modifier flags that this subcommand doesn't
+                // honour (e.g. `chord --quit --json`). Subcommand
+                // flags from OTHER rows are tolerated as priority-
+                // losers — they re-surface in the same argv and
+                // erroring on them would be hostile.
+                let accepted = Set(cmd.flags + cmd.modifierFlags)
+                    .union(allSubcommandFlags)
+                for a in args where !accepted.contains(a) {
+                    return .fail(2, stderr:
+                        "chord: '\(a)' has no effect with \(cmd.flags[0]). " +
+                        "See --help.")
+                }
                 return cmd.handler(args)
             }
         }
         return nil
     }
 
-    /// Repair check: report the first unknown flag. Modifier flags
-    /// (--strict / --json / --include-dropped / --dry-run) re-appear
-    /// here after their primary subcommand consumed them — they are
-    /// silently accepted.
+    /// Repair check, server-mode only. Runs when no subcommand
+    /// matched: any modifier-like token is suspicious (the daemon
+    /// itself takes no flags). All flags accepted by some subcommand
+    /// are still rejected here — `chord --strict` alone is a typo.
     static func checkUnknownFlags(_ args: [String]) -> SubcommandOutcome? {
         for a in args {
-            switch a {
-            case "--strict",
-                 "--json",
-                 "--include-dropped",
-                 "--dry-run":
-                continue
-            default:
-                return .fail(2, stderr: "chord: unknown flag '\(a)'. See --help.")
-            }
+            return .fail(2, stderr: "chord: unknown flag '\(a)'. See --help.")
         }
         return nil
     }
