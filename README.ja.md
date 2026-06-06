@@ -12,19 +12,71 @@ macOS 用 グローバルキーボード + マウス ホットキー常駐デー
 
 機能:
 
+トリガ:
+
 - **F1 – F24** (F21–F24 は Karabiner 互換 HID スロット経由)
 - **マウスボタン**: left / right / middle / side1 / side2
 - **スクロール**: up / down / left / right
 - **修飾キー連結** + `hyper` 糖衣構文 (= cmd+opt+ctrl+shift)
 - **左右別修飾子**: `rctrl` / `lcmd` 等 — ZMK ULTRA_LL のような
   片側専用レイヤを厳密に表現可能
+- **修飾子-only triggers** — 主キーなし、bare modifier の
+  入/出だけで発火 (chord 0.9.0+)
+- **`fn`-auto for arrow / nav キー** — macOS は矢印類に常に `fn` を
+  付与するため、`input = "ctrl - right"` がそのまま一致する
+
+アクション:
+
+- **`action-shell`** — `/bin/zsh -l -c` 経由で実行、`$HOME` 展開可
+- **`action-keys`** — 置き換えキーを post
+- **`action-keys` 配列** — 1 トリガで複数キーのシーケンス送出
+- **`action-shell` + `action-keys` 同時宣言** — shell を fire-
+  and-forget して直後にキー post (Karabiner `to`-array 形)
+- **`action-noop`** — イベントを食い潰す
+- **`action-native`** — `action-mission-control` / `action-
+  screenshot` / `action-spotlight` を shell-out なしで実行
+- **`action-set-var` / `action-toggle-var` / `action-hold-var`** —
+  flat 整数 state machine (単一変数等値のみ、ネストモード無しの
+  narrow surface)
+- **`action-*-on-up` 系** — リリース時の半分も発火
+- **`passthrough = true`** — 発火 AND 元のキーを通過させる
+- **`repeat = fire-each | ignore | passthrough`** — autorepeat 戦略
+
+ゲート:
+
+- **`when-var` / `when-vars`** — 単一 + 複数変数 AND 条件
+  (leader-key モード等)
+- **`hold-while`** / **`hold-while-timeout`** — 変数の寿命を
+  修飾子マスク or 非活性タイマに紐づけ
+- **`apps = [...]`** — binding 単位の glob 許可リスト + `!` 除外
+- **`input-source = "..."`** — macOS の input source / IME /
+  キーボードレイアウトでゲート (chord 0.9.0+)
+
+シュガー:
+
 - **`[[fallbacks]]` + `*` ワイルドカード** — modset 単位の「未割当
-  キー時にだけ発火」ルール（効果音フィードバック等）
-- **`[aliases]` + `@name`** — 繰り返す shell action の DRY
-- **`chord --list --json` / `chord --validate --json`** — CI 消費用、
-  バージョン管理された
-  [`chord.bindings.v1` JSON Schema](docs/schema/chord.bindings.v1.json)
-  準拠
+  キー時にだけ発火」ルール
+- **`[[fallbacks]] inputs = [...]`** — 同 action を複数 modset で
+  共有するときの 1 行化
+- **`[[remap]] map = { … }`** — 1-to-1 修飾子+キー対応の一括宣言
+- **`[[sequence]]`** — v2 state-var 上の leader-key 糖衣構文
+  (Pattern 9 を手書きする代わりに推奨)
+- **`[[bindings.per-app]]`** — 1 トリガから per-OS 分岐
+- **`[action-aliases]` + `@name(arg)`** — 繰り返す shell action の
+  DRY + `{{N}}` プレースホルダ
+- **`[input-aliases]` + `$name`** — 修飾子セットの命名
+  (`ULTRA_LL = "rctrl + ralt + rshift"` → `input = "$ULTRA_LL - c"`)
+
+CI / introspection:
+
+- **`chord --validate [--strict] [--json]`** — parse + lint
+- **`chord --list [--json] [--include-dropped]`** — 現在の parsed config
+- **`chord --watch`** — 実イベントのライブ trace
+- **`chord --doctor`** — Accessibility / config / daemon 状態
+
+`--validate` / `--list` の JSON 出力はバージョン管理された
+[`chord.bindings.v3` JSON Schema](docs/schema/chord.bindings.v3.json)
+準拠。
 
 `chord` は Swift 6 製のヘキサゴナル構成 (Core / AdapterMacOS /
 AdapterTest / App) で、
@@ -160,11 +212,15 @@ action-shell-on-up  = "yabai -m window --grid 1:2:1:0:1:1"
 chord                デーモンを起動 (デフォルト)
 chord --validate          config.toml を検証 (エラー0で exit 0)
 chord --validate --strict 警告 / drop が 1 件でもあれば exit 1 (CI 用)
-chord --validate --json   chord.bindings.v1 ドキュメント + validation ブロック
+chord --validate --json   chord.bindings.v3 ドキュメント + validation ブロック
 chord --list              パース結果を人間向けテキストで表示
-chord --list --json       機械向け JSON (chord.bindings.v1)
+chord --list --json       機械向け JSON (chord.bindings.v3)
 chord --list --include-dropped  drop された binding も表示
 chord --doctor            アクセシビリティ / 設定 / デーモンの稼働状況を表示
+chord --resign            Chord.app を chord-dev で再署名 + 再起動
+                          (`brew install` / upgrade 後に 1 回)
+chord --watch             ライブ per-event trace
+                          (/tmp/chord-watch.log で subscribe; Ctrl-C で停止)
 chord --reload       稼働中デーモンに設定再読込を指示
 chord --reload --dry-run   `--reload` で何が変わるかをプレビュー
 chord --quit         稼働中デーモンに終了を指示

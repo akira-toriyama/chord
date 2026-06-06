@@ -12,21 +12,73 @@ Global keyboard + mouse hotkey daemon for macOS.
 
 Capabilities:
 
+Triggers:
+
 - **F1 – F24** (F21–F24 via Karabiner-compatible HID slots)
 - **Mouse buttons**: left / right / middle / side1 / side2
 - **Scroll wheel**: up / down / left / right
 - **Modifier chords** with `hyper` sugar (= cmd+opt+ctrl+shift)
 - **Left/Right side modifiers**: `rctrl`, `lcmd`, etc. — strict
   per-side matching for ZMK ULTRA_LL-style layered keyboards
-- **`[[fallbacks]]` + `*` wildcard** for catch-all rules
-  (per-modifier-set "unmapped key" feedback sounds, etc.)
-- **`[action-aliases]` + `@name`** to DRY repeated shell actions
-- **`[input-aliases]` + `$name`** for modifier-set names in
-  `input = "…"` (e.g. `ULTRA_LL = "rctrl + ralt + rshift"` →
-  `input = "$ULTRA_LL - c"`) — parallels `@name` for shell actions
-- **`chord --list --json` / `chord --validate --json`** for CI
-  consumption, both conforming to a versioned
-  [`chord.bindings.v1` JSON Schema](docs/schema/chord.bindings.v1.json)
+- **Modifier-only triggers** — fire on bare modifier mask
+  entry / exit, no primary key required (chord 0.9.0+)
+- **`fn`-auto for arrow / nav keys** — macOS always tags those
+  with `fn`; `input = "ctrl - right"` matches without spelling
+  the bit out
+
+Actions:
+
+- **`action-shell`** — `/bin/zsh -l -c` exec, `$HOME` available
+- **`action-keys`** — chord posts replacement keys
+- **`action-keys` array** — multi-key sequence on one trigger
+- **`action-shell` + `action-keys` on one binding** — fire-and-forget
+  shell then post keys (Karabiner `to`-array shape)
+- **`action-noop`** — eat the event
+- **`action-native`** — `action-mission-control` (`show-all-windows`
+  / `show-app-windows`) / `action-screenshot` (`selection` / `screen`)
+  / `action-spotlight` (`true`) without shell-out
+- **`action-set-var` / `action-toggle-var` / `action-hold-var`** —
+  flat integer state machine (single-variable equality, no nested
+  modes, deliberate narrow surface)
+- **`action-*-on-up` halves** — fire on key release too
+- **`passthrough = true`** — fire AND let the original key through
+- **`repeat = fire-each | ignore | passthrough`** — per-binding
+  autorepeat strategy
+
+Gates:
+
+- **`when-var` / `when-vars`** — single + multi-variable AND
+  conditions (leader-key modes, etc.)
+- **`hold-while`** / **`hold-while-timeout`** — variable's
+  lifetime tied to a modifier mask or inactivity timer
+- **`apps = [...]`** — per-binding glob allowlist + `!`-exclusion
+- **`input-source = "..."`** — gate on macOS input source / IME
+  / keyboard layout (chord 0.9.0+)
+
+Sugars:
+
+- **`[[fallbacks]]` + `*` wildcard** — catch-all rules for per-
+  modifier-set "unmapped key" feedback sounds, etc.
+- **`[[fallbacks]] inputs = [...]`** — collapse N modset fallbacks
+  to one row
+- **`[[remap]] map = { … }`** — bulk 1-to-1 modifier+key map
+- **`[[sequence]]`** — leader-key syntactic sugar over the v2
+  state-var machinery (recommended over hand-rolling Pattern 9)
+- **`[[bindings.per-app]]`** — per-OS branching from one trigger
+- **`[action-aliases]` + `@name(arg)`** — DRY repeated shell
+  actions with `{{N}}` placeholder substitution
+- **`[input-aliases]` + `$name`** — name a modifier set
+  (`ULTRA_LL = "rctrl + ralt + rshift"` → `input = "$ULTRA_LL - c"`)
+
+CI / introspection:
+
+- **`chord --validate [--strict] [--json]`** — parse + lint
+- **`chord --list [--json] [--include-dropped]`** — current parsed config
+- **`chord --watch`** — live per-event trace
+- **`chord --doctor`** — accessibility + config + daemon status
+
+JSON output for `--validate` / `--list` conforms to the versioned
+[`chord.bindings.v3` JSON Schema](docs/schema/chord.bindings.v3.json).
 
 `chord` is hexagonal Swift 6 (Core / AdapterMacOS / AdapterTest /
 App), the same shape as
@@ -164,11 +216,15 @@ option commented inline.
 chord                run the daemon (default)
 chord --validate          parse config.toml; exit 0 on clean
 chord --validate --strict warnings + drops fail with exit 1 (for CI)
-chord --validate --json   chord.bindings.v1 document + validation block
+chord --validate --json   chord.bindings.v3 document + validation block
 chord --list              human-readable parsed config
-chord --list --json       machine-readable (chord.bindings.v1)
+chord --list --json       machine-readable (chord.bindings.v3)
 chord --list --include-dropped   also list dropped bindings
 chord --doctor            report Accessibility / config / daemon
+chord --resign            re-sign Chord.app with chord-dev + restart
+                          (run once after `brew install` / upgrade)
+chord --watch             live per-event trace (subscribes via
+                          /tmp/chord-watch.log; Ctrl-C to exit)
 chord --reload       tell the running daemon to reload config
 chord --reload --dry-run   preview what `--reload` would change
 chord --quit         tell the running daemon to exit
