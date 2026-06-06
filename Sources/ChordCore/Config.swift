@@ -71,6 +71,23 @@ public enum Config {
             if let b = opts["fn-auto-arrows"]?.asBool {
                 options.fnAutoArrows = b
             }
+            // Surface typos: `passthroughUnmatched` (camelCase),
+            // `exclude_apps` (underscore), etc. would otherwise look
+            // exactly like the binding worked but had no effect.
+            // TOML.lineKey is the synthetic line-number key the
+            // parser injects on the table header.
+            let known: Set<String> = [
+                "passthrough-unmatched",
+                "exclude-apps",
+                "fn-auto-arrows",
+            ]
+            for key in opts.keys where key != TOML.lineKey && !known.contains(key) {
+                warnings.append(ConfigWarning(
+                    kind: .unknownOptionKey,
+                    message:
+                        "[options] '\(key)': unknown option key — " +
+                        "ignored (known: \(known.sorted().joined(separator: ", ")))"))
+            }
         }
 
         // [actionAliases] — flat `name = "command"` lookup. Validation is
@@ -218,6 +235,28 @@ public enum Config {
                 }
                 bindings.append(b)
             }
+        }
+
+        // Duplicate `name` detection. Two user-named bindings sharing
+        // a name still both load (chord doesn't enforce uniqueness),
+        // but `--list --json` consumers and the `--reload --dry-run`
+        // name-keyed diff can't distinguish them. Synthetic
+        // `binding-N` names from makeBinding's index fallback are
+        // exempt — they're unique by construction.
+        let synthBindingName = #/^binding-\d+$/#
+        var seenUserNames: [String: Int] = [:]
+        for b in bindings {
+            if b.name.contains(synthBindingName) { continue }
+            seenUserNames[b.name, default: 0] += 1
+        }
+        for (name, count) in seenUserNames where count > 1 {
+            warnings.append(ConfigWarning(
+                kind: .duplicateBindingName,
+                message:
+                    "duplicate binding name '\(name)' appears \(count) times — " +
+                    "name-keyed tooling (--list / --reload --dry-run diff) " +
+                    "cannot distinguish them",
+                bindingName: name))
         }
 
         // v0.8.0 [[remap]] sugar: expand each row into N action-keys

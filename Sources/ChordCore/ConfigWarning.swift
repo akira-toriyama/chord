@@ -80,9 +80,23 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// `{{N}}` placeholder but the call doesn't supply enough
         /// args, or the parenthesised arg list is malformed.
         case actionAliasCallError = "action-alias-call-error"
+        /// `[options]` contains a key the parser doesn't recognise
+        /// (most often a typo: `passthroughUnmatched` instead of
+        /// `passthrough-unmatched`). The unknown key is silently
+        /// ignored at runtime, so without this warning a typo would
+        /// look like "the option doesn't work". --strict turns it
+        /// into a hard exit 1.
+        case unknownOptionKey     = "unknown-option-key"
+        /// Two or more user-named `[[bindings]]` rows share the same
+        /// `name`. Both still load (chord doesn't enforce unique
+        /// names) but `--list --json` consumers and the `--reload
+        /// --dry-run` name-keyed diff can't tell them apart. Synth
+        /// `binding-N` names (from rows without a user-supplied
+        /// `name`) are exempt.
+        case duplicateBindingName = "duplicate-binding-name"
         /// Reserved for future surface-area expansion (e.g.
-        /// `[include]` cycles, option key typos). Kept as a catch-all
-        /// so a downstream consumer's match-exhaustion never breaks.
+        /// `[include]` cycles). Kept as a catch-all so a downstream
+        /// consumer's match-exhaustion never breaks.
         case other                = "other"
     }
 
