@@ -615,6 +615,70 @@ stray instances before relaunching.
   workflow inherited from facet / stroke. Commit locally freely;
   pushing / merging waits for the maintainer's go.
 
+### config.toml grammar additions
+
+When a feature PR adds a new section / field to `config.toml`:
+
+- **Breaking changes are OK**. The config grammar is part of the
+  versioned `chord.bindings.v*` schema; major bumps are how we
+  reshape it. Don't paper over a bad shape with a deprecation
+  alias just to avoid the bump — if the new shape is right, ship
+  it and bump the schema. (Existing rename history: v0.5 single
+  `[aliases]` → v0.6 split `[action-aliases]` / `[input-aliases]`.)
+- **Style preference (want / better — not must)**: prefer the
+  **self-contained section** shape over **hoisted-shared field**
+  shape. Hoisting only one or two fields above N entries is
+  usually not worth the syntactic divergence; if every entry can
+  carry the shared field with no real cost, that's the cleaner
+  shape:
+
+  ```toml
+  # preferred (self-contained)
+  [[bindings]]
+  input = "rctrl + ralt + rshift - c"
+  apps = ["com.google.Chrome"]
+  action-keys = "ctrl + shift - tab"
+
+  [[bindings]]
+  input = "rctrl + ralt + rshift - c"
+  apps = ["com.microsoft.VSCode"]
+  action-keys = "cmd + shift - ["
+  ```
+
+  ```toml
+  # disliked (hoisted shared `input`)
+  [[bindings]]
+  input = "rctrl + ralt + rshift - c"
+
+    [[bindings.per-app]]
+    bundle-id = "com.google.Chrome"
+    action-keys = "ctrl + shift - tab"
+
+    [[bindings.per-app]]
+    bundle-id = "com.microsoft.VSCode"
+    action-keys = "cmd + shift - ["
+  ```
+
+- **Hoisted-shared shape is OK when it earns its keep**. Examples
+  where the disliked shape is currently kept because the
+  bookkeeping payoff is large:
+  - `[[remap]] modifiers = "..."; map = { … }` collapses N
+    bindings (potentially 10+) into one row — significant.
+  - `[[sequence]] prefix = "..."; timeout-ms = N; [[sequence.bindings]] …`
+    desugars to 1 prefix + N children of state-var binding
+    machinery; writing it long-hand is 3× the lines.
+  - `[[bindings.per-app]]` is the marginal one — saves only one
+    `input` line per binding. Issue #64 tracks the
+    deprecation-vs-keep call; new feature PRs should not extend
+    the per-app shape without revisiting that issue first.
+
+- **Don't invent a third style**. The two existing shapes
+  (self-contained `[[bindings]]` and the three hoisting sugars
+  above) are the surface today. Adding e.g. a top-level
+  `default-modifiers = "ctrl"` that every section inherits would
+  be a new third style; prefer adding a new sugar that follows
+  one of the existing shapes.
+
 ## References
 
 External material that informed chord's API / architecture
