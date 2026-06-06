@@ -679,6 +679,52 @@ When a feature PR adds a new section / field to `config.toml`:
   be a new third style; prefer adding a new sugar that follows
   one of the existing shapes.
 
+### CLI option additions
+
+Mirror of the `config.toml` policy above — **same two rules**
+applied to flags added to `chord <subcommand> --…`:
+
+- **Breaking changes are OK**. The CLI surface is part of the
+  user contract but not the schema-versioned wire contract;
+  renames are visible in `--help`, and the README CLI table /
+  glossary §7 are kept in sync. Don't add a long-term alias
+  (`--old-name` → `--new-name`) just to avoid the rename if the
+  new spelling is right. Existing precedent: PR #63 removed
+  `chord --quit --json`'s silent-accept-then-drop behaviour
+  outright rather than warning-then-removing across two releases.
+- **Style preference (want / better — not must)**: each
+  subcommand's flags should be **self-contained**. A modifier
+  flag belongs to one subcommand and is declared in its
+  `Subcommand.modifierFlags` list ([Sources/ChordApp/Main.swift](Sources/ChordApp/Main.swift)).
+  Avoid:
+  - **A global modifier-flag pool** (the pre-#63 design where
+    `--strict` / `--json` / `--dry-run` lived in a single
+    silently-accepted set, regardless of subcommand). That's the
+    CLI analogue of `config.toml`'s "hoisted shared field" shape —
+    same drawbacks: a flag's applicability is invisible at the
+    call site.
+  - **Aliases that mean different things to different
+    subcommands**. If `--filter` means "regex" to `--list` and
+    "glob" to `--validate`, that's the CLI version of inventing
+    a third style.
+- **Shared spelling is OK when N subcommands genuinely share the
+  semantic**. `--json` legitimately means "machine-readable
+  document" across `--validate` / `--list` (and, post-#65,
+  `--status` / `--doctor`); declaring it in each subcommand's
+  `modifierFlags` is the documented form of the shared semantic,
+  not boilerplate to flatten.
+- **Don't invent a third style**. Today the only shapes are:
+  - `chord --SUBCOMMAND` (boolean trigger flag)
+  - `chord --SUBCOMMAND --MODIFIER` (modifier flag declared in
+    that subcommand's `modifierFlags`)
+  - `chord --SUBCOMMAND --MODIFIER VALUE` (does not exist yet
+    in chord — every modifier flag is currently a bare boolean).
+
+  Adding e.g. `chord --SUBCOMMAND=value` (`=`-attached value),
+  short-flag-clustering (`-sj` for `-s -j`), or positional
+  arguments would be a new third style. Discuss before
+  introducing one.
+
 ## References
 
 External material that informed chord's API / architecture
