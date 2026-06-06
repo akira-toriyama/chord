@@ -95,32 +95,73 @@ final class CLIDispatchTests: XCTestCase {
         XCTAssertNil(ChordApp.dispatchSubcommand(["--json"]))
     }
 
-    // MARK: - checkUnknownFlags
+    // MARK: - checkUnknownFlags (server-mode only)
+    //
+    // After the context-aware dispatch fix, `checkUnknownFlags` is
+    // ONLY called from main() when no subcommand was dispatched —
+    // i.e. server mode. The daemon itself takes no flags, so any
+    // argv token (even otherwise-known modifier flags like --strict)
+    // is suspicious: it's almost certainly a typo of a full
+    // subcommand (`chord --strict` ← user meant `chord --validate
+    // --strict`). All flags reach .fail(2).
 
-    func testCheckUnknownFlagsAcceptsModifiers() {
-        XCTAssertNil(ChordApp.checkUnknownFlags(["--strict", "--json"]))
-        XCTAssertNil(ChordApp.checkUnknownFlags(["--include-dropped", "--dry-run"]))
+    func testServerModeRejectsAnyFlag() {
+        XCTAssertEqual(
+            ChordApp.checkUnknownFlags(["--strict"])?.exitCode, 2)
+        XCTAssertEqual(
+            ChordApp.checkUnknownFlags(["--json"])?.exitCode, 2)
+        XCTAssertEqual(
+            ChordApp.checkUnknownFlags(["--bogus-flag"])?.exitCode, 2)
+    }
+
+    func testServerModeAcceptsEmptyArgv() {
         XCTAssertNil(ChordApp.checkUnknownFlags([]))
     }
 
-    func testCheckUnknownFlagsRejectsUnknown() {
+    func testServerModeStderrFormat() {
         let out = ChordApp.checkUnknownFlags(["--bogus-flag"])
-        XCTAssertEqual(out?.exitCode, 2)
         XCTAssertEqual(out?.stderr,
                        "chord: unknown flag '--bogus-flag'. See --help.\n")
     }
 
-    /// Modifier flags that already passed through a subcommand handler
-    /// re-surface here and must be silently accepted; only truly
-    /// unknown tokens trip exit 2.
-    func testCheckUnknownFlagsMixedModifiers() {
-        XCTAssertNil(ChordApp.checkUnknownFlags(
-            ["--strict", "--json", "--include-dropped", "--dry-run"]))
+    // MARK: - context-aware modifier flag rejection (#62)
 
-        let out = ChordApp.checkUnknownFlags(
-            ["--strict", "--bogus", "--json"])
+    /// `chord --quit --json` used to silently swallow --json (it's
+    /// a global modifier but --quit doesn't honour it). New
+    /// behaviour: --quit's modifierFlags is [], so --json bubbles
+    /// up as "has no effect with --quit" → exit 2.
+    func testQuitRejectsJsonFlag() throws {
+        try XCTSkipIf(FileManager.default.fileExists(atPath: Control.statusPath),
+                      "host has /tmp/chord.status — daemon may swallow --quit")
+        let out = ChordApp.dispatchSubcommand(["--quit", "--json"])
         XCTAssertEqual(out?.exitCode, 2)
-        XCTAssertTrue(out?.stderr?.contains("--bogus") == true)
+        XCTAssertTrue(out?.stderr?.contains("'--json' has no effect with --quit") == true)
+    }
+
+    func testValidateAcceptsItsModifiers() {
+        // --validate honours --strict and --json. The fixture has
+        // no config so we just confirm the dispatch DOESN'T reject
+        // the modifier flags — exit code can be 0 or 1 depending on
+        // host state.
+        let out = ChordApp.dispatchSubcommand(["--validate", "--strict", "--json"])
+        XCTAssertNotEqual(out?.exitCode, 2,
+                          "--strict / --json must be honoured by --validate")
+    }
+
+    func testListAcceptsItsModifiers() {
+        let out = ChordApp.dispatchSubcommand(
+            ["--list", "--json", "--include-dropped"])
+        XCTAssertNotEqual(out?.exitCode, 2)
+    }
+
+    /// `chord --validate --quit` is a priority-loser case: both flags
+    /// are subcommand triggers, --validate wins on table order. The
+    /// "leftover" --quit must be tolerated, not rejected as
+    /// "unknown".
+    func testPriorityLoserSubcommandFlagsTolerated() {
+        let out = ChordApp.dispatchSubcommand(["--validate", "--quit"])
+        XCTAssertNotEqual(out?.exitCode, 2,
+                          "subcommand-flag-from-another-row must not trip the modifier check")
     }
 
     // MARK: - SubcommandOutcome conveniences
