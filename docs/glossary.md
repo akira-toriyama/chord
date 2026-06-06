@@ -183,7 +183,7 @@ ChordConfig
 
 | Section | 役割 |
 |---|---|
-| `[options]` | グローバル設定 (`passthrough-unmatched`, `exclude-apps`) |
+| `[options]` | グローバル設定 (`passthrough-unmatched`, `exclude-apps`, `fn-auto-arrows`)。chord 0.9.0+ では未知キーが `unknown-option-key` warning で surface する (silent drop しない) |
 | `[[bindings]]` | 通常 binding (document order, first-match-wins) |
 | `[[fallbacks]]` | bindings が全 miss した時だけ評価される binding 群。`*` ワイルドカードが許される唯一の場所 |
 | `[[sequence]]` | leader-key 用 sugar (chord 0.7.0+)。`prefix` + 子 `[[sequence.bindings]]` + `timeout-ms` から **state-var binding 群に parse 時展開**。詳細は §4 [sequence (leader-key sugar)](#sequence-leader-key-sugar) |
@@ -238,8 +238,9 @@ ChordConfig
 
 ## 3. Schema enum values (frozen)
 
-`docs/schema/chord.bindings.v1.json` の enum 値。**rename はすべて v2 bump**。
-新規追加は forward-compatible (既存 consumer が unknown を許容する前提)。
+`docs/schema/chord.bindings.v3.json` の enum 値 (v1 / v2 は history 用に残置)。
+**rename はすべて schema major bump**。新規追加は forward-compatible (既存 consumer
+が unknown を許容する前提)。
 
 ### `trigger.kind`
 
@@ -249,6 +250,7 @@ ChordConfig
 | `"mouseButton"` | マウスボタン |
 | `"scroll"` | スクロールホイール |
 | `"anyKey"` | wildcard ([[fallbacks]] 専用) |
+| `"modifiersOnly"` | primary key 無しの修飾 mask 専用トリガ (chord 0.9.0+) |
 
 ### `action.kind`
 
@@ -258,6 +260,7 @@ ChordConfig
 | `"shell"` | shell command |
 | `"noop"` | 吸収のみ |
 | `"set-variable"` | state-var 書き換え (v2+) |
+| `"toggle-variable"` | state-var を 0↔1 反転 (chord 0.9.0+, [action-toggle-var]) |
 
 ### `modifier_sides`
 
@@ -292,6 +295,12 @@ strict-side: `"lcmd"`, `"rcmd"`, `"lopt"`, `"ropt"`, `"lctrl"`, `"rctrl"`, `"lsh
 | `"condition-parse-error"` | `when-var` 不正 |
 | `"hold-while-parse-error"` | `hold-while` / `hold-while-timeout` 不正 |
 | `"action-set-parse-error"` | `action-set-var` / `action-set-value` 不正 |
+| `"sequence-parse-error"` | `[[sequence]]` 行不正、または regular binding が sequence prefix と衝突 (chord 0.7.0+) |
+| `"remap-parse-error"` | `[[remap]]` 行不正 (modifiers 欠如・map 非 inline-table・値 non-string 等) (chord 0.8.0+) |
+| `"per-app-parse-error"` | `[[bindings.per-app]]` 行不正 (bundle-id 欠如、`apps` と相互排他違反) (chord 0.8.0+) |
+| `"action-alias-call-error"` | `@name(args)` の引数不足・arg 解析失敗 (chord 0.9.0+) |
+| `"unknown-option-key"` | `[options]` 内に既知でないキー (typo 検出。chord 0.9.0+) |
+| `"duplicate-binding-name"` | ユーザ命名の `[[bindings]]` 行が同名で複数 (synth `binding-N` 名は除外) |
 | `"other"` | 将来の catch-all |
 
 ---
@@ -551,7 +560,8 @@ chord 用語ではない)。
 
 | Flag | 動作 | Exit code |
 |---|---|---|
-| `--validate` | config をパース、warning/drop を報告 | 0 / 1 (strict + issues) / 2 (parse error) |
+| `--validate` | config をパース、warning/drop を報告 (`--strict` / `--json` 受理) | 0 / 1 (strict + issues) / 2 (parse error) |
+| `--list` | 現行パース結果を出力 (`--json` / `--include-dropped` 受理) | 0 / 2 |
 | `--doctor` | validate + AX 権限 + daemon liveness | 0 / 1 (何か NG) |
 | `--help` / `--version` | print + exit | 0 |
 | `--resign` | brew sandbox 後の Chord.app 再署名 + 再起動 | 0 (署名成功なら) |
@@ -561,11 +571,24 @@ chord 用語ではない)。
 
 | Flag | 動作 | Exit code |
 |---|---|---|
-| `--reload` | config 再読込を要求 | 0 / 3 (no daemon) |
+| `--reload` | config 再読込を要求 (`--dry-run` で IPC せず diff のみ) | 0 / 3 (no daemon) |
 | `--quit` | daemon 停止 | 0 / 3 |
 | `--pause` / `--resume` | 全 binding を passthrough に / 復帰 | 0 / 3 |
 | `--toggle` | `/tmp/chord.status` を見て pause/resume を反転 | 0 / 3 |
 | `--status` | `/tmp/chord.status` の中身を print | 0 / 3 |
+
+### Dispatch contract (chord 0.9.0+)
+
+CLI dispatch は `Subcommand` テーブルから driven する宣言的構造 (`Sources/ChordApp/Main.swift`)。各エントリは:
+
+- `flags: [String]` — トリガとなる flag (alias 含む)
+- `modifierFlags: [String]` — そのコマンドが honour する modifier flag。**ここに無い flag を併用すると exit 2** (silent drop しない)
+- `handler: @MainActor ([String]) -> SubcommandOutcome` — pure 関数、`exit()` 呼ばず outcome を return
+
+priority-loser tolerance: `chord --validate --quit` は document order で `--validate` が勝ち、`--quit` は同テーブルの他 subcommand flag なので exit 2 にしない。**完全に未知のフラグ** (例: `chord --quit --bogus`) は exit 2。
+
+- code: [Sources/ChordApp/Main.swift](../Sources/ChordApp/Main.swift) `Subcommand` / `dispatchSubcommand` / `applyOutcome`
+- **Don't call it**: command / option (どちらも一般語で衝突)
 
 ### 環境変数
 
