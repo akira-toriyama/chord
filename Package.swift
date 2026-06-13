@@ -47,7 +47,7 @@ let package = Package(
         // next-minor range like the family apps; Package.resolved locks the
         // exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "0.7.1")),
+                 .upToNextMinor(from: "0.8.0")),
     ],
     targets: [
         .target(
