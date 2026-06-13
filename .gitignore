@@ -3,7 +3,10 @@
 # SwiftPM build artefacts
 .build/
 .swiftpm/
-Package.resolved
+# Package.resolved IS tracked since chord gained its first external
+# dependency (sill's `Toml` module, atelier Phase 1.6) — pinning the
+# exact commit gives reproducible release/CI builds, matching the
+# family's other executables (perch / wand).
 
 # setup-signing-cert.sh writes the local identity name here; each
 # developer regenerates their own. Don't commit.

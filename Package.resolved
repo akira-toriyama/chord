@@ -1,0 +1,15 @@
+{
+  "originHash" : "9e23f4f2433231cf25471d04ab7ad75153335f0f29c11ce724958e44187d4eb5",
+  "pins" : [
+    {
+      "identity" : "sill",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/akira-toriyama/sill.git",
+      "state" : {
+        "revision" : "8411abeab44e1fd13d86e513a6fde5529d2f0b9c",
+        "version" : "0.7.1"
+      }
+    }
+  ],
+  "version" : 3
+}

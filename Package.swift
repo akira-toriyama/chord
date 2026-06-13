@@ -36,8 +36,23 @@ let package = Package(
         .executable(name: "chord", targets: ["ChordApp"]),
         .library(name: "ChordCore", targets: ["ChordCore"]),
     ],
+    dependencies: [
+        // sill — the shared swift-app-family library (atelier). chord is
+        // NOT a theme consumer (its own separate lineage; no Palette /
+        // Effects / PaletteKit), but in atelier Phase 1.6 chord's 434-line
+        // hand-rolled TOML parser — the SUPERSET reference the shared
+        // parser was modelled on — folds into sill's pure, Foundation-only
+        // `Toml` module. ChordCore takes ONLY `Toml` (zero AppKit, zero
+        // theming) and uses its NESTED, strict `parse` skin. Pinned to the
+        // next-minor range like the family apps; Package.resolved locks the
+        // exact commit.
+        .package(url: "https://github.com/akira-toriyama/sill.git",
+                 .upToNextMinor(from: "0.7.1")),
+    ],
     targets: [
-        .target(name: "ChordCore"),
+        .target(
+            name: "ChordCore",
+            dependencies: [.product(name: "Toml", package: "sill")]),
         .target(name: "ChordAdapterMacOS", dependencies: ["ChordCore"]),
         .target(name: "ChordAdapterTest", dependencies: ["ChordCore"]),
         .executableTarget(
