@@ -37,7 +37,7 @@ final class FallbacksInputsArrayTests: XCTestCase {
             "undefined feedback — $ULTRA_LL - *",
             "undefined feedback — $MIRACLE_LM - *",
         ])
-        // inputRaw round-trips (used by --list --json + warnings).
+        // inputRaw round-trips (used by config --show --json + warnings).
         XCTAssertEqual(res.config.fallbacks[0].inputRaw, "$ULTRA_LL - *")
         XCTAssertEqual(res.config.fallbacks[1].inputRaw, "$MIRACLE_LM - *")
     }

@@ -69,12 +69,12 @@ macOS 用 グローバルキーボード + マウス ホットキー常駐デー
 
 CI / introspection:
 
-- **`chord --validate [--strict] [--json]`** — parse + lint
-- **`chord --list [--json] [--include-dropped]`** — 現在の parsed config
-- **`chord --watch`** — 実イベントのライブ trace
-- **`chord --doctor`** — Accessibility / config / daemon 状態
+- **`chord config --validate [--strict] [--json]`** — parse + lint
+- **`chord config --show [--json] [--include-dropped]`** — 現在の parsed config
+- **`chord daemon --watch`** — 実イベントのライブ trace
+- **`chord config --doctor`** — Accessibility / config / daemon 状態
 
-`--validate` / `--list` の JSON 出力はバージョン管理された
+`config --validate` / `config --show` の JSON 出力はバージョン管理された
 [`chord.bindings.v3` JSON Schema](docs/schema/chord.bindings.v3.json)
 準拠。
 
@@ -93,15 +93,15 @@ brew install akira-toriyama/tap/chord
 
 # アクセシビリティ許可が upgrade を跨いで維持されるための初回セットアップ
 $(brew --prefix)/share/chord/setup-signing-cert.sh   # chord-dev 識別子作成
-chord --resign                                        # 再署名 + 再起動
+chord daemon --resign                                 # 再署名 + 再起動
 
 brew services start chord
 ```
 
-`brew upgrade chord` のあとは `chord --resign` を 1 回叩いてください。
+`brew upgrade chord` のあとは `chord daemon --resign` を 1 回叩いてください。
 Homebrew のビルドサンドボックスは login keychain にアクセスできないため
 install 時は ad-hoc 署名にフォールバック → そのままだと TCC のアクセシビリティ
-許可が upgrade のたびに失われます。`chord --resign` は ad-hoc 署名を持続的な
+許可が upgrade のたびに失われます。`chord daemon --resign` は ad-hoc 署名を持続的な
 `chord-dev` 識別子で上書きし、デーモンを再起動するワンステップコマンドです。
 
 ソースからビルドする場合 (macOS 13+ と Xcode CommandLineTools か Xcode 本体が必要):
@@ -127,7 +127,7 @@ curl --create-dirs -o ~/.config/chord/config.toml \
   https://raw.githubusercontent.com/akira-toriyama/chord/main/config.toml
 ```
 
-編集後はデーモンを再起動するか `chord --reload`。ファイル変更を vnode
+編集後はデーモンを再起動するか `chord daemon --reload`。ファイル変更を vnode
 ウォッチャーで自動検知して再読込もします (vim 等の atomic save / rename
 にも対応)。
 
@@ -209,31 +209,69 @@ action-shell-on-up  = "yabai -m window --grid 1:2:1:0:1:1"
 ## CLI
 
 ```
-chord                デーモンを起動 (デフォルト)
-chord --validate          config.toml を検証 (エラー0で exit 0)
-chord --validate --strict 警告 / drop が 1 件でもあれば exit 1 (CI 用)
-chord --validate --json   chord.bindings.v3 ドキュメント + validation ブロック
-chord --list              パース結果を人間向けテキストで表示
-chord --list --json       機械向け JSON (chord.bindings.v3)
-chord --list --include-dropped  drop された binding も表示
-chord --doctor            アクセシビリティ / 設定 / デーモンの稼働状況を表示
-chord --resign            Chord.app を chord-dev で再署名 + 再起動
+chord                       デーモンを起動 (デフォルト)
+chord config --validate          config.toml を検証 (エラー0で exit 0)
+chord config --validate --strict 警告 / drop が 1 件でもあれば exit 1 (CI 用)
+chord config --validate --json   chord.bindings.v3 ドキュメント + validation ブロック
+chord config --show              パース結果を人間向けテキストで表示
+chord config --show --json       機械向け JSON (chord.bindings.v3)
+chord config --show --include-dropped  drop された binding も表示
+chord config --doctor            アクセシビリティ / 設定 / デーモンの稼働状況を表示
+chord daemon --resign            Chord.app を chord-dev で再署名 + 再起動
                           (`brew install` / upgrade 後に 1 回)
-chord --watch             ライブ per-event trace
+chord daemon --watch             ライブ per-event trace
                           (/tmp/chord-watch.log で subscribe; Ctrl-C で停止)
-chord --reload       稼働中デーモンに設定再読込を指示
-chord --reload --dry-run   `--reload` で何が変わるかをプレビュー
-chord --quit         稼働中デーモンに終了を指示
-chord --pause        全 binding を一時停止（passthrough モード）
-chord --resume       binding を再開
-chord --toggle       paused ↔ resumed を反転（ホットキー向け）
-chord --status       直近のステータス行を表示
-chord --help         このテキスト
-chord --version      バージョンを表示
+chord daemon --reload       稼働中デーモンに設定再読込を指示
+chord daemon --reload --dry-run   `--reload` で何が変わるかをプレビュー
+chord daemon --quit         稼働中デーモンに終了を指示
+chord daemon --pause        全 binding を一時停止（passthrough モード）
+chord daemon --resume       binding を再開
+chord daemon --toggle       paused ↔ resumed を反転（ホットキー向け）
+chord daemon --show         直近のステータス行を表示
+chord --help                このテキスト
+chord --version             バージョンを表示
 ```
 
 ログは `/tmp/chord.log`。`CHORD_DEBUG=1` (例: `./run.sh`) で stderr にも
 ミラーされます。`--debug` flag は無く、渡すと exit `2`。
+
+## 移行(フラット flag → yabai 式 domain)
+
+deprecation シムは **無い** — 旧フラット flag は exit 2。対応表:
+
+| 旧 | 新 |
+| --- | --- |
+| `chord --validate` | `chord config --validate` |
+| `chord --doctor` | `chord config --doctor` |
+| `chord --list` | `chord config --show` |
+| `chord --reload` | `chord daemon --reload` |
+| `chord --quit` | `chord daemon --quit` |
+| `chord --pause` | `chord daemon --pause` |
+| `chord --resume` | `chord daemon --resume` |
+| `chord --toggle` | `chord daemon --toggle` |
+| `chord --status` | `chord daemon --show` |
+| `chord --watch` | `chord daemon --watch` |
+| `chord --resign` | `chord daemon --resign` |
+
+CLI は yabai 式の domain-verb 文法 (`chord <domain> --<verb> [--mod]`)
+になりました。各 domain はちょうど 1 つの verb を取り、verb を組み合わせたり
+domain 外の flag を渡すと exit 2 (未知 flag は「did you mean …?」のヒント)。
+exit コードは 0 ok / 1 (`--validate --strict` が tripped) / 2 usage /
+3 daemon 未起動。tokenizer は共有 sill CLIKit 製で、chord 固有の verb 語彙を
+保持します。
+
+リネームは 2 つ:
+
+- `--list` → `config --show` (config / bindings の一覧)
+- `--status` → `daemon --show` (デーモンのランタイム status 行)
+
+`--show` は **両方の domain** に存在し別物です — config 内容の一覧は
+`config --show`、稼働中デーモンの status 行は `daemon --show`。
+
+modifier はそのまま引き継ぎます: `config --validate` の `--strict` / `--json`、
+`config --show` の `--json` / `--include-dropped`、`daemon --reload` の `--dry-run`。
+bare `chord`・`chord --help` / `-h`・`chord --version` / `-V`・`CHORD_DEBUG=1` 環境変数は
+影響を受けません。
 
 ## アーキテクチャ
 

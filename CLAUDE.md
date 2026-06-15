@@ -36,7 +36,7 @@ one-time Accessibility grant.
 swift build                  # compile (CommandLineTools works)
 swift test                   # tests — needs Xcode (XCTest); fails on CLT
 .build/debug/chord --help    # smoke test
-.build/debug/chord --validate
+.build/debug/chord config --validate
 ```
 
 Same XCTest constraint as stroke / facet — CommandLineTools alone
@@ -128,7 +128,7 @@ event. Everything below depends on this contract:
   document order. The matcher is intentionally not "best-match" —
   the user already ordered them.
 
-### `chord --list` and the chord.bindings.v3 schema
+### `chord config --show` and the chord.bindings.v3 schema
 
 - **JSON output is the contract**, plain-text output is just for
   humans. The schema lives at
@@ -151,9 +151,9 @@ event. Everything below depends on this contract:
   (e.g. v3 → v4). Adding new values to those enums is forward-
   compatible if existing consumers treat unknown values gracefully
   — schema docs say so; honour it.
-- **stdout vs stderr separation is strict**: `--list --json` puts
+- **stdout vs stderr separation is strict**: `config --show --json` puts
   JSON on stdout, every warning / log line on stderr.
-  `chord --list --json | jq …` must never break because chord
+  `chord config --show --json | jq …` must never break because chord
   printed a warning to the same stream.
 - **`modifier_sides` is per-logical-modifier, not flat**. Reason:
   canon Q1-2 — keeps consumer code clean (checking "ctrl
@@ -170,7 +170,7 @@ event. Everything below depends on this contract:
 - **`dropped[]` is populated regardless of `--include-dropped`**;
   the flag only controls text rendering. Machine consumers always
   see drops.
-- **`chord --reload --dry-run` is a pure parser + differ** — it
+- **`chord daemon --reload --dry-run` is a pure parser + differ** — it
   does NOT post the DNC notification, never touches the daemon's
   state. The diff is computed against the snapshot the running
   daemon writes to `/tmp/chord-loaded.json` on every
@@ -181,10 +181,10 @@ event. Everything below depends on this contract:
   as a change — only semantic field deltas
   (`BindingsSchema.semanticallyEqual` ignores `index` /
   `source_line`).
-- **`chord --validate --json` reuses the same Document** and adds
+- **`chord config --validate --json` reuses the same Document** and adds
   an optional `validation` block (`ok` / `strict` /
   `parsed_counts` / `dropped_count` / `warning_count` /
-  `undefined_aliases`). `--list --json` does NOT include this
+  `undefined_aliases`). `config --show --json` does NOT include this
   block — the field is documented as optional in the schema, so
   both emitters produce valid v3 documents. The `ok` flag already
   accounts for `--strict`, so a consumer just branches on
@@ -242,7 +242,7 @@ Rules:
 - The Controller startup / reload log line surfaces alias counts
   and `undefined-aliases=N` alongside the bindings / fallbacks /
   dropped totals — so a single `tail -f /tmp/chord.log` shows the
-  full state of the config without re-running `--validate`.
+  full state of the config without re-running `config --validate`.
 
 ### Fallbacks (the `[[fallbacks]]` section)
 
@@ -384,7 +384,7 @@ Rules:
   fails to parse, or whose `action-*` is malformed, is **dropped
   with a warning** rather than rejecting the whole config. A typo
   can never silence a working binding elsewhere in the file.
-  `chord --validate` is the explicit verification path (exit 2 if
+  `chord config --validate` is the explicit verification path (exit 2 if
   anything dropped).
 
 ### TOML parser
@@ -481,8 +481,8 @@ the daemon is built to be debuggable entirely from the terminal.
    The `dispatch.*` line missing means the matcher found nothing
    — re-check the `input` field's modifier mask vs. what the OS
    sees (use `CHORD_DEBUG=1` and trigger the chord).
-4. **Check config** with `chord --validate` (exit 0 + binding
-   count, or exit 2). The `chord --doctor` form additionally
+4. **Check config** with `chord config --validate` (exit 0 + binding
+   count, or exit 2). The `chord config --doctor` form additionally
    reports Accessibility status and whether the daemon is
    currently running.
 
@@ -494,7 +494,7 @@ Re-grant in System Settings, or use the persistent cert
 `pgrep -lf chord` to see what's running and `./stop.sh` to clear
 stray instances before relaunching.
 
-### `chord --resign` and the brew-sandbox signing trap
+### `chord daemon --resign` and the brew-sandbox signing trap
 
 - **Homebrew's build sandbox blocks `security` from touching the
   user's login keychain** — confirmed via brew source spelunk
@@ -506,8 +506,8 @@ stray instances before relaunching.
   in-formula `setup-signing-cert.sh` invocation pattern — it fell
   back to ad-hoc anyway, just silently and confusingly. The current
   formula intentionally `codesign --force --sign -` and points the
-  user at `chord --resign` for the persistent-identity swap.
-- **`chord --resign` orchestrates** codesign + service restart in
+  user at `chord daemon --resign` for the persistent-identity swap.
+- **`chord daemon --resign` orchestrates** codesign + service restart in
   one CLI step. Detection order: `/opt/homebrew/Cellar/chord/*/Chord.app`
   → `/Applications/Chord.app` → `~/Applications/Chord.app`. Picks the
   highest-versioned Cellar entry when multiple are present
@@ -515,7 +515,7 @@ stray instances before relaunching.
   `brew services` fails. Re-sign succeeds with exit 0 even if the
   restart step fails — re-signing is the load-bearing action.
 - **Cross-app pattern**: stroke / facet hit the same brew sandbox
-  trap. Apply the same `--resign` shape to those repos when
+  trap. Apply the same `daemon --resign` shape to those repos when
   ferrying changes.
 
 ### Bundle / signing
@@ -535,69 +535,79 @@ stray instances before relaunching.
 
 ### CLI surface
 
-- **Flags**: standalone — `--validate` (`--strict` / `--json`) /
-  `--list` (`--json` / `--include-dropped`) / `--doctor` /
-  `--help` (alias `-h`) / `--version` / `--resign` / `--watch`.
-  Client (DNC → daemon) — `--reload` (`--dry-run`) / `--quit` /
-  `--pause` / `--resume` / `--toggle` / `--status`. Any
-  unrecognised flag exits `2` with a stderr message (no silent
-  fallback — *Rule of Repair*). Verbose logging is env-var-
-  triggered (`CHORD_DEBUG=1`, set by run.sh) — not a flag, so a
-  brew / raw launch stays quiet.
-- **Subcommand dispatch is declarative** (PR #57, #63). A
-  `Subcommand` value in
-  [Sources/ChordApp/Main.swift](Sources/ChordApp/Main.swift)
-  carries `(flags, modifierFlags, handler)`; `dispatchSubcommand`
-  walks the registry in document order (= priority), and a token
-  outside the winner's `flags ∪ modifierFlags ∪ allSubcommandFlags`
-  is rejected as "has no effect with --X" (exit 2). This is what
-  closed the pre-#63 silent-drop hole (`chord --quit --json` used
-  to silently ignore `--json`). When adding a new flag, add a row
-  to the registry — do NOT bolt an `if args.contains(...)` into
-  `main()`.
+- **Grammar**: `chord <domain> --<verb> [--mod]` (yabai-style
+  domain-verb, powered by the shared sill CLIKit tokenizer; chord
+  keeps its own verb vocabulary). Each domain takes exactly one
+  verb; combining verbs, or passing a flag outside its domain,
+  exits `2` (unknown flag → "did you mean …?" hint — no silent
+  fallback, *Rule of Repair*). **`config` domain** (settings;
+  standalone, no daemon) — `config --validate` (`--strict` /
+  `--json`) / `config --show` (`--json` / `--include-dropped`) /
+  `config --doctor`. **`daemon` domain** (lifecycle; needs a
+  running daemon, exit `3` if none) — `daemon --reload`
+  (`--dry-run`) / `daemon --quit` / `daemon --pause` /
+  `daemon --resume` / `daemon --toggle` / `daemon --show` /
+  `daemon --watch` / `daemon --resign`. Top-level — `chord` (runs
+  the daemon) / `--help` (alias `-h`) / `--version` (alias `-V`).
+  Verbose logging is env-var-triggered (`CHORD_DEBUG=1`, set by
+  run.sh) — not a flag, so a brew / raw launch stays quiet.
+- **CLI is yabai-style domain-verb** (atelier Phase 3 M4). `dispatch(_:)`
+  in [Sources/ChordApp/Main.swift](Sources/ChordApp/Main.swift) peels the
+  domain noun (`config` / `daemon`) and routes to that domain's verb table
+  (`configVerbs` / `daemonVerbs`, each `verb → honoured modifiers`) via
+  `dispatchDomain`. The shared sill `CLIKit` tokenizer parses argv (unknown
+  flag → loud exit 2 with a nearest-match hint; `-h`/`-V` carve-out);
+  `dispatchDomain` then enforces chord's policy: exactly one verb per domain,
+  and a recognised modifier the chosen verb doesn't honour is rejected as
+  "has no effect with --X" (exit 2 — closes the pre-#63 silent-drop hole
+  where `chord daemon --quit --json` used to ignore `--json`). When adding a
+  flag, add it to the domain's verb table — do NOT bolt an
+  `if args.contains(...)` into `main()`. CLIKit parse errors map to
+  `SubcommandOutcome.fail(2, …)` (NOT `CLIKit.die`) so dispatch stays
+  unit-testable.
 - **Single `exit()` site** lives in `applyOutcome`. Handlers
   return `SubcommandOutcome { exitCode, stdout?, stderr? }` and
   the dispatch entry calls `applyOutcome(_:) -> Never`. The two
   `exit()` calls inside `runServer` are intentional (daemon
   startup-fatal paths, no caller to test). Do NOT scatter `exit()`
   across handlers.
-- **`--pause` / `--resume`** flip a single `pausedFlag` guarded by
+- **`daemon --pause` / `daemon --resume`** flip a single `pausedFlag` guarded by
   `pauseLock`, read from the tap callback's hot path before the
-  matcher snapshot is even consulted. `--pause` returns
+  matcher snapshot is even consulted. `daemon --pause` returns
   `.passthrough` for every event without touching the matcher, so
   the daemon stays AX-granted and the keystroke cost is one bool
   check + one mutex acquire. Intended for screencasts / games /
   Zoom screen-sharing where chord shouldn't be eating input.
-- **`--toggle`** is sugar: reads the daemon's status file, looks
+- **`daemon --toggle`** is sugar: reads the daemon's status file, looks
   for "paused" / "resumed", and posts the opposite DNC
   notification. Implemented entirely on the client side — no new
   IPC channel. The status file is updated by the server on every
-  transition, so a fast `chord --toggle` ↔ `chord --toggle`
+  transition, so a fast `chord daemon --toggle` ↔ `chord daemon --toggle`
   loop stays consistent.
-- **`--validate` is lenient by default; `--strict` is for CI**.
+- **`config --validate` is lenient by default; `--strict` is for CI**.
   Without `--strict`, drops are non-fatal (a typo in one binding
   doesn't fail the pipeline). With `--strict`, any warning or
   drop exits `1`. The summary line always prints
   `parsed: N bindings, M fallbacks; dropped: K, warnings: W` —
-  machine-readable enough for awk / grep until `--list --json`
+  machine-readable enough for awk / grep until `config --show --json`
   lands.
-- **`--doctor`** reports Accessibility
+- **`config --doctor`** reports Accessibility
   (`Permissions.isAccessibilityTrusted()`), config, daemon
   liveness. Exit 1 if any check fails.
-- **`--reload` / `--quit` talk to the running daemon over
+- **`daemon --reload` / `daemon --quit` talk to the running daemon over
   Distributed Notification Center** (`com.chord.app.control`, see
   [Sources/ChordApp/Control.swift](Sources/ChordApp/Control.swift))
   — same pattern as facet / stroke. Don't invent a different IPC.
   They exit `3` if no daemon is running.
-- **`--status` is one-way the other direction**: DNC can't reply,
+- **`daemon --show` is one-way the other direction**: DNC can't reply,
   so the daemon rewrites a small status file
   (`/tmp/chord.status`) on start / reload / each fired binding,
-  and `--status` just reads it. Don't reach for a request/response
+  and `daemon --show` just reads it. Don't reach for a request/response
   IPC — the file is enough.
 - **Config auto-reload**: a `DispatchSource` vnode source on
   [ChordConfig.path](Sources/ChordCore/Models.swift) re-arms on
   the atomic-save rename / delete and calls `controller.reload()`
-  on edit. `--reload` is now just the manual trigger for the same
+  on edit. `daemon --reload` is now just the manual trigger for the same
   path.
 
 ## Conventions
@@ -682,7 +692,7 @@ When a feature PR adds a new section / field to `config.toml`:
 ### CLI option additions
 
 Mirror of the `config.toml` policy above — **same two rules**
-applied to flags added to `chord <subcommand> --…`:
+applied to flags added to `chord <domain> --<verb> --…`:
 
 - **Breaking changes are OK**. The CLI surface is part of the
   user contract but not the schema-versioned wire contract;
@@ -690,37 +700,38 @@ applied to flags added to `chord <subcommand> --…`:
   glossary §7 are kept in sync. Don't add a long-term alias
   (`--old-name` → `--new-name`) just to avoid the rename if the
   new spelling is right. Existing precedent: PR #63 removed
-  `chord --quit --json`'s silent-accept-then-drop behaviour
+  `chord daemon --quit --json`'s silent-accept-then-drop behaviour
   outright rather than warning-then-removing across two releases.
 - **Style preference (want / better — not must)**: each
-  subcommand's flags should be **self-contained**. A modifier
-  flag belongs to one subcommand and is declared in its
-  `Subcommand.modifierFlags` list ([Sources/ChordApp/Main.swift](Sources/ChordApp/Main.swift)).
+  verb's modifiers should be **self-contained**. A modifier
+  flag belongs to one verb and is declared against it in the
+  domain's verb table (`configVerbs` / `daemonVerbs`,
+  [Sources/ChordApp/Main.swift](Sources/ChordApp/Main.swift)).
   Avoid:
   - **A global modifier-flag pool** (the pre-#63 design where
     `--strict` / `--json` / `--dry-run` lived in a single
-    silently-accepted set, regardless of subcommand). That's the
+    silently-accepted set, regardless of verb). That's the
     CLI analogue of `config.toml`'s "hoisted shared field" shape —
     same drawbacks: a flag's applicability is invisible at the
     call site.
   - **Aliases that mean different things to different
-    subcommands**. If `--filter` means "regex" to `--list` and
-    "glob" to `--validate`, that's the CLI version of inventing
+    verbs**. If `--filter` means "regex" to `config --show` and
+    "glob" to `config --validate`, that's the CLI version of inventing
     a third style.
-- **Shared spelling is OK when N subcommands genuinely share the
+- **Shared spelling is OK when N verbs genuinely share the
   semantic**. `--json` legitimately means "machine-readable
-  document" across `--validate` / `--list` (and, post-#65,
-  `--status` / `--doctor`); declaring it in each subcommand's
-  `modifierFlags` is the documented form of the shared semantic,
+  document" across `config --validate` / `config --show` (and
+  `config --doctor`); declaring it against each verb in the domain's
+  verb table is the documented form of the shared semantic,
   not boilerplate to flatten.
 - **Don't invent a third style**. Today the only shapes are:
-  - `chord --SUBCOMMAND` (boolean trigger flag)
-  - `chord --SUBCOMMAND --MODIFIER` (modifier flag declared in
-    that subcommand's `modifierFlags`)
-  - `chord --SUBCOMMAND --MODIFIER VALUE` (does not exist yet
+  - `chord <DOMAIN> --VERB` (the bare verb that selects the action)
+  - `chord <DOMAIN> --VERB --MODIFIER` (modifier flag declared for
+    that verb in the domain's verb table — `configVerbs` / `daemonVerbs`)
+  - `chord <DOMAIN> --VERB --MODIFIER VALUE` (does not exist yet
     in chord — every modifier flag is currently a bare boolean).
 
-  Adding e.g. `chord --SUBCOMMAND=value` (`=`-attached value),
+  Adding e.g. `chord <DOMAIN> --MODIFIER=value` (`=`-attached value),
   short-flag-clustering (`-sj` for `-s -j`), or positional
   arguments would be a new third style. Discuss before
   introducing one.
@@ -778,7 +789,7 @@ re-confirmation.
   string — same workaround facet uses.
 - [Distributed Notification Center](https://developer.apple.com/documentation/foundation/distributednotificationcenter)
   *(reviewed 2026-05-24)* — the IPC chord uses for
-  `--reload` / `--quit`. Fire-and-forget; the status file at
+  `daemon --reload` / `daemon --quit`. Fire-and-forget; the status file at
   `/tmp/chord.status` is the reverse channel. Same pattern as
   facet / stroke; don't invent a separate request/response IPC.
 

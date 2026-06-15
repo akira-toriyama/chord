@@ -18,7 +18,7 @@ extension Config {
     ///                   loop to detect collisions with regular
     ///                   `[[bindings]]` rows.
     ///   • `dropped`   — count of malformed sequences / children for
-    ///                   the `--validate --strict` exit code.
+    ///                   the `config --validate --strict` exit code.
     struct SequenceParse {
         var expanded: [Binding]
         var prefixes: [Binding]

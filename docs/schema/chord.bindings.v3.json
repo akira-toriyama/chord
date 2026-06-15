@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/akira-toriyama/chord/main/docs/schema/chord.bindings.v3.json",
   "title": "chord.bindings.v3",
-  "description": "Wire format emitted by `chord --list --json` and `chord --validate --json`. Version chord.bindings.v3 (was v2 through 0.5.x, v1 through 0.3.x). v3 renames over v2: `aliases` → `action_aliases` (TOML `[aliases]` → `[action-aliases]`); warning kinds `undefined-alias` → `undefined-action-alias`, `alias-non-string` → `action-alias-non-string`; section enum `[aliases]` → `[action-aliases]`; new kind `undefined-input-alias` for `$name` references that fail to resolve. v3 also requires the `$` prefix on `[input-aliases]` references in `input = \"…\"` (was bare in v2.x). Emitters: chord >= 0.6.0. Breaking changes require a major bump (v4) — consumers should pin the schema and treat unknown fields as forward-compatible additions. **Consumer pinning guidance**: prefer a tagged URL (e.g. `https://raw.githubusercontent.com/akira-toriyama/chord/v0.6.0/docs/schema/chord.bindings.v3.json`) over `…/main/…` for reproducibility — `main` is a moving reference. The strongest option is to vendor this file into the consumer repo (e.g. `docs/external/chord.bindings.v3.json`), giving network-independence and explicit diff review when chord ships a new schema version. See https://github.com/akira-toriyama/chord/blob/main/Sources/ChordCore/Schema.swift for the canonical Swift mappers.",
+  "description": "Wire format emitted by `chord config --show --json` and `chord config --validate --json`. Version chord.bindings.v3 (was v2 through 0.5.x, v1 through 0.3.x). v3 renames over v2: `aliases` → `action_aliases` (TOML `[aliases]` → `[action-aliases]`); warning kinds `undefined-alias` → `undefined-action-alias`, `alias-non-string` → `action-alias-non-string`; section enum `[aliases]` → `[action-aliases]`; new kind `undefined-input-alias` for `$name` references that fail to resolve. v3 also requires the `$` prefix on `[input-aliases]` references in `input = \"…\"` (was bare in v2.x). Emitters: chord >= 0.6.0. Breaking changes require a major bump (v4) — consumers should pin the schema and treat unknown fields as forward-compatible additions. **Consumer pinning guidance**: prefer a tagged URL (e.g. `https://raw.githubusercontent.com/akira-toriyama/chord/v0.6.0/docs/schema/chord.bindings.v3.json`) over `…/main/…` for reproducibility — `main` is a moving reference. The strongest option is to vendor this file into the consumer repo (e.g. `docs/external/chord.bindings.v3.json`), giving network-independence and explicit diff review when chord ships a new schema version. See https://github.com/akira-toriyama/chord/blob/main/Sources/ChordCore/Schema.swift for the canonical Swift mappers.",
   "type": "object",
   "required": [
     "schema",
@@ -44,7 +44,7 @@
     "dropped":   { "type": "array", "items": { "$ref": "#/$defs/dropped" } },
     "validation": {
       "$ref": "#/$defs/validation",
-      "description": "Populated by `chord --validate --json`, absent on `chord --list --json`. Surfaces validation status structurally so CI consumers can branch without inspecting exit codes alone."
+      "description": "Populated by `chord config --validate --json`, absent on `chord config --show --json`. Surfaces validation status structurally so CI consumers can branch without inspecting exit codes alone."
     }
   },
   "$defs": {

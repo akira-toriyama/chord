@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Before PR2 every warning was a `String` flowing through
 /// `ParseResult.warnings`. That worked for the human-facing
-/// `--validate` output but offered nothing to machine consumers
+/// `config --validate` output but offered nothing to machine consumers
 /// (the chord.bindings.v* JSON schemas, canon's
 /// `gen-chord-doc.py` / CI). `ConfigWarning` is the promoted form:
 ///
@@ -89,8 +89,8 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         case unknownOptionKey     = "unknown-option-key"
         /// Two or more user-named `[[bindings]]` rows share the same
         /// `name`. Both still load (chord doesn't enforce unique
-        /// names) but `--list --json` consumers and the `--reload
-        /// --dry-run` name-keyed diff can't tell them apart. Synth
+        /// names) but `config --show --json` consumers and the `daemon
+        /// --reload --dry-run` name-keyed diff can't tell them apart. Synth
         /// `binding-N` names (from rows without a user-supplied
         /// `name`) are exempt.
         case duplicateBindingName = "duplicate-binding-name"

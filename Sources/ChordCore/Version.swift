@@ -10,10 +10,10 @@ import Foundation
 ///
 /// Consumers:
 ///   • `chord --version` (`Sources/ChordApp/Main.swift`)
-///   • any future `--list --json` / `--query` output that embeds the
+///   • any future `config --show --json` output that embeds the
 ///     daemon version
 ///   • Info.plist / Info.plist.dev are NOT consumers — they're parallel
 ///     declarations and their drift is checked, not derived
 public enum ChordVersion {
-    public static let current = "0.8.0"
+    public static let current = "0.9.0"
 }

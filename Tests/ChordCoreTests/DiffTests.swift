@@ -1,7 +1,7 @@
 import XCTest
 @testable import ChordCore
 
-/// Coverage for the `--reload --dry-run` diff algorithm. Bindings
+/// Coverage for the `daemon --reload --dry-run` diff algorithm. Bindings
 /// match by name; semantic equality ignores line numbers /
 /// document order.
 final class DiffTests: XCTestCase {

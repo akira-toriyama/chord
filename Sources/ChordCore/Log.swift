@@ -15,10 +15,10 @@ import Foundation
 public enum Log {
     nonisolated(unsafe) public static var debugMode = false
     public static let path = "/tmp/chord.log"
-    /// chord 0.9.0+: per-event structured log file the `--watch`
+    /// chord 0.9.0+: per-event structured log file the `daemon --watch`
     /// client tails. The daemon only writes here **while the file
     /// already exists** — the existence of the file IS the subscription
-    /// signal. `chord --watch` creates / truncates it on start;
+    /// signal. `chord daemon --watch` creates / truncates it on start;
     /// `rm /tmp/chord-watch.log` silences the daemon's per-event
     /// output immediately.
     public static let watchPath = "/tmp/chord-watch.log"
@@ -39,9 +39,9 @@ public enum Log {
         emit(message(), mirrorToStderrOverride: nil)
     }
 
-    /// Per-event structured line for `chord --watch`. Cheap no-op
+    /// Per-event structured line for `chord daemon --watch`. Cheap no-op
     /// when the watch file doesn't exist (i.e. no client has run
-    /// `chord --watch` since this daemon start). Writes only to the
+    /// `chord daemon --watch` since this daemon start). Writes only to the
     /// watch file, never mirrored to stderr or to the main log.
     public static func watch(_ message: @autoclosure () -> String) {
         guard FileManager.default.fileExists(atPath: watchPath) else {

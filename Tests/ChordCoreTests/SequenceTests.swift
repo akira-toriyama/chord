@@ -112,7 +112,7 @@ final class SequenceTests: XCTestCase {
     func testChildInputUsesPrefixModsetVerbatim() throws {
         // Modset string is preserved as-written (no canonicalisation),
         // so the alias form stays the alias form for downstream
-        // schema / --list output.
+        // schema / config --show output.
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = "rctrl + ralt + rshift"

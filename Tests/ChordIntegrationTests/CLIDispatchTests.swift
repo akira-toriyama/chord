@@ -2,166 +2,176 @@ import XCTest
 @testable import ChordApp
 @testable import ChordCore
 
-/// Exercises the SubcommandOutcome / dispatchSubcommand surface
-/// added in the v0.9 cli-refactor PR. Goal: assert dispatch order +
-/// outcome shape without spawning child processes — every test
-/// here is pure data in / data out.
+/// Exercises the `dispatch` / `SubcommandOutcome` surface of the
+/// yabai-style domain-verb CLI (atelier Phase 3 M4 — `chord <domain>
+/// --<verb> [--mod …]`). Goal: assert dispatch routing + outcome shape
+/// without spawning child processes — every test here is pure data in /
+/// data out. `dispatch` returns the outcome and the single exit() site
+/// (`applyOutcome`) is never reached, so the whole surface is testable.
 ///
-/// Black-box `Process` spawn tests (`chord --validate --json` etc.)
-/// are intentionally left for a follow-up: they need the daemon
+/// Black-box `Process` spawn tests (`chord config --validate --json`
+/// etc.) are intentionally left for a follow-up: they need the daemon
 /// path or a fixture config.toml, and they belong next to the
-/// schema-snapshot golden-file infrastructure that #3 (Schema /
-/// Config unification) will introduce.
+/// schema-snapshot golden-file infrastructure.
 @MainActor
 final class CLIDispatchTests: XCTestCase {
 
-    // MARK: - dispatchSubcommand: standalone subcommands
+    // MARK: - top-level carve-outs (--help / --version, with -h / -V)
 
     func testVersionReportsCurrentString() {
-        let out = ChordApp.dispatchSubcommand(["--version"])
-        XCTAssertNotNil(out)
+        let out = ChordApp.dispatch(["--version"])
         XCTAssertEqual(out?.exitCode, 0)
         XCTAssertEqual(out?.stdout, "chord \(ChordVersion.current)\n")
         XCTAssertNil(out?.stderr)
     }
 
+    func testVersionShortAliasMatches() {
+        // `-V` must trigger the same outcome as `--version` (D7 carve-out).
+        XCTAssertEqual(ChordApp.dispatch(["-V"])?.stdout,
+                       ChordApp.dispatch(["--version"])?.stdout)
+    }
+
     func testHelpEmitsUsageOnStdout() {
-        let out = ChordApp.dispatchSubcommand(["--help"])
-        XCTAssertNotNil(out)
+        let out = ChordApp.dispatch(["--help"])
         XCTAssertEqual(out?.exitCode, 0)
         XCTAssertTrue(out?.stdout?.contains("chord — global keyboard") == true)
         XCTAssertTrue(out?.stdout?.contains("--validate") == true)
     }
 
     func testHelpShortAliasMatches() {
-        // `-h` must trigger the same outcome as `--help`.
-        let long  = ChordApp.dispatchSubcommand(["--help"])
-        let short = ChordApp.dispatchSubcommand(["-h"])
+        // `-h` must trigger the same outcome as `--help` (D7 carve-out).
+        let long  = ChordApp.dispatch(["--help"])
+        let short = ChordApp.dispatch(["-h"])
         XCTAssertEqual(long?.exitCode,  short?.exitCode)
         XCTAssertEqual(long?.stdout,    short?.stdout)
     }
 
-    // MARK: - dispatchSubcommand: client subcommands
+    // MARK: - daemon domain: client verbs (post + wait + report)
 
-    /// `--quit` / `--pause` / `--resume` / `--toggle` all post a
+    /// `daemon --quit` / `--pause` / `--resume` / `--toggle` all post a
     /// `Control` notification and wait for the daemon to ack via
-    /// status-file mtime. With no daemon running the wait times out
-    /// and the outcome is exit 3 + "no daemon running" on stderr.
-    /// This test depends only on "no daemon was running in CI", which
-    /// is true under the GitHub Actions sandbox (no chord installed).
+    /// status-file mtime. With no daemon running the wait times out and
+    /// the outcome is exit 3 + "no daemon running" on stderr. Depends
+    /// only on "no daemon was running in CI" (true under the GitHub
+    /// Actions sandbox — no chord installed).
     func testQuitWithoutDaemonReportsNoDaemonRunning() throws {
         try XCTSkipIf(daemonStatusFileExists(),
                       "host has /tmp/chord.status — assume daemon may be live")
-        let out = ChordApp.dispatchSubcommand(["--quit"])
+        let out = ChordApp.dispatch(["daemon", "--quit"])
         XCTAssertEqual(out?.exitCode, 3)
         XCTAssertEqual(out?.stderr, "chord: no daemon running\n")
     }
 
-    func testStatusWithoutFileReportsExit3() throws {
+    /// `daemon --show` (the read口, was `--status`) reports exit 3 when
+    /// there is no status file.
+    func testShowWithoutFileReportsExit3() throws {
         try XCTSkipIf(daemonStatusFileExists(),
                       "host has /tmp/chord.status — would consume real status")
-        let out = ChordApp.dispatchSubcommand(["--status"])
+        let out = ChordApp.dispatch(["daemon", "--show"])
         XCTAssertEqual(out?.exitCode, 3)
         XCTAssertEqual(out?.stderr, "chord: no status file\n")
     }
 
-    // MARK: - dispatchSubcommand: priority order
-
-    /// The subcommand table's first-match-wins rule: a sane priority
-    /// stack is `--help > --version > --validate > --list > …`.
-    /// Asserting `--help --version` resolves to --help guards against
-    /// silent rearrangement of the table.
-    func testHelpWinsOverVersion() {
-        let out = ChordApp.dispatchSubcommand(["--version", "--help"])
-        XCTAssertNotNil(out?.stdout?.contains("--validate"))
-    }
-
-    /// `--reload --dry-run` resolves to the dry-run path (no IPC).
-    /// Without a snapshot file the diff path emits a "no snapshot"
-    /// note and exits 0.
-    func testReloadDryRunDoesNotContactDaemon() throws {
-        // The dry-run reads on-disk config.toml; if the host has no
-        // config it still resolves (empty parse, no snapshot note).
-        // No daemon contact, so this never returns exit 3.
-        let out = ChordApp.dispatchSubcommand(["--reload", "--dry-run"])
+    /// `daemon --reload --dry-run` resolves to the dry-run path (no IPC).
+    /// Without a snapshot file the diff path emits a "no snapshot" note
+    /// and exits 0 — never exit 3 (no daemon contact).
+    func testReloadDryRunDoesNotContactDaemon() {
+        let out = ChordApp.dispatch(["daemon", "--reload", "--dry-run"])
         XCTAssertNotEqual(out?.exitCode, 3, "dry-run should not require daemon")
     }
 
-    // MARK: - dispatchSubcommand: misses
+    // MARK: - server mode (bare chord)
 
-    func testNoSubcommandFlagReturnsNil() {
-        XCTAssertNil(ChordApp.dispatchSubcommand([]))
-        XCTAssertNil(ChordApp.dispatchSubcommand(["--strict"]))
-        XCTAssertNil(ChordApp.dispatchSubcommand(["--json"]))
+    /// Bare `chord` (no argv) is the server-mode signal: `dispatch`
+    /// returns nil so main() falls through to `runServer()`.
+    func testBareArgvReturnsNilForServerMode() {
+        XCTAssertNil(ChordApp.dispatch([]))
     }
 
-    // MARK: - checkUnknownFlags (server-mode only)
-    //
-    // After the context-aware dispatch fix, `checkUnknownFlags` is
-    // ONLY called from main() when no subcommand was dispatched —
-    // i.e. server mode. The daemon itself takes no flags, so any
-    // argv token (even otherwise-known modifier flags like --strict)
-    // is suspicious: it's almost certainly a typo of a full
-    // subcommand (`chord --strict` ← user meant `chord --validate
-    // --strict`). All flags reach .fail(2).
-
-    func testServerModeRejectsAnyFlag() {
-        XCTAssertEqual(
-            ChordApp.checkUnknownFlags(["--strict"])?.exitCode, 2)
-        XCTAssertEqual(
-            ChordApp.checkUnknownFlags(["--json"])?.exitCode, 2)
-        XCTAssertEqual(
-            ChordApp.checkUnknownFlags(["--bogus-flag"])?.exitCode, 2)
-    }
-
-    func testServerModeAcceptsEmptyArgv() {
-        XCTAssertNil(ChordApp.checkUnknownFlags([]))
-    }
-
-    func testServerModeStderrFormat() {
-        let out = ChordApp.checkUnknownFlags(["--bogus-flag"])
-        XCTAssertEqual(out?.stderr,
-                       "chord: unknown flag '--bogus-flag'. See --help.\n")
-    }
-
-    // MARK: - context-aware modifier flag rejection (#62)
-
-    /// `chord --quit --json` used to silently swallow --json (it's
-    /// a global modifier but --quit doesn't honour it). New
-    /// behaviour: --quit's modifierFlags is [], so --json bubbles
-    /// up as "has no effect with --quit" → exit 2.
-    func testQuitRejectsJsonFlag() throws {
-        try XCTSkipIf(FileManager.default.fileExists(atPath: Control.statusPath),
-                      "host has /tmp/chord.status — daemon may swallow --quit")
-        let out = ChordApp.dispatchSubcommand(["--quit", "--json"])
+    /// A `-`-leading first token is never a domain — it's almost always
+    /// an old flat flag. dispatch rejects it loudly (exit 2) and points
+    /// at the new domain home. (Old behaviour returned nil → server.)
+    func testOldFlatFlagRejectedWithDomainHint() {
+        let out = ChordApp.dispatch(["--validate"])
         XCTAssertEqual(out?.exitCode, 2)
-        XCTAssertTrue(out?.stderr?.contains("'--json' has no effect with --quit") == true)
+        XCTAssertTrue(out?.stderr?.contains("flags now live under a domain") == true)
+        XCTAssertTrue(out?.stderr?.contains("Got '--validate'") == true)
     }
 
+    func testBareModifierFlagRejected() {
+        // `chord --strict` / `--json` alone (no domain) → exit 2, not nil.
+        XCTAssertEqual(ChordApp.dispatch(["--strict"])?.exitCode, 2)
+        XCTAssertEqual(ChordApp.dispatch(["--json"])?.exitCode, 2)
+        XCTAssertEqual(ChordApp.dispatch(["--bogus-flag"])?.exitCode, 2)
+    }
+
+    func testUnknownDomainRejected() {
+        let out = ChordApp.dispatch(["frobnicate"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("unknown command 'frobnicate'") == true)
+    }
+
+    // MARK: - domain dispatch: verb selection + modifier policy
+
+    func testDomainWithNoVerbRejected() {
+        let out = ChordApp.dispatch(["config"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("needs a verb") == true)
+    }
+
+    func testIncompatibleVerbsRejected() {
+        let out = ChordApp.dispatch(["config", "--validate", "--doctor"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("incompatible verbs") == true)
+    }
+
+    /// `daemon --quit --json` — `--json` isn't a recognised flag in the
+    /// daemon domain at all, so CLIKit rejects it as an unknown flag
+    /// (exit 2) before chord's modifier-applicability check.
+    func testUnknownModifierInDomainRejected() throws {
+        try XCTSkipIf(daemonStatusFileExists(),
+                      "host has /tmp/chord.status — daemon may swallow --quit")
+        let out = ChordApp.dispatch(["daemon", "--quit", "--json"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("unknown flag '--json'") == true)
+    }
+
+    /// `config --validate --include-dropped` — `--include-dropped` IS a
+    /// recognised config-domain flag (it's `config --show`'s modifier),
+    /// but `--validate` doesn't honour it → chord's "has no effect"
+    /// rejection (exit 2, no silent no-op).
+    func testRecognisedModifierOnWrongVerbRejected() {
+        let out = ChordApp.dispatch(["config", "--validate", "--include-dropped"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(
+            out?.stderr?.contains("'--include-dropped' has no effect with --validate")
+            == true)
+    }
+
+    /// `config --validate` honours `--strict` and `--json`. The fixture
+    /// has no config so we just confirm dispatch DOESN'T reject the
+    /// modifiers — exit code can be 0 or 1 depending on host state.
     func testValidateAcceptsItsModifiers() {
-        // --validate honours --strict and --json. The fixture has
-        // no config so we just confirm the dispatch DOESN'T reject
-        // the modifier flags — exit code can be 0 or 1 depending on
-        // host state.
-        let out = ChordApp.dispatchSubcommand(["--validate", "--strict", "--json"])
+        let out = ChordApp.dispatch(["config", "--validate", "--strict", "--json"])
         XCTAssertNotEqual(out?.exitCode, 2,
-                          "--strict / --json must be honoured by --validate")
+                          "--strict / --json must be honoured by config --validate")
     }
 
-    func testListAcceptsItsModifiers() {
-        let out = ChordApp.dispatchSubcommand(
-            ["--list", "--json", "--include-dropped"])
+    /// `config --show` (was `--list`) honours `--json` / `--include-dropped`.
+    func testShowAcceptsItsModifiers() {
+        let out = ChordApp.dispatch(
+            ["config", "--show", "--json", "--include-dropped"])
         XCTAssertNotEqual(out?.exitCode, 2)
     }
 
-    /// `chord --validate --quit` is a priority-loser case: both flags
-    /// are subcommand triggers, --validate wins on table order. The
-    /// "leftover" --quit must be tolerated, not rejected as
-    /// "unknown".
-    func testPriorityLoserSubcommandFlagsTolerated() {
-        let out = ChordApp.dispatchSubcommand(["--validate", "--quit"])
-        XCTAssertNotEqual(out?.exitCode, 2,
-                          "subcommand-flag-from-another-row must not trip the modifier check")
+    /// A flag from the OTHER domain (`config --reload`) is now an unknown
+    /// flag in this domain — no more flat-namespace "priority-loser"
+    /// tolerance (that ambiguity is gone with domains). Documents the
+    /// intentional behaviour change.
+    func testCrossDomainFlagRejected() {
+        let out = ChordApp.dispatch(["config", "--reload"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("unknown flag '--reload'") == true)
     }
 
     // MARK: - SubcommandOutcome conveniences

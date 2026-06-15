@@ -24,7 +24,7 @@ final class ActionAliasArgsTests: XCTestCase {
         if case .shell(let body) = b.action {
             XCTAssertEqual(body, "afplay \"$HOME/sounds/undefined.wav\"")
         } else { XCTFail("expected .shell") }
-        // aliasName is recorded for --list --json round-trip.
+        // aliasName is recorded for config --show --json round-trip.
         XCTAssertEqual(b.aliasName, "play")
     }
 

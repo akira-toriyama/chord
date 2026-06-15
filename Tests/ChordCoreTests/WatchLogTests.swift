@@ -3,7 +3,7 @@ import XCTest
 
 /// chord 0.9.0+: `Log.watch(_:)` writes one structured line per
 /// event to `/tmp/chord-watch.log` IFF that file exists. The file's
-/// existence is the subscription signal — `chord --watch` creates
+/// existence is the subscription signal — `chord daemon --watch` creates
 /// it, `rm /tmp/chord-watch.log` silences the daemon.
 final class WatchLogTests: XCTestCase {
 
@@ -37,7 +37,7 @@ final class WatchLogTests: XCTestCase {
     }
 
     func testWatchAppendsWhenFileExists() throws {
-        // Simulate `chord --watch` creating the file.
+        // Simulate `chord daemon --watch` creating the file.
         XCTAssertTrue(FileManager.default.createFile(
             atPath: path, contents: nil))
         Log.watch("event-1")
