@@ -1,13 +1,13 @@
 import Foundation
 
 /// IPC between the chord daemon and its own CLI clients (`chord
-/// --reload`, `chord --quit`). Same pattern as facet / stroke —
-/// Distributed Notification Center, fire-and-forget. The daemon is
-/// the listener; clients post and exit.
+/// daemon --reload`, `chord daemon --quit`). Same pattern as facet /
+/// stroke — Distributed Notification Center, fire-and-forget. The
+/// daemon is the listener; clients post and exit.
 ///
-/// `--status` is one-way the other direction: DNC has no reply
+/// `daemon --show` is one-way the other direction: DNC has no reply
 /// channel, so the daemon writes a small status file at
-/// [statusPath] on start / reload / each dispatch, and `--status`
+/// [statusPath] on start / reload / each dispatch, and `daemon --show`
 /// just reads it.
 public enum Control {
     public static let center = "com.chord.app.control"

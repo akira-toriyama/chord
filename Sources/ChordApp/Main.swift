@@ -1,6 +1,7 @@
 import AppKit
 import ChordAdapterMacOS
 import ChordCore
+import CLIKit
 import Foundation
 
 /// `@main enum ChordApp` (not a top-level `main.swift`) — keeps
@@ -10,30 +11,21 @@ import Foundation
 enum ChordApp {
     @MainActor
     static func main() {
-        let args = Array(CommandLine.arguments.dropFirst())
-
-        // Standalone + client subcommands: dispatch through the
-        // declarative table. The table preserves prior priority
-        // order (document order = first-match-wins), and every
-        // handler returns a SubcommandOutcome rather than calling
-        // exit() itself — exit() lives at exactly one site
-        // (applyOutcome) so the dispatch is unit-testable.
-        if let outcome = dispatchSubcommand(args) {
-            applyOutcome(outcome)
-        }
-
-        // Server flags. Debug is env-var-triggered (run.sh sets
-        // CHORD_DEBUG=1) — there is no `--debug` flag, so a brew /
-        // raw `open Chord.app` launch stays quiet by default.
+        // Debug is env-var-triggered (run.sh sets CHORD_DEBUG=1) — there
+        // is no `--debug` flag, so a brew / raw `open Chord.app` launch
+        // stays quiet by default.
         Log.debugMode = ProcessInfo.processInfo.environment["CHORD_DEBUG"] != nil
 
-        // Anything unrecognised → exit 2 (Rule of Repair). Modifier
-        // flags consumed by a handler above (--strict / --json / …)
-        // re-surface here as plain args; they are silently accepted.
-        if let outcome = checkUnknownFlags(args) {
+        let args = Array(CommandLine.arguments.dropFirst())
+
+        // Bare `chord` runs the daemon. Every other invocation is a
+        // yabai-style `chord <domain> --<verb> [--modifier …]` control
+        // command; `dispatch` returns the outcome and exit() is applied
+        // at exactly one site (`applyOutcome`), so the whole CLI surface
+        // stays unit-testable. nil means "no CLI command — run the server".
+        if let outcome = dispatch(args) {
             applyOutcome(outcome)
         }
-
         runServer()
     }
 
@@ -66,99 +58,100 @@ enum ChordApp {
         }
     }
 
-    /// Declarative subcommand entry. `flags` is any-of; the first
-    /// table row whose flag set intersects argv wins.
-    struct Subcommand {
-        let flags: [String]
-        /// Modifier flags this subcommand honours, e.g. `--validate`
-        /// reads `--strict` / `--json`. Any modifier flag absent from
-        /// this list, when combined with this subcommand, becomes
-        /// "has no effect" — reported as exit 2 by `dispatchSubcommand`
-        /// rather than silently swallowed. Subcommand flags from
-        /// OTHER rows (e.g. `chord --validate --quit`) are tolerated
-        /// as priority-losers and not flagged.
-        let modifierFlags: [String]
-        /// Closure isolation lives on the function type (Swift 6),
-        /// not the storage property — Swift 6 rejects `@MainActor
-        /// let handler: …` because the synthesised memberwise init
-        /// would have to be both nonisolated (struct default) and
-        /// MainActor-isolated.
-        let handler: @MainActor ([String]) -> SubcommandOutcome
-    }
-
-    /// Subcommand registry. Order = priority (matches the previous
-    /// if-chain in main()). Edit here, not in main(), to add a flag.
+    /// A domain's verb table: each verb flag → the modifier flags it
+    /// honours. CLIKit tokenizes argv (loud unknown-flag reject + a
+    /// nearest-match hint + the `-h`/`-V` carve-out); chord keeps the
+    /// one-verb-per-domain rule and the "this modifier has no effect on
+    /// this verb" rejection (no silent no-op) — the D4 line: mechanism
+    /// in sill, policy in the app.
     @MainActor
-    private static let subcommands: [Subcommand] = [
-        // Standalone (no daemon contact).
-        .init(flags: ["--help", "-h"], modifierFlags: [],
-              handler: { _ in cmdHelp() }),
-        .init(flags: ["--version"], modifierFlags: [],
-              handler: { _ in cmdVersion() }),
-        .init(flags: ["--validate"], modifierFlags: ["--strict", "--json"],
-              handler: cmdValidate),
-        .init(flags: ["--list"], modifierFlags: ["--json", "--include-dropped"],
-              handler: cmdList),
-        .init(flags: ["--doctor"], modifierFlags: [],
-              handler: { _ in cmdDoctor() }),
-        // Client flags (post + wait + report).
-        .init(flags: ["--reload"], modifierFlags: ["--dry-run"],
-              handler: cmdReload),
-        .init(flags: ["--quit"], modifierFlags: [],
-              handler: { _ in cmdControl(Control.quit, label: "quit") }),
-        .init(flags: ["--pause"], modifierFlags: [],
-              handler: { _ in cmdControl(Control.pause, label: "paused") }),
-        .init(flags: ["--resume"], modifierFlags: [],
-              handler: { _ in cmdControl(Control.resume, label: "resumed") }),
-        .init(flags: ["--toggle"], modifierFlags: [],
-              handler: { _ in cmdToggle() }),
-        .init(flags: ["--status"], modifierFlags: [],
-              handler: { _ in cmdStatus() }),
-        .init(flags: ["--resign"], modifierFlags: [],
-              handler: { _ in cmdResign() }),
-        .init(flags: ["--watch"], modifierFlags: [],
-              handler: { _ in cmdWatch() }),
+    private static let configVerbs: [String: [String]] = [
+        "--validate": ["--strict", "--json"],
+        "--show":     ["--json", "--include-dropped"],   // was --list
+        "--doctor":   [],
+    ]
+    @MainActor
+    private static let daemonVerbs: [String: [String]] = [
+        "--reload": ["--dry-run"],
+        "--show":   [],            // was --status
+        "--quit":   [],
+        "--pause":  [],
+        "--resume": [],
+        "--toggle": [],
+        "--watch":  [],
+        "--resign": [],
     ]
 
-    /// All declared subcommand flags, used for the "priority-loser"
-    /// tolerance in `dispatchSubcommand` (so `chord --validate --quit`
-    /// still runs validate without rejecting the unused `--quit`).
+    /// Top-level dispatch. Peels the domain noun and routes to its verb
+    /// table. Returns nil ONLY for bare `chord` (→ server mode); every
+    /// other argv yields an outcome (help / version, a domain command,
+    /// or a loud usage error). Unit-testable: no exit(), no child spawn.
     @MainActor
-    private static var allSubcommandFlags: Set<String> {
-        Set(subcommands.flatMap(\.flags))
-    }
-
-    @MainActor
-    static func dispatchSubcommand(_ args: [String]) -> SubcommandOutcome? {
-        for cmd in subcommands {
-            if cmd.flags.contains(where: { args.contains($0) }) {
-                // Reject modifier flags that this subcommand doesn't
-                // honour (e.g. `chord --quit --json`). Subcommand
-                // flags from OTHER rows are tolerated as priority-
-                // losers — they re-surface in the same argv and
-                // erroring on them would be hostile.
-                let accepted = Set(cmd.flags + cmd.modifierFlags)
-                    .union(allSubcommandFlags)
-                for a in args where !accepted.contains(a) {
-                    return .fail(2, stderr:
-                        "chord: '\(a)' has no effect with \(cmd.flags[0]). " +
-                        "See --help.")
-                }
-                return cmd.handler(args)
+    static func dispatch(_ args: [String]) -> SubcommandOutcome? {
+        guard let domain = args.first else { return nil }   // bare chord → server
+        let rest = Array(args.dropFirst())
+        switch domain {
+        case "--help", "-h":    return .ok(helpText())
+        case "--version", "-V": return .ok("chord \(ChordVersion.current)")
+        case "config": return dispatchDomain("config", rest, configVerbs, runConfig)
+        case "daemon": return dispatchDomain("daemon", rest, daemonVerbs, runDaemon)
+        default:
+            // A `-`-leading first token is almost always an old flat flag
+            // (`chord --validate`) — point at the new domain home loudly
+            // instead of a bare "unknown command".
+            if domain.hasPrefix("-") {
+                return .fail(2, stderr: "chord: flags now live under a domain — "
+                    + "e.g. `chord config --validate`, `chord daemon --reload`. "
+                    + "Got '\(domain)'. See --help.")
             }
+            return .fail(2, stderr: "chord: unknown command '\(domain)'. "
+                + "Domains: config daemon (or bare `chord` to run the daemon). "
+                + "See --help.")
         }
-        return nil
     }
 
-    /// Repair check, server-mode only. Runs when no subcommand
-    /// matched: any modifier-like token is suspicious (the daemon
-    /// itself takes no flags). All flags accepted by some subcommand
-    /// are still rejected here — `chord --strict` alone is a typo.
-    static func checkUnknownFlags(_ args: [String]) -> SubcommandOutcome? {
-        for a in args {
-            return .fail(2, stderr: "chord: unknown flag '\(a)'. See --help.")
+    /// Tokenize `argv` against a domain's verb table (CLIKit), require
+    /// exactly one verb, reject any modifier the chosen verb doesn't
+    /// honour (loud — no silent no-op), then run it. Every failure maps
+    /// to a `SubcommandOutcome` (exit 2) rather than `CLIKit.die`, so the
+    /// dispatch stays testable (chord's single-exit-site invariant).
+    @MainActor
+    private static func dispatchDomain(
+        _ domain: String,
+        _ argv: [String],
+        _ verbs: [String: [String]],
+        _ run: @MainActor (String, CLIKit.Invocation) -> SubcommandOutcome
+    ) -> SubcommandOutcome {
+        // Every verb + every modifier is a recognised boolean flag, so
+        // CLIKit catches unknown flags (with a nearest-match hint); chord
+        // owns the verb-selection + modifier-applicability policy below.
+        var arity: [String: CLIKit.Arity] = [:]
+        for v in verbs.keys { arity[v] = .flag }
+        for mods in verbs.values { for m in mods { arity[m] = .flag } }
+        let inv: CLIKit.Invocation
+        do { inv = try CLIKit.parse(argv, spec: CLIKit.Spec(arity: arity)) }
+        catch let e as CLIKit.ParseError {
+            return .fail(2, stderr: "chord: " + e.usageMessage)
         }
-        return nil
+        catch { return .fail(2, stderr: "chord: \(error)") }
+
+        let present = inv.names.filter { verbs[$0] != nil }
+        guard present.count == 1, let verb = present.first else {
+            if present.isEmpty {
+                return .fail(2, stderr: "chord: `chord \(domain)` needs a verb: "
+                    + verbs.keys.sorted().joined(separator: " ") + ". See --help.")
+            }
+            return .fail(2, stderr: "chord: `chord \(domain)`: incompatible verbs "
+                + present.sorted().joined(separator: " ") + " — pick one. See --help.")
+        }
+        // Reject a modifier the verb doesn't honour (e.g. `daemon --quit
+        // --dry-run`): no silent swallow.
+        let allowed = Set([verb] + (verbs[verb] ?? []))
+        for name in inv.names where !allowed.contains(name) {
+            return .fail(2, stderr:
+                "chord: '\(name)' has no effect with \(verb). See --help.")
+        }
+        return run(verb, inv)
     }
 
     /// Single exit() site. Writes verbatim to stdout / stderr (no
@@ -174,43 +167,53 @@ enum ChordApp {
         exit(outcome.exitCode)
     }
 
-    // MARK: - subcommand handlers (thin wrappers over the runXxx
-    // worker functions further below)
+    // MARK: - domain verb runners (called by dispatchDomain after the
+    // verb + its modifiers are validated; thin shims over the runXxx
+    // workers further below)
 
-    private static func cmdHelp() -> SubcommandOutcome {
-        .ok(helpText())
-    }
-
-    private static func cmdVersion() -> SubcommandOutcome {
-        .ok("chord \(ChordVersion.current)")
-    }
-
-    private static func cmdValidate(_ args: [String]) -> SubcommandOutcome {
-        .code(runValidate(strict: args.contains("--strict"),
-                          json: args.contains("--json")))
-    }
-
-    private static func cmdList(_ args: [String]) -> SubcommandOutcome {
-        .code(runList(json: args.contains("--json"),
-                      includeDropped: args.contains("--include-dropped")))
-    }
-
+    /// `config` domain — standalone (no daemon contact).
     @MainActor
-    private static func cmdDoctor() -> SubcommandOutcome {
-        .code(runDoctor())
+    private static func runConfig(_ verb: String,
+                                  _ inv: CLIKit.Invocation) -> SubcommandOutcome {
+        switch verb {
+        case "--validate":
+            return .code(runValidate(strict: inv.has("--strict"),
+                                     json: inv.has("--json")))
+        case "--show":   // was `--list`
+            return .code(runList(json: inv.has("--json"),
+                                 includeDropped: inv.has("--include-dropped")))
+        case "--doctor":
+            return .code(runDoctor())
+        default:
+            return .fail(2, stderr: "chord: unreachable config verb \(verb)")
+        }
     }
 
-    private static func cmdReload(_ args: [String]) -> SubcommandOutcome {
-        if args.contains("--dry-run") {
-            return .code(runReloadDryRun())
+    /// `daemon` domain — lifecycle (post a `Control` notification + wait,
+    /// or read the status file). The `Control.*` wire names are unchanged,
+    /// so a new CLI drives an old daemon and vice versa.
+    @MainActor
+    private static func runDaemon(_ verb: String,
+                                  _ inv: CLIKit.Invocation) -> SubcommandOutcome {
+        switch verb {
+        case "--reload":
+            if inv.has("--dry-run") { return .code(runReloadDryRun()) }
+            return Control.postAndWait(Control.reload)
+                ? .ok("chord: reloaded")
+                : .fail(3, stderr: "chord: no daemon running")
+        case "--quit":   return cmdControl(Control.quit, label: "quit")
+        case "--pause":  return cmdControl(Control.pause, label: "paused")
+        case "--resume": return cmdControl(Control.resume, label: "resumed")
+        case "--toggle": return cmdToggle()
+        case "--show":   return cmdStatus()   // was `--status`
+        case "--watch":  return .code(runWatch())
+        case "--resign": return .code(runResign())
+        default:
+            return .fail(2, stderr: "chord: unreachable daemon verb \(verb)")
         }
-        if Control.postAndWait(Control.reload) {
-            return .ok("chord: reloaded")
-        }
-        return .fail(3, stderr: "chord: no daemon running")
     }
 
-    /// Shared body for `--quit` / `--pause` / `--resume`. Posts a
+    /// Shared body for `daemon --quit` / `--pause` / `--resume`. Posts a
     /// `Control` notification name (string constant) to the running
     /// daemon and reports either the labelled success ("chord: \(label)")
     /// or "no daemon running" on stderr with exit 3.
@@ -222,7 +225,7 @@ enum ChordApp {
         return .fail(3, stderr: "chord: no daemon running")
     }
 
-    /// `--toggle` reads the last status line and flips paused ↔
+    /// `daemon --toggle` reads the last status line and flips paused ↔
     /// resumed. The daemon writes "paused bindings=N" /
     /// "resumed bindings=N" / "fired …" etc.; a line that starts
     /// with "paused" (with optional leading timestamp/tab) is the
@@ -237,22 +240,14 @@ enum ChordApp {
                           label: isPaused ? "resumed" : "paused")
     }
 
-    /// `--status` writes the verbatim last status line (no extra
-    /// newline — the file already includes one when it has content).
+    /// `daemon --show` (was `--status`) writes the verbatim last status
+    /// line (no extra newline — the file already includes one when it
+    /// has content).
     private static func cmdStatus() -> SubcommandOutcome {
         if let s = Control.readStatus() {
             return SubcommandOutcome(exitCode: 0, stdout: s)
         }
         return .fail(3, stderr: "chord: no status file")
-    }
-
-    @MainActor
-    private static func cmdResign() -> SubcommandOutcome {
-        .code(runResign())
-    }
-
-    private static func cmdWatch() -> SubcommandOutcome {
-        .code(runWatch())
     }
 
     // MARK: - server
@@ -293,7 +288,7 @@ enum ChordApp {
 
     // MARK: - standalone subcommands
 
-    /// `--validate` parses `~/.config/chord/config.toml` and prints
+    /// `config --validate` parses `~/.config/chord/config.toml` and prints
     /// a per-config summary.
     ///
     /// Exit codes:
@@ -357,7 +352,7 @@ enum ChordApp {
         }
     }
 
-    /// `chord --list [--json] [--include-dropped]`
+    /// `chord config --show [--json] [--include-dropped]` (was `--list`)
     ///
     /// Default is a human-readable text table. `--json` emits the
     /// `chord.bindings.v3` schema document on stdout (machine-
@@ -444,7 +439,7 @@ enum ChordApp {
         }
     }
 
-    /// Human-readable form of a chained `.keys` action for `--list`
+    /// Human-readable form of a chained `.keys` action for `config --show`
     /// text. Collapses L/R sides to the logical modifier — the plain
     /// output is for humans; the JSON wire form carries the exact bits.
     private static func describeKeys(_ mods: Modifiers,
@@ -464,12 +459,12 @@ enum ChordApp {
             : parts.joined(separator: " + ") + " - " + key
     }
 
-    /// `chord --reload --dry-run` parses the on-disk config.toml
+    /// `chord daemon --reload --dry-run` parses the on-disk config.toml
     /// and diffs it against the daemon's last-loaded snapshot
     /// (written by `Controller.loadConfig` to
     /// [BindingsSchema.snapshotPath]). NO IPC, NO daemon state
     /// change — the actual reload only happens on a bare
-    /// `chord --reload`.
+    /// `chord daemon --reload`.
     ///
     /// Diff granularity is name-keyed: a binding whose name exists
     /// on both sides but whose semantic shape (input / apps /
@@ -510,7 +505,7 @@ enum ChordApp {
             print("")
         }
         if diff.isClean {
-            print("no changes — `chord --reload` would be a no-op")
+            print("no changes — `chord daemon --reload` would be a no-op")
             return
         }
 
@@ -614,7 +609,7 @@ enum ChordApp {
         }
     }
 
-    /// `chord --resign` re-signs the installed Chord.app with the
+    /// `chord daemon --resign` re-signs the installed Chord.app with the
     /// persistent `chord-dev` self-signed identity and restarts the
     /// daemon. Necessary after every `brew install` / `brew upgrade
     /// chord`, because Homebrew's build sandbox blocks the in-formula
@@ -631,11 +626,11 @@ enum ChordApp {
     ///   0 — re-signed (and restart attempted)
     ///   1 — codesign failed
     ///   2 — no Chord.app found in any expected location
-    /// `chord --watch` — live per-event trace (chord 0.9.0+).
+    /// `chord daemon --watch` — live per-event trace (chord 0.9.0+).
     /// Truncates `/tmp/chord-watch.log` (= "subscribe" signal) and
     /// then `tail -F`s it to stderr. The running daemon emits one
     /// line per event while the file exists. Exit on Ctrl-C; the
-    /// file is left behind so a subsequent `chord --watch` keeps
+    /// file is left behind so a subsequent `chord daemon --watch` keeps
     /// receiving lines. To stop the daemon from writing, the user
     /// can `rm /tmp/chord-watch.log`.
     ///
@@ -688,7 +683,7 @@ enum ChordApp {
             fputs("chord: no '\(identity)' identity in your login keychain.\n" +
                   "       run once:\n" +
                   "         \(setupCertHint())\n" +
-                  "         chord --resign\n", stderr)
+                  "         chord daemon --resign\n", stderr)
             return 3
         }
 
@@ -831,7 +826,7 @@ enum ChordApp {
             {
                 print("note: config has no active bindings — the " +
                       "shipped template is all-commented. Uncomment " +
-                      "patterns in \(cfgPath) and run `chord --reload`.")
+                      "patterns in \(cfgPath) and run `chord daemon --reload`.")
             }
             if res.droppedBindings > 0 { bad = true }
         }
@@ -846,29 +841,44 @@ enum ChordApp {
         chord — global keyboard + mouse hotkey daemon for macOS.
 
         USAGE
-          chord                run the daemon (default)
+          chord                              run the daemon (default)
+          chord <domain> --<verb> [--mod …]  one-shot control command
 
-          chord --validate          parse config.toml; exit 0 on clean
-          chord --validate --strict warnings + drops fail with exit 1
-          chord --validate --json   chord.bindings.v3 doc + validation block
-          chord --list              human-readable parsed config
-          chord --list --json       machine-readable (chord.bindings.v3)
-          chord --list --include-dropped   also list dropped bindings
-          chord --doctor            report Accessibility / config / daemon
-          chord --resign            re-sign Chord.app with chord-dev + restart
-                                    (run once after `brew install` / upgrade)
-          chord --reload       tell the running daemon to reload config
-          chord --reload --dry-run   preview what `--reload` would change
-          chord --quit         tell the running daemon to exit
-          chord --pause        suspend all bindings (passthrough mode)
-          chord --resume       re-enable bindings
-          chord --toggle       flip paused ↔ resumed (handy as a hotkey)
-          chord --status       print the last status line
-          chord --watch        live per-event trace (subscribes via
-                               /tmp/chord-watch.log; Ctrl-C to exit)
+        config — settings (standalone, no daemon required)
+          chord config --validate           parse config.toml; exit 0 on clean
+          chord config --validate --strict  warnings + drops fail with exit 1
+          chord config --validate --json    chord.bindings.v3 doc + validation block
+          chord config --show               human-readable parsed config (was --list)
+          chord config --show --json        machine-readable (chord.bindings.v3)
+          chord config --show --include-dropped   also list dropped bindings
+          chord config --doctor             report Accessibility / config / daemon
 
-          chord --help         this text
-          chord --version      print version
+        daemon — lifecycle (need a running daemon; exit 3 if none)
+          chord daemon --reload             tell the running daemon to reload config
+          chord daemon --reload --dry-run   preview what `--reload` would change
+          chord daemon --quit               tell the running daemon to exit
+          chord daemon --pause              suspend all bindings (passthrough mode)
+          chord daemon --resume             re-enable bindings
+          chord daemon --toggle             flip paused ↔ resumed (handy as a hotkey)
+          chord daemon --show               print the last status line (was --status)
+          chord daemon --watch              live per-event trace (subscribes via
+                                              /tmp/chord-watch.log; Ctrl-C to exit)
+          chord daemon --resign             re-sign Chord.app with chord-dev + restart
+                                              (run once after `brew install` / upgrade)
+
+          chord --help, -h                  this text
+          chord --version, -V               print version
+
+        Each domain takes exactly one verb; combining verbs or using a flag
+        outside its domain exits 2 (an unknown flag prints a "did you mean …?"
+        hint). No deprecation shim — the old flat flags (`chord --validate`,
+        `chord --reload`, …) now exit 2 and point at the new domain.
+
+        EXIT CODES
+          0   success
+          1   config --validate --strict tripped (warnings / dropped bindings)
+          2   usage / bad flag
+          3   daemon precondition: a daemon command with no daemon running
 
         CONFIG
           \(ChordConfig.path)

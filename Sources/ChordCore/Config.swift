@@ -3,7 +3,7 @@ import Foundation
 /// Parses TOML → [ChordConfig]. Out-of-range / unknown values are
 /// *clamped* or *dropped* with a warning rather than rejected — a
 /// typo in one binding can never disable the whole daemon. The
-/// strict-rejection path is `chord --validate`, which surfaces
+/// strict-rejection path is `chord config --validate`, which surfaces
 /// every warning and fails with a non-zero exit if any binding
 /// dropped.
 public enum Config {
@@ -111,7 +111,7 @@ public enum Config {
         // [input-aliases] — `name = "mod1 + mod2 + …"` lookup,
         // bare reference in `input = "…"`. Two parallel maps:
         //   * `inputAliasesRaw`: original case, used for schema /
-        //     introspection output (`chord --list --json`).
+        //     introspection output (`chord config --show --json`).
         //   * `inputAliasesParsed`: lowercased keys → `Modifiers` mask,
         //     pre-validated. Passed to `InputParser.parse` so token
         //     resolution is a constant-time lookup (no body re-parse
@@ -239,7 +239,7 @@ public enum Config {
 
         // Duplicate `name` detection. Two user-named bindings sharing
         // a name still both load (chord doesn't enforce uniqueness),
-        // but `--list --json` consumers and the `--reload --dry-run`
+        // but `config --show --json` consumers and the `daemon --reload --dry-run`
         // name-keyed diff can't distinguish them. Synthetic
         // `binding-N` names from makeBinding's index fallback are
         // exempt — they're unique by construction.
@@ -254,7 +254,7 @@ public enum Config {
                 kind: .duplicateBindingName,
                 message:
                     "duplicate binding name '\(name)' appears \(count) times — " +
-                    "name-keyed tooling (--list / --reload --dry-run diff) " +
+                    "name-keyed tooling (config --show / daemon --reload --dry-run diff) " +
                     "cannot distinguish them",
                 bindingName: name))
         }
@@ -655,7 +655,7 @@ public enum Config {
         // desugared to a fixed `.keys` primary action targeting the
         // macOS default shortcut. No shell-out, no new Action case;
         // the rest of the pipeline (Controller / Dispatcher / Schema /
-        // `--list --json`) sees a plain keys binding. Caveat: if the
+        // `config --show --json`) sees a plain keys binding. Caveat: if the
         // user has remapped the shortcut in System Settings → Keyboard,
         // the action effectively re-binds to whatever they assigned.
         // on-up variants are not supported (suffix must be empty).
@@ -988,7 +988,7 @@ public enum Config {
             return nil
         }
         // Sort by key for deterministic ordering — same reason as
-        // [[remap]] map iteration. Affects --list --json output only.
+        // [[remap]] map iteration. Affects config --show --json output only.
         var parts: [Condition] = []
         for key in table.keys.sorted() {
             guard let v = table[key]?.asInt else {

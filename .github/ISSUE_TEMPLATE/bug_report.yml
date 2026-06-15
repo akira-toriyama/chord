@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filing, please run `chord --doctor` and `chord --validate`
+        Before filing, please run `chord config --doctor` and `chord config --validate`
         and include both outputs below.
 
   - type: textarea
@@ -20,13 +20,13 @@ body:
   - type: textarea
     id: doctor
     attributes:
-      label: chord --doctor output
+      label: chord config --doctor output
       render: shell
 
   - type: textarea
     id: validate
     attributes:
-      label: chord --validate output
+      label: chord config --validate output
       render: shell
 
   - type: textarea

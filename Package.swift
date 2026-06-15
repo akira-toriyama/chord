@@ -43,11 +43,17 @@ let package = Package(
         // hand-rolled TOML parser — the SUPERSET reference the shared
         // parser was modelled on — folds into sill's pure, Foundation-only
         // `Toml` module. ChordCore takes ONLY `Toml` (zero AppKit, zero
-        // theming) and uses its NESTED, strict `parse` skin. Pinned to the
+        // theming) and uses its NESTED, strict `parse` skin. Floor bumped
+        // to 0.10.0 in atelier Phase 3 M4 for the `CLIKit` module — the
+        // family's shared pure argv tokenizer — which ChordApp consumes to
+        // drive the yabai-style `chord <domain> --<verb>` grammar (unknown-
+        // flag loud reject + did-you-mean + `-h`/`-V` carve-out). chord has
+        // no value-taking flags, so it doesn't hit the D0 hazard; CLIKit is
+        // for grammar consistency, not value tokenizing. Pinned to the
         // next-minor range like the family apps; Package.resolved locks the
         // exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "0.7.1")),
+                 .upToNextMinor(from: "0.10.0")),
     ],
     targets: [
         .target(
@@ -60,6 +66,13 @@ let package = Package(
             dependencies: [
                 "ChordCore",
                 "ChordAdapterMacOS",
+                // CLIKit: the family's shared pure argv tokenizer (atelier
+                // Phase 3). Drives ChordApp's yabai-style domain-verb CLI —
+                // loud unknown-flag rejection with a nearest-match hint and
+                // the `-h`/`-V` carve-out — while chord keeps its own verb
+                // vocabulary + one-verb-per-domain + modifier-applicability
+                // policy (the D4 line: mechanism in sill, policy in the app).
+                .product(name: "CLIKit", package: "sill"),
             ]),
         .testTarget(name: "ChordCoreTests", dependencies: ["ChordCore"]),
         .testTarget(

@@ -116,7 +116,7 @@ ZMK firmware の機能領域。chord は **macOS の userland daemon** であり
 - 制御権が macOS 側にない
 
 副次的に「BLE 切断検知して自動 pause」程度の周辺機能は考えうるが、それは
-`chord --watch` (#15) や `chord --status` の拡張で済み、独立 issue にする
+`chord daemon --watch` (#15) や `chord daemon --show` の拡張で済み、独立 issue にする
 規模ではない。
 
 ---
@@ -138,7 +138,7 @@ chord は TOML 一本で十分。JSON 入力サポートを追加する利得が
   の見やすさの支柱
 - **2 系統メンテのコスト**: 新機能 (`[[sequence]]` / `per-app` / `{{N}}`)
   すべてで TOML + JSON 両対応コードを書く負債
-- **`--list --json` は既に存在**: 機械 read 用途は出力側で網羅されている
+- **`config --show --json` は既に存在**: 機械 read 用途は出力側で網羅されている
 
 **機械生成したいなら**: Python `tomlkit` / Swift `TOMLKit` 等で TOML を
 書き出せばよい。入力側の JSON サポートは不要。

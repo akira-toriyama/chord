@@ -15,7 +15,7 @@ import Foundation
 ///
 /// `hyper` expands to cmd+opt+ctrl+shift. `alt` is an alias for
 /// `opt`. Unknown tokens raise [InputParseError] with a useful
-/// `context` for `chord --validate`.
+/// `context` for `chord config --validate`.
 public enum InputParser {
     public struct Parsed: Equatable {
         public let modifiers: Modifiers

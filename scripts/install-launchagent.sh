@@ -117,7 +117,7 @@ next:
     the grant survives across rebuilds as long as the chord-dev
     signing identity stays in your login keychain).
   • Tail the log:  tail -f /tmp/chord.log
-  • Status:        chord --status
-  • Reload config: chord --reload
+  • Status:        chord daemon --show
+  • Reload config: chord daemon --reload
   • Stop / disable:./scripts/uninstall-launchagent.sh
 EOF

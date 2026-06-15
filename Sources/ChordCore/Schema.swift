@@ -1,6 +1,6 @@
 import Foundation
 
-/// Wire format for `chord --list --json` / `chord --validate --json`,
+/// Wire format for `chord config --show --json` / `chord config --validate --json`,
 /// versioned `chord.bindings.v3` (was v1 through 0.3.x). The JSON
 /// Schema published at `docs/schema/chord.bindings.v3.json` is the
 /// canonical contract; every field in this file is mirrored there.
@@ -41,7 +41,7 @@ public enum BindingsSchema {
     public static let version = "chord.bindings.v3"
 
     /// Where the running daemon snapshots its last-loaded state, so
-    /// `chord --reload --dry-run` can diff the on-disk config
+    /// `chord daemon --reload --dry-run` can diff the on-disk config
     /// against what would actually change. Volatile (per-boot) by
     /// design — the daemon refreshes it on every loadConfig, and
     /// without a running daemon the dry-run treats absent snapshot
@@ -65,8 +65,8 @@ public enum BindingsSchema {
         public let bindings: [WireBinding]
         public let fallbacks: [WireBinding]
         public let dropped: [WireDropped]
-        /// Populated by `chord --validate --json`, absent on
-        /// `chord --list --json`. Lets CI surface validation
+        /// Populated by `chord config --validate --json`, absent on
+        /// `chord config --show --json`. Lets CI surface validation
         /// status structurally without re-deriving it from
         /// `dropped[].length` + exit code.
         public let validation: WireValidation?
@@ -80,7 +80,7 @@ public enum BindingsSchema {
         }
     }
 
-    /// Validation summary block, populated only by --validate emitters.
+    /// Validation summary block, populated only by config --validate emitters.
     public struct WireValidation: Codable, Sendable {
         /// What the process would exit with: `true` ⇔ exit 0.
         /// Independent of `strict` — `ok` already accounts for it.
@@ -267,7 +267,7 @@ public enum BindingsSchema {
         }
     }
 
-    // MARK: - diff (chord --reload --dry-run)
+    // MARK: - diff (chord daemon --reload --dry-run)
 
     /// Outcome of comparing a previously-loaded snapshot against the
     /// freshly-parsed config. Bindings are matched by `name`; a name
@@ -401,9 +401,9 @@ public enum BindingsSchema {
     /// `validationStrict` controls whether the optional
     /// `validation` block is included (and computed under strict /
     /// lenient semantics). `nil` ⇒ block is omitted (the
-    /// `--list --json` path); non-`nil` ⇒ block is populated using
+    /// `config --show --json` path); non-`nil` ⇒ block is populated using
     /// the same rules as `runValidate(strict:)` (the
-    /// `--validate --json` path).
+    /// `config --validate --json` path).
     public static func makeDocument(
         from result: Config.ParseResult,
         validationStrict: Bool? = nil,

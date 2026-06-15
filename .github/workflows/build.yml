@@ -32,7 +32,9 @@ jobs:
       - name: swift test
         run: swift test
 
-      - name: smoke test --validate
+      - name: smoke test (config --validate)
         run: |
+          # yabai-style CLI (atelier Phase 3 M4): validate moved under
+          # the `config` domain. `--version` stays a top-level carve-out.
           ./.build/release/chord --version
-          ./.build/release/chord --validate || true
+          ./.build/release/chord config --validate || true

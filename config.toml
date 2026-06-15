@@ -11,7 +11,7 @@
 # chord only ever READS this file. Bindings whose `input` or
 # `action-*` fails to parse are *dropped with a warning* rather than
 # rejected — a typo can never break the daemon. Validate explicitly
-# with `chord --validate` (or `chord --validate --strict` in CI).
+# with `chord config --validate` (or `chord config --validate --strict` in CI).
 #
 # **Everything below is commented out by design.** The shipped
 # template intentionally fires nothing on first install; uncomment

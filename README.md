@@ -72,12 +72,12 @@ Sugars:
 
 CI / introspection:
 
-- **`chord --validate [--strict] [--json]`** — parse + lint
-- **`chord --list [--json] [--include-dropped]`** — current parsed config
-- **`chord --watch`** — live per-event trace
-- **`chord --doctor`** — accessibility + config + daemon status
+- **`chord config --validate [--strict] [--json]`** — parse + lint
+- **`chord config --show [--json] [--include-dropped]`** — current parsed config
+- **`chord daemon --watch`** — live per-event trace
+- **`chord config --doctor`** — accessibility + config + daemon status
 
-JSON output for `--validate` / `--list` conforms to the versioned
+JSON output for `config --validate` / `config --show` conforms to the versioned
 [`chord.bindings.v3` JSON Schema](docs/schema/chord.bindings.v3.json).
 
 `chord` is hexagonal Swift 6 (Core / AdapterMacOS / AdapterTest /
@@ -95,16 +95,16 @@ brew install akira-toriyama/tap/chord
 
 # One-time setup so the Accessibility grant persists across upgrades
 $(brew --prefix)/share/chord/setup-signing-cert.sh   # create chord-dev identity
-chord --resign                                        # re-sign + restart
+chord daemon --resign                                 # re-sign + restart
 
 brew services start chord
 ```
 
-After every subsequent `brew upgrade chord`, run `chord --resign`
+After every subsequent `brew upgrade chord`, run `chord daemon --resign`
 once — Homebrew's build sandbox can't touch your login keychain
 during install, so the bundle is ad-hoc signed and the TCC
 Accessibility grant would otherwise be lost on every upgrade.
-`chord --resign` swaps the ad-hoc signature for the persistent
+`chord daemon --resign` swaps the ad-hoc signature for the persistent
 `chord-dev` identity and restarts the daemon in one step.
 
 Or build from source — requires macOS 13+ and Xcode CommandLineTools
@@ -131,7 +131,7 @@ curl --create-dirs -o ~/.config/chord/config.toml \
   https://raw.githubusercontent.com/akira-toriyama/chord/main/config.toml
 ```
 
-Edit, then either restart the daemon or `chord --reload`. chord
+Edit, then either restart the daemon or `chord daemon --reload`. chord
 auto-reloads on file change too (vnode watcher; survives
 atomic-save / rename).
 
@@ -214,43 +214,80 @@ option commented inline.
 
 ```
 chord                run the daemon (default)
-chord --validate          parse config.toml; exit 0 on clean
-chord --validate --strict warnings + drops fail with exit 1 (for CI)
-chord --validate --json   chord.bindings.v3 document + validation block
-chord --list              human-readable parsed config
-chord --list --json       machine-readable (chord.bindings.v3)
-chord --list --include-dropped   also list dropped bindings
-chord --doctor            report Accessibility / config / daemon
-chord --resign            re-sign Chord.app with chord-dev + restart
+chord config --validate          parse config.toml; exit 0 on clean
+chord config --validate --strict warnings + drops fail with exit 1 (for CI)
+chord config --validate --json   chord.bindings.v3 document + validation block
+chord config --show              human-readable parsed config
+chord config --show --json       machine-readable (chord.bindings.v3)
+chord config --show --include-dropped   also list dropped bindings
+chord config --doctor     report Accessibility / config / daemon
+chord daemon --resign     re-sign Chord.app with chord-dev + restart
                           (run once after `brew install` / upgrade)
-chord --watch             live per-event trace (subscribes via
+chord daemon --watch      live per-event trace (subscribes via
                           /tmp/chord-watch.log; Ctrl-C to exit)
-chord --reload       tell the running daemon to reload config
-chord --reload --dry-run   preview what `--reload` would change
-chord --quit         tell the running daemon to exit
-chord --pause        suspend all bindings (passthrough mode)
-chord --resume       re-enable bindings
-chord --toggle       flip paused ↔ resumed (handy as a hotkey)
-chord --status       print the last status line
+chord daemon --reload      tell the running daemon to reload config
+chord daemon --reload --dry-run   preview what `--reload` would change
+chord daemon --quit        tell the running daemon to exit
+chord daemon --pause       suspend all bindings (passthrough mode)
+chord daemon --resume      re-enable bindings
+chord daemon --toggle      flip paused ↔ resumed (handy as a hotkey)
+chord daemon --show        print the last status line
 chord --help         this text
 chord --version      print version
 ```
 
-`--pause` is the sane "I'm about to record a screencast / play a
+`daemon --pause` is the sane "I'm about to record a screencast / play a
 game / share my screen on Zoom and don't want chord eating my
 keystrokes" lever. The daemon stays loaded and AX-granted; it just
-lets every event through until you `--resume`. Bind `--toggle` to
+lets every event through until you `daemon --resume`. Bind `daemon --toggle` to
 a hotkey for one-button suspend / resume:
 
 ```toml
 [[bindings]]
 name = "chord pause toggle"
 input = "hyper - p"
-action-shell = "chord --toggle"
+action-shell = "chord daemon --toggle"
 ```
 
 Logs go to `/tmp/chord.log`. Set `CHORD_DEBUG=1` (e.g. via `./run.sh`)
 to also mirror to stderr. There is no `--debug` flag — passing one exits `2`.
+
+The grammar is yabai-style `chord <domain> --<verb> [--mod]`, powered by
+the shared sill CLIKit tokenizer (chord keeps its own verb vocabulary).
+Each domain takes exactly one verb; combining verbs, or passing a flag
+outside its domain, exits `2` (an unknown flag prints a "did you mean …?"
+hint). The two domains are `config` (settings; standalone, no daemon) and
+`daemon` (lifecycle; needs a running daemon, exits `3` if none). Exit
+codes: `0` ok / `1` (`config --validate --strict` tripped) / `2` usage /
+`3` daemon-not-running. Note `--show` exists in **both** domains and they
+differ: `config --show` lists the parsed config / bindings, while
+`daemon --show` prints the daemon's runtime status line.
+
+## Migration (flat flags → yabai-style domains)
+
+There is **no deprecation shim** — the old flat flags exit 2. Map:
+
+| old | new |
+| --- | --- |
+| `chord --validate` | `chord config --validate` |
+| `chord --doctor` | `chord config --doctor` |
+| `chord --list` | `chord config --show` |
+| `chord --reload` | `chord daemon --reload` |
+| `chord --quit` | `chord daemon --quit` |
+| `chord --pause` | `chord daemon --pause` |
+| `chord --resume` | `chord daemon --resume` |
+| `chord --toggle` | `chord daemon --toggle` |
+| `chord --status` | `chord daemon --show` |
+| `chord --watch` | `chord daemon --watch` |
+| `chord --resign` | `chord daemon --resign` |
+
+Two of these are **renames**, not just re-homings: `--list` becomes
+`config --show` (not `config --list`), and `--status` becomes
+`daemon --show`. The `--validate` modifiers (`--strict` / `--json`), the
+`config --show` modifiers (`--json` / `--include-dropped`), and the
+`daemon --reload` modifier (`--dry-run`) all carry over unchanged. Bare
+`chord`, `chord --help` / `-h`, `chord --version` / `-V`, and the
+`CHORD_DEBUG=1` env var are unaffected.
 
 ## Architecture
 

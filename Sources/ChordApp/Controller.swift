@@ -177,7 +177,7 @@ public final class Controller {
         return .consume
     }
 
-    /// Compact action description for `chord --watch` lines.
+    /// Compact action description for `chord daemon --watch` lines.
     nonisolated private func describeAction(_ a: Action) -> String {
         switch a {
         case .keys:           return "keys"
@@ -188,7 +188,7 @@ public final class Controller {
         }
     }
 
-    /// One-line structured per-event log for `chord --watch`. Emits
+    /// One-line structured per-event log for `chord daemon --watch`. Emits
     /// to `/tmp/chord-watch.log` only when the file exists (= a watch
     /// client has been started). Format:
     /// ```
@@ -528,13 +528,13 @@ public final class Controller {
                 .filter { $0.kind == .undefinedActionAlias }
                 .count
             let hint = (result.droppedBindings > 0 || result.warnings.count > 0)
-                ? " (run --validate --strict for details)" : ""
+                ? " (run config --validate --strict for details)" : ""
             Log.line("config \(reason): \(matcher.bindings.count) bindings, " +
                      "\(matcher.fallbacks.count) fallbacks, " +
                      "\(result.config.actionAliases.count) action-aliases, " +
                      "undefined-action-aliases=\(undef), " +
                      "dropped=\(result.droppedBindings)\(hint)")
-            // Snapshot the loaded state for `chord --reload --dry-run`
+            // Snapshot the loaded state for `chord daemon --reload --dry-run`
             // to diff against on the next edit. Failures here are
             // non-fatal — the daemon keeps running, dry-run just
             // shows everything as "added" until the next reload.
@@ -666,7 +666,7 @@ private let matcherLock = NSLock()
 
 // Same shape for the paused flag — the tap callback reads it once
 // per event, the @MainActor controller flips it on
-// `chord --pause` / `--resume`.
+// `chord daemon --pause` / `daemon --resume`.
 nonisolated(unsafe) private var pausedFlag: Bool = false
 private let pauseLock = NSLock()
 

@@ -78,7 +78,7 @@ extension Config {
 
             // Sort by key for deterministic ordering. Inline-table key
             // iteration is unordered in Swift dictionaries, and that
-            // would surface as non-deterministic `--list --json` output.
+            // would surface as non-deterministic `config --show --json` output.
             for key in mapTable.keys.sorted() {
                 let entryName = "\(baseName).\(key)"
                 guard let valueStr = mapTable[key]?.asString else {

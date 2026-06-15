@@ -139,7 +139,7 @@ extension Config {
     /// into N synthesised rows. Each expansion clones the original
     /// row, replaces `input` with one element, and (when the user
     /// provided a `name`) appends `" — <input>"` so warnings /
-    /// `--list --json` distinguish the siblings.
+    /// `config --show --json` distinguish the siblings.
     ///
     /// The `__line__` synthetic metadata key is preserved verbatim
     /// across expansions (all expanded fallbacks attribute back to

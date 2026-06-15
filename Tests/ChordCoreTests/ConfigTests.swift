@@ -123,7 +123,7 @@ final class ConfigTests: XCTestCase {
     /// only checks the keys it knows about, so a camelCase typo
     /// (`passthroughUnmatched`) or an invented key looked exactly
     /// like "it worked but had no effect". Warn on every unknown
-    /// key so `--validate --strict` catches it in CI.
+    /// key so `config --validate --strict` catches it in CI.
     func testUnknownOptionKeyWarns() throws {
         let source = """
         [options]
@@ -151,8 +151,8 @@ final class ConfigTests: XCTestCase {
 
     /// Two user-named bindings sharing a name still load (chord
     /// doesn't enforce uniqueness — the order-based first-match-wins
-    /// matcher copes), but `--list --json` consumers and the
-    /// `--reload --dry-run` name-keyed diff can't tell them apart.
+    /// matcher copes), but `config --show --json` consumers and the
+    /// `daemon --reload --dry-run` name-keyed diff can't tell them apart.
     /// Surface the ambiguity as a warning so it doesn't silently
     /// degrade the introspection tooling.
     func testDuplicateBindingNameWarns() throws {

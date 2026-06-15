@@ -223,7 +223,7 @@ public enum Condition: Hashable, Sendable {
 ///
 /// Carries `inputRaw` / `actionRaw` / `aliasName` / `sourceLine`
 /// metadata alongside the runtime fields. The matcher ignores
-/// them; the `chord --list --json` serialiser
+/// them; the `chord config --show --json` serialiser
 /// ([Schema.swift](Schema.swift)) needs them to round-trip a config
 /// faithfully (preserve user-typed strings, attribute warnings to
 /// source lines, surface alias usage).
@@ -308,7 +308,7 @@ public struct Binding: Hashable, Sendable {
 
     /// Original `input = "..."` string as the user wrote it. Kept
     /// verbatim so the JSON form can expose `input.raw` for human
-    /// display and so `--list` text output mirrors the file.
+    /// display and so `config --show` text output mirrors the file.
     public var inputRaw: String
     /// Original `action-shell = "..."` / `action-keys = "..."`
     /// string. `nil` for `action-noop`.
@@ -360,7 +360,7 @@ public struct Binding: Hashable, Sendable {
 /// the matcher. Read on the tap thread without locks (the snapshot is
 /// copied in; no contention). The map's identity (which keys exist)
 /// equals the union of every variable ever assigned a non-zero value
-/// since startup or the last `--reload`; an unset key reads as 0.
+/// since startup or the last `daemon --reload`; an unset key reads as 0.
 public struct StateSnapshot: Hashable, Sendable {
     public let variables: [String: Int]
     public init(variables: [String: Int] = [:]) {
