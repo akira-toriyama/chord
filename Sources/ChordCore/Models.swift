@@ -159,7 +159,7 @@ public enum ScrollDirection: String, Hashable, Sendable, Codable {
 /// stream of `keyDown` events with the autorepeat flag set; without
 /// this strategy a long press on a `action-shell` binding would
 /// invoke the shell over and over.
-public enum RepeatStrategy: String, Hashable, Sendable, Codable {
+public enum RepeatStrategy: String, CaseIterable, Hashable, Sendable, Codable {
     /// Fire the action on every repeat. Default for backward
     /// compatibility (pre-0.9.0 chord had no concept of repeats).
     case fireEach = "fire-each"

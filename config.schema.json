@@ -1,0 +1,1261 @@
+{
+  "$comment" : "chord config.toml INPUT schema (editor completion). Regenerate: `chord config --emit-schema > config.schema.json`. NOT chord.bindings.v3.json (the parse-OUTPUT wire format).",
+  "$schema" : "http:\/\/json-schema.org\/draft-07\/schema#",
+  "additionalProperties" : false,
+  "properties" : {
+    "action-aliases" : {
+      "additionalProperties" : {
+        "description" : "Shell command body. Reference via @name in action-shell.",
+        "type" : "string"
+      },
+      "description" : "name → shell command. Open vocabulary.",
+      "type" : "object"
+    },
+    "bindings" : {
+      "description" : "The primary key→action bindings.",
+      "items" : {
+        "additionalProperties" : false,
+        "allOf" : [
+          {
+            "anyOf" : [
+              {
+                "required" : [
+                  "action-shell"
+                ]
+              },
+              {
+                "required" : [
+                  "action-keys"
+                ]
+              },
+              {
+                "required" : [
+                  "action-noop"
+                ]
+              },
+              {
+                "required" : [
+                  "action-set-var"
+                ]
+              },
+              {
+                "required" : [
+                  "action-set-value"
+                ]
+              },
+              {
+                "required" : [
+                  "action-toggle-var"
+                ]
+              },
+              {
+                "required" : [
+                  "action-hold-var"
+                ]
+              },
+              {
+                "required" : [
+                  "action-mission-control"
+                ]
+              },
+              {
+                "required" : [
+                  "action-screenshot"
+                ]
+              },
+              {
+                "required" : [
+                  "action-spotlight"
+                ]
+              }
+            ]
+          },
+          {
+            "not" : {
+              "required" : [
+                "hold-while",
+                "hold-while-timeout"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "when-var",
+                "when-vars"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "apps",
+                "per-app"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "action-set-var",
+                "action-toggle-var"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "action-set-var",
+                "action-hold-var"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "action-toggle-var",
+                "action-hold-var"
+              ]
+            }
+          }
+        ],
+        "dependencies" : {
+          "action-set-value" : [
+            "action-set-var"
+          ],
+          "action-set-value-on-up" : [
+            "action-set-var-on-up"
+          ],
+          "when-var-value" : [
+            "when-var"
+          ]
+        },
+        "description" : "A key\/chord → action binding.",
+        "properties" : {
+          "action-hold-var" : {
+            "description" : "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer).",
+            "type" : "string"
+          },
+          "action-keys" : {
+            "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
+            "examples" : [
+              "cmd - c",
+              "[\"cmd - a\", \"cmd - c\"]"
+            ],
+            "oneOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "items" : {
+                  "type" : "string"
+                },
+                "type" : "array"
+              }
+            ]
+          },
+          "action-keys-on-up" : {
+            "description" : "Keystroke on key-up (string only — no array).",
+            "type" : "string"
+          },
+          "action-mission-control" : {
+            "description" : "macOS Mission Control action.",
+            "enum" : [
+              "show-all-windows",
+              "show-app-windows"
+            ],
+            "type" : "string"
+          },
+          "action-noop" : {
+            "const" : true,
+            "description" : "Consume the event and do nothing (block a key). Only `true` is meaningful."
+          },
+          "action-noop-on-up" : {
+            "const" : true,
+            "description" : "Consume the key-up. Only `true`."
+          },
+          "action-screenshot" : {
+            "description" : "macOS screenshot action.",
+            "enum" : [
+              "selection",
+              "screen"
+            ],
+            "type" : "string"
+          },
+          "action-set-value" : {
+            "default" : 1,
+            "description" : "Value for action-set-var (0 clears). Requires action-set-var.",
+            "type" : "integer"
+          },
+          "action-set-value-on-up" : {
+            "default" : 1,
+            "description" : "Value for action-set-var-on-up.",
+            "type" : "integer"
+          },
+          "action-set-var" : {
+            "description" : "Set a state variable (used by when-var gates). Must not be a reserved `_seq_*` name.",
+            "type" : "string"
+          },
+          "action-set-var-on-up" : {
+            "description" : "Set a state variable on key-up.",
+            "type" : "string"
+          },
+          "action-shell" : {
+            "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases].",
+            "examples" : [
+              "open -a Safari",
+              "@focus_next"
+            ],
+            "type" : "string"
+          },
+          "action-shell-on-up" : {
+            "description" : "Shell command to run on key-up.",
+            "type" : "string"
+          },
+          "action-spotlight" : {
+            "const" : true,
+            "description" : "Open Spotlight (cmd-space default). Only `true` is meaningful."
+          },
+          "action-toggle-var" : {
+            "description" : "Flip a state variable between 0 and 1.",
+            "type" : "string"
+          },
+          "apps" : {
+            "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app.",
+            "examples" : [
+              "[\"com.apple.Safari\"]",
+              "[\"!com.apple.Terminal\"]"
+            ],
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "hold-while" : {
+            "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
+            "examples" : [
+              "cmd + opt"
+            ],
+            "type" : "string"
+          },
+          "hold-while-timeout" : {
+            "description" : "Clear the set variable after this many ms of inactivity (>0).",
+            "exclusiveMinimum" : 0,
+            "type" : "integer"
+          },
+          "input" : {
+            "description" : "Trigger: `[MODIFIERS -] KEY`. Supports $input-aliases, side-aware L\/R, scroll.up\/down.",
+            "examples" : [
+              "cmd + opt - f13",
+              "ctrl - scroll.up",
+              "$ULTRA - c"
+            ],
+            "type" : "string"
+          },
+          "input-source" : {
+            "description" : "Restrict to keyboard input-source id(s).",
+            "oneOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "items" : {
+                  "type" : "string"
+                },
+                "type" : "array"
+              }
+            ]
+          },
+          "name" : {
+            "description" : "Display name; defaults to `binding-N`.",
+            "type" : "string"
+          },
+          "passthrough" : {
+            "default" : false,
+            "description" : "Let the original event reach the OS after firing.",
+            "type" : "boolean"
+          },
+          "per-app" : {
+            "items" : {
+              "additionalProperties" : false,
+              "allOf" : [
+                {
+                  "not" : {
+                    "required" : [
+                      "hold-while",
+                      "hold-while-timeout"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "when-var",
+                      "when-vars"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "action-set-var",
+                      "action-toggle-var"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "action-set-var",
+                      "action-hold-var"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "action-toggle-var",
+                      "action-hold-var"
+                    ]
+                  }
+                }
+              ],
+              "dependencies" : {
+                "action-set-value" : [
+                  "action-set-var"
+                ],
+                "action-set-value-on-up" : [
+                  "action-set-var-on-up"
+                ],
+                "when-var-value" : [
+                  "when-var"
+                ]
+              },
+              "description" : "Per-app override layered onto the parent binding.",
+              "properties" : {
+                "action-hold-var" : {
+                  "description" : "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer).",
+                  "type" : "string"
+                },
+                "action-keys" : {
+                  "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
+                  "examples" : [
+                    "cmd - c",
+                    "[\"cmd - a\", \"cmd - c\"]"
+                  ],
+                  "oneOf" : [
+                    {
+                      "type" : "string"
+                    },
+                    {
+                      "items" : {
+                        "type" : "string"
+                      },
+                      "type" : "array"
+                    }
+                  ]
+                },
+                "action-keys-on-up" : {
+                  "description" : "Keystroke on key-up (string only — no array).",
+                  "type" : "string"
+                },
+                "action-mission-control" : {
+                  "description" : "macOS Mission Control action.",
+                  "enum" : [
+                    "show-all-windows",
+                    "show-app-windows"
+                  ],
+                  "type" : "string"
+                },
+                "action-noop" : {
+                  "const" : true,
+                  "description" : "Consume the event and do nothing (block a key). Only `true` is meaningful."
+                },
+                "action-noop-on-up" : {
+                  "const" : true,
+                  "description" : "Consume the key-up. Only `true`."
+                },
+                "action-screenshot" : {
+                  "description" : "macOS screenshot action.",
+                  "enum" : [
+                    "selection",
+                    "screen"
+                  ],
+                  "type" : "string"
+                },
+                "action-set-value" : {
+                  "default" : 1,
+                  "description" : "Value for action-set-var (0 clears). Requires action-set-var.",
+                  "type" : "integer"
+                },
+                "action-set-value-on-up" : {
+                  "default" : 1,
+                  "description" : "Value for action-set-var-on-up.",
+                  "type" : "integer"
+                },
+                "action-set-var" : {
+                  "description" : "Set a state variable (used by when-var gates). Must not be a reserved `_seq_*` name.",
+                  "type" : "string"
+                },
+                "action-set-var-on-up" : {
+                  "description" : "Set a state variable on key-up.",
+                  "type" : "string"
+                },
+                "action-shell" : {
+                  "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases].",
+                  "examples" : [
+                    "open -a Safari",
+                    "@focus_next"
+                  ],
+                  "type" : "string"
+                },
+                "action-shell-on-up" : {
+                  "description" : "Shell command to run on key-up.",
+                  "type" : "string"
+                },
+                "action-spotlight" : {
+                  "const" : true,
+                  "description" : "Open Spotlight (cmd-space default). Only `true` is meaningful."
+                },
+                "action-toggle-var" : {
+                  "description" : "Flip a state variable between 0 and 1.",
+                  "type" : "string"
+                },
+                "bundle-id" : {
+                  "description" : "App this override applies to (bundle id).",
+                  "type" : "string"
+                },
+                "hold-while" : {
+                  "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
+                  "examples" : [
+                    "cmd + opt"
+                  ],
+                  "type" : "string"
+                },
+                "hold-while-timeout" : {
+                  "description" : "Clear the set variable after this many ms of inactivity (>0).",
+                  "exclusiveMinimum" : 0,
+                  "type" : "integer"
+                },
+                "input" : {
+                  "description" : "Optional per-app input override.",
+                  "type" : "string"
+                },
+                "input-source" : {
+                  "description" : "Restrict to keyboard input-source id(s).",
+                  "oneOf" : [
+                    {
+                      "type" : "string"
+                    },
+                    {
+                      "items" : {
+                        "type" : "string"
+                      },
+                      "type" : "array"
+                    }
+                  ]
+                },
+                "passthrough" : {
+                  "default" : false,
+                  "description" : "Let the original event reach the OS after firing.",
+                  "type" : "boolean"
+                },
+                "repeat" : {
+                  "description" : "How key-repeat is handled.",
+                  "enum" : [
+                    "fire-each",
+                    "ignore",
+                    "passthrough"
+                  ],
+                  "examples" : [
+                    "fire-each"
+                  ],
+                  "type" : "string"
+                },
+                "when-var" : {
+                  "description" : "Only fire when this state variable equals when-var-value.",
+                  "type" : "string"
+                },
+                "when-var-value" : {
+                  "default" : 1,
+                  "description" : "Expected value for when-var.",
+                  "type" : "integer"
+                },
+                "when-vars" : {
+                  "additionalProperties" : {
+                    "type" : "integer"
+                  },
+                  "description" : "AND gate: fire only when every `name = value` here matches. Non-empty; all integers. Mutually exclusive with when-var.",
+                  "minProperties" : 1,
+                  "type" : "object"
+                }
+              },
+              "required" : [
+                "bundle-id"
+              ],
+              "type" : "object"
+            },
+            "type" : "array"
+          },
+          "repeat" : {
+            "description" : "How key-repeat is handled.",
+            "enum" : [
+              "fire-each",
+              "ignore",
+              "passthrough"
+            ],
+            "examples" : [
+              "fire-each"
+            ],
+            "type" : "string"
+          },
+          "when-var" : {
+            "description" : "Only fire when this state variable equals when-var-value.",
+            "type" : "string"
+          },
+          "when-var-value" : {
+            "default" : 1,
+            "description" : "Expected value for when-var.",
+            "type" : "integer"
+          },
+          "when-vars" : {
+            "additionalProperties" : {
+              "type" : "integer"
+            },
+            "description" : "AND gate: fire only when every `name = value` here matches. Non-empty; all integers. Mutually exclusive with when-var.",
+            "minProperties" : 1,
+            "type" : "object"
+          }
+        },
+        "required" : [
+          "input"
+        ],
+        "type" : "object"
+      },
+      "type" : "array"
+    },
+    "fallbacks" : {
+      "description" : "Lower-priority catch-all bindings.",
+      "items" : {
+        "additionalProperties" : false,
+        "allOf" : [
+          {
+            "oneOf" : [
+              {
+                "required" : [
+                  "input"
+                ]
+              },
+              {
+                "required" : [
+                  "inputs"
+                ]
+              }
+            ]
+          },
+          {
+            "anyOf" : [
+              {
+                "required" : [
+                  "action-shell"
+                ]
+              },
+              {
+                "required" : [
+                  "action-keys"
+                ]
+              },
+              {
+                "required" : [
+                  "action-noop"
+                ]
+              },
+              {
+                "required" : [
+                  "action-set-var"
+                ]
+              },
+              {
+                "required" : [
+                  "action-set-value"
+                ]
+              },
+              {
+                "required" : [
+                  "action-toggle-var"
+                ]
+              },
+              {
+                "required" : [
+                  "action-hold-var"
+                ]
+              },
+              {
+                "required" : [
+                  "action-mission-control"
+                ]
+              },
+              {
+                "required" : [
+                  "action-screenshot"
+                ]
+              },
+              {
+                "required" : [
+                  "action-spotlight"
+                ]
+              }
+            ]
+          },
+          {
+            "not" : {
+              "required" : [
+                "hold-while",
+                "hold-while-timeout"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "when-var",
+                "when-vars"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "apps",
+                "per-app"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "action-set-var",
+                "action-toggle-var"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "action-set-var",
+                "action-hold-var"
+              ]
+            }
+          },
+          {
+            "not" : {
+              "required" : [
+                "action-toggle-var",
+                "action-hold-var"
+              ]
+            }
+          }
+        ],
+        "dependencies" : {
+          "action-set-value" : [
+            "action-set-var"
+          ],
+          "action-set-value-on-up" : [
+            "action-set-var-on-up"
+          ],
+          "when-var-value" : [
+            "when-var"
+          ]
+        },
+        "description" : "A lower-priority binding tried only when no [[bindings]] row matched.",
+        "properties" : {
+          "action-hold-var" : {
+            "description" : "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer).",
+            "type" : "string"
+          },
+          "action-keys" : {
+            "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
+            "examples" : [
+              "cmd - c",
+              "[\"cmd - a\", \"cmd - c\"]"
+            ],
+            "oneOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "items" : {
+                  "type" : "string"
+                },
+                "type" : "array"
+              }
+            ]
+          },
+          "action-keys-on-up" : {
+            "description" : "Keystroke on key-up (string only — no array).",
+            "type" : "string"
+          },
+          "action-mission-control" : {
+            "description" : "macOS Mission Control action.",
+            "enum" : [
+              "show-all-windows",
+              "show-app-windows"
+            ],
+            "type" : "string"
+          },
+          "action-noop" : {
+            "const" : true,
+            "description" : "Consume the event and do nothing (block a key). Only `true` is meaningful."
+          },
+          "action-noop-on-up" : {
+            "const" : true,
+            "description" : "Consume the key-up. Only `true`."
+          },
+          "action-screenshot" : {
+            "description" : "macOS screenshot action.",
+            "enum" : [
+              "selection",
+              "screen"
+            ],
+            "type" : "string"
+          },
+          "action-set-value" : {
+            "default" : 1,
+            "description" : "Value for action-set-var (0 clears). Requires action-set-var.",
+            "type" : "integer"
+          },
+          "action-set-value-on-up" : {
+            "default" : 1,
+            "description" : "Value for action-set-var-on-up.",
+            "type" : "integer"
+          },
+          "action-set-var" : {
+            "description" : "Set a state variable (used by when-var gates). Must not be a reserved `_seq_*` name.",
+            "type" : "string"
+          },
+          "action-set-var-on-up" : {
+            "description" : "Set a state variable on key-up.",
+            "type" : "string"
+          },
+          "action-shell" : {
+            "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases].",
+            "examples" : [
+              "open -a Safari",
+              "@focus_next"
+            ],
+            "type" : "string"
+          },
+          "action-shell-on-up" : {
+            "description" : "Shell command to run on key-up.",
+            "type" : "string"
+          },
+          "action-spotlight" : {
+            "const" : true,
+            "description" : "Open Spotlight (cmd-space default). Only `true` is meaningful."
+          },
+          "action-toggle-var" : {
+            "description" : "Flip a state variable between 0 and 1.",
+            "type" : "string"
+          },
+          "apps" : {
+            "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app.",
+            "examples" : [
+              "[\"com.apple.Safari\"]",
+              "[\"!com.apple.Terminal\"]"
+            ],
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "hold-while" : {
+            "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
+            "examples" : [
+              "cmd + opt"
+            ],
+            "type" : "string"
+          },
+          "hold-while-timeout" : {
+            "description" : "Clear the set variable after this many ms of inactivity (>0).",
+            "exclusiveMinimum" : 0,
+            "type" : "integer"
+          },
+          "input" : {
+            "description" : "Trigger; the wildcard `*` is allowed here (catch-all). Mutually exclusive with inputs.",
+            "examples" : [
+              "*",
+              "cmd - a"
+            ],
+            "type" : "string"
+          },
+          "input-source" : {
+            "description" : "Restrict to keyboard input-source id(s).",
+            "oneOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "items" : {
+                  "type" : "string"
+                },
+                "type" : "array"
+              }
+            ]
+          },
+          "inputs" : {
+            "description" : "Multiple triggers sharing one action. Mutually exclusive with input.",
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "description" : "Display name; defaults to `binding-N`.",
+            "type" : "string"
+          },
+          "passthrough" : {
+            "default" : false,
+            "description" : "Let the original event reach the OS after firing.",
+            "type" : "boolean"
+          },
+          "repeat" : {
+            "description" : "How key-repeat is handled.",
+            "enum" : [
+              "fire-each",
+              "ignore",
+              "passthrough"
+            ],
+            "examples" : [
+              "fire-each"
+            ],
+            "type" : "string"
+          },
+          "when-var" : {
+            "description" : "Only fire when this state variable equals when-var-value.",
+            "type" : "string"
+          },
+          "when-var-value" : {
+            "default" : 1,
+            "description" : "Expected value for when-var.",
+            "type" : "integer"
+          },
+          "when-vars" : {
+            "additionalProperties" : {
+              "type" : "integer"
+            },
+            "description" : "AND gate: fire only when every `name = value` here matches. Non-empty; all integers. Mutually exclusive with when-var.",
+            "minProperties" : 1,
+            "type" : "object"
+          }
+        },
+        "type" : "object"
+      },
+      "type" : "array"
+    },
+    "input-aliases" : {
+      "additionalProperties" : {
+        "description" : "Modifier-set string, e.g. 'cmd + opt'. Reference via $name in input.",
+        "type" : "string"
+      },
+      "description" : "name → modifier-set string. Names must not shadow built-in modifier tokens.",
+      "type" : "object"
+    },
+    "options" : {
+      "additionalProperties" : false,
+      "description" : "Global options.",
+      "properties" : {
+        "exclude-apps" : {
+          "description" : "Bundle-id globs where chord stays fully passive.",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "fn-auto-arrows" : {
+          "default" : true,
+          "description" : "Map fn+hjkl etc. to arrows automatically (default true).",
+          "type" : "boolean"
+        },
+        "passthrough-unmatched" : {
+          "default" : true,
+          "description" : "Let unmatched events reach the OS (default true).",
+          "type" : "boolean"
+        }
+      },
+      "type" : "object"
+    },
+    "remap" : {
+      "description" : "Bulk key remaps.",
+      "items" : {
+        "additionalProperties" : false,
+        "description" : "Bulk key→key remap expanded into one binding per map entry.",
+        "properties" : {
+          "apps" : {
+            "description" : "Bundle-id globs this remap applies to.",
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "map" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "source-key → action-keys string. Non-empty.",
+            "examples" : [
+              "{ h = \"left\", l = \"right\" }"
+            ],
+            "type" : "object"
+          },
+          "modifiers" : {
+            "description" : "Modifier mask applied to every map entry (≥1 modifier).",
+            "examples" : [
+              "cmd + opt"
+            ],
+            "type" : "string"
+          },
+          "name" : {
+            "description" : "Remap group name.",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "modifiers",
+          "map"
+        ],
+        "type" : "object"
+      },
+      "type" : "array"
+    },
+    "sequence" : {
+      "description" : "Leader-key sequences.",
+      "items" : {
+        "additionalProperties" : false,
+        "description" : "Leader-key sequence: arm a prefix, then its child bindings fire within the timeout.",
+        "properties" : {
+          "bindings" : {
+            "items" : {
+              "additionalProperties" : false,
+              "allOf" : [
+                {
+                  "anyOf" : [
+                    {
+                      "required" : [
+                        "action-shell"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-keys"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-noop"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-set-var"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-set-value"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-toggle-var"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-hold-var"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-mission-control"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-screenshot"
+                      ]
+                    },
+                    {
+                      "required" : [
+                        "action-spotlight"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "hold-while",
+                      "hold-while-timeout"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "when-var",
+                      "when-vars"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "apps",
+                      "per-app"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "action-set-var",
+                      "action-toggle-var"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "action-set-var",
+                      "action-hold-var"
+                    ]
+                  }
+                },
+                {
+                  "not" : {
+                    "required" : [
+                      "action-toggle-var",
+                      "action-hold-var"
+                    ]
+                  }
+                }
+              ],
+              "dependencies" : {
+                "action-set-value" : [
+                  "action-set-var"
+                ],
+                "action-set-value-on-up" : [
+                  "action-set-var-on-up"
+                ],
+                "when-var-value" : [
+                  "when-var"
+                ]
+              },
+              "description" : "A binding active only after its sequence prefix is armed.",
+              "properties" : {
+                "action-hold-var" : {
+                  "description" : "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer).",
+                  "type" : "string"
+                },
+                "action-keys" : {
+                  "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
+                  "examples" : [
+                    "cmd - c",
+                    "[\"cmd - a\", \"cmd - c\"]"
+                  ],
+                  "oneOf" : [
+                    {
+                      "type" : "string"
+                    },
+                    {
+                      "items" : {
+                        "type" : "string"
+                      },
+                      "type" : "array"
+                    }
+                  ]
+                },
+                "action-keys-on-up" : {
+                  "description" : "Keystroke on key-up (string only — no array).",
+                  "type" : "string"
+                },
+                "action-mission-control" : {
+                  "description" : "macOS Mission Control action.",
+                  "enum" : [
+                    "show-all-windows",
+                    "show-app-windows"
+                  ],
+                  "type" : "string"
+                },
+                "action-noop" : {
+                  "const" : true,
+                  "description" : "Consume the event and do nothing (block a key). Only `true` is meaningful."
+                },
+                "action-noop-on-up" : {
+                  "const" : true,
+                  "description" : "Consume the key-up. Only `true`."
+                },
+                "action-screenshot" : {
+                  "description" : "macOS screenshot action.",
+                  "enum" : [
+                    "selection",
+                    "screen"
+                  ],
+                  "type" : "string"
+                },
+                "action-set-value" : {
+                  "default" : 1,
+                  "description" : "Value for action-set-var (0 clears). Requires action-set-var.",
+                  "type" : "integer"
+                },
+                "action-set-value-on-up" : {
+                  "default" : 1,
+                  "description" : "Value for action-set-var-on-up.",
+                  "type" : "integer"
+                },
+                "action-set-var" : {
+                  "description" : "Set a state variable (used by when-var gates). Must not be a reserved `_seq_*` name.",
+                  "type" : "string"
+                },
+                "action-set-var-on-up" : {
+                  "description" : "Set a state variable on key-up.",
+                  "type" : "string"
+                },
+                "action-shell" : {
+                  "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases].",
+                  "examples" : [
+                    "open -a Safari",
+                    "@focus_next"
+                  ],
+                  "type" : "string"
+                },
+                "action-shell-on-up" : {
+                  "description" : "Shell command to run on key-up.",
+                  "type" : "string"
+                },
+                "action-spotlight" : {
+                  "const" : true,
+                  "description" : "Open Spotlight (cmd-space default). Only `true` is meaningful."
+                },
+                "action-toggle-var" : {
+                  "description" : "Flip a state variable between 0 and 1.",
+                  "type" : "string"
+                },
+                "apps" : {
+                  "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app.",
+                  "examples" : [
+                    "[\"com.apple.Safari\"]",
+                    "[\"!com.apple.Terminal\"]"
+                  ],
+                  "items" : {
+                    "type" : "string"
+                  },
+                  "type" : "array"
+                },
+                "hold-while" : {
+                  "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
+                  "examples" : [
+                    "cmd + opt"
+                  ],
+                  "type" : "string"
+                },
+                "hold-while-timeout" : {
+                  "description" : "Clear the set variable after this many ms of inactivity (>0).",
+                  "exclusiveMinimum" : 0,
+                  "type" : "integer"
+                },
+                "input" : {
+                  "description" : "Child trigger fired after the prefix.",
+                  "type" : "string"
+                },
+                "input-source" : {
+                  "description" : "Restrict to keyboard input-source id(s).",
+                  "oneOf" : [
+                    {
+                      "type" : "string"
+                    },
+                    {
+                      "items" : {
+                        "type" : "string"
+                      },
+                      "type" : "array"
+                    }
+                  ]
+                },
+                "name" : {
+                  "description" : "Display name; defaults to `binding-N`.",
+                  "type" : "string"
+                },
+                "passthrough" : {
+                  "default" : false,
+                  "description" : "Let the original event reach the OS after firing.",
+                  "type" : "boolean"
+                },
+                "repeat" : {
+                  "description" : "How key-repeat is handled.",
+                  "enum" : [
+                    "fire-each",
+                    "ignore",
+                    "passthrough"
+                  ],
+                  "examples" : [
+                    "fire-each"
+                  ],
+                  "type" : "string"
+                },
+                "when-var" : {
+                  "description" : "Only fire when this state variable equals when-var-value.",
+                  "type" : "string"
+                },
+                "when-var-value" : {
+                  "default" : 1,
+                  "description" : "Expected value for when-var.",
+                  "type" : "integer"
+                },
+                "when-vars" : {
+                  "additionalProperties" : {
+                    "type" : "integer"
+                  },
+                  "description" : "AND gate: fire only when every `name = value` here matches. Non-empty; all integers. Mutually exclusive with when-var.",
+                  "minProperties" : 1,
+                  "type" : "object"
+                }
+              },
+              "required" : [
+                "input"
+              ],
+              "type" : "object"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          },
+          "name" : {
+            "description" : "Sequence name; must not be a reserved `_seq_*` name.",
+            "type" : "string"
+          },
+          "prefix" : {
+            "description" : "Leader trigger (≥1 modifier).",
+            "examples" : [
+              "cmd - g"
+            ],
+            "type" : "string"
+          },
+          "timeout-ms" : {
+            "description" : "How long the prefix stays armed (ms, >0).",
+            "exclusiveMinimum" : 0,
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "prefix",
+          "timeout-ms",
+          "bindings"
+        ],
+        "type" : "object"
+      },
+      "type" : "array"
+    }
+  },
+  "title" : "chord config.toml",
+  "type" : "object"
+}

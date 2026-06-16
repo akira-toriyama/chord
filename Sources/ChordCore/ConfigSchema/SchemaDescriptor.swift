@@ -1,0 +1,348 @@
+// SchemaDescriptor.swift — chord-LOCAL descriptor of the config.toml INPUT
+// surface (the keys a user writes), the single source for:
+//   • `chord config --emit-schema` → the Draft-07 JSON Schema for taplo
+//     editor completion (issue #78), and
+//   • the parser's STRUCTURAL validation (unknown-key per section) — issue
+//     #52, bounded: the descriptor owns the key inventory; the hand-written
+//     leaf DSL parsing (InputParser / ActionParser / alias resolution) stays.
+//
+// This is NOT sill `ConfigSchema` (#52's full parser-unification is iceboxed —
+// chord's config is an imperative DSL, not a flat decode), and it is NOT
+// `chord.bindings.v3.json` (that is the parse-OUTPUT wire format; this models
+// the config.toml INPUT). Pure data + Foundation only.
+
+import Foundation
+
+// MARK: - Leaf field
+
+/// One scalar / array / map leaf in the config.toml input surface.
+public struct SchemaField: Sendable, Equatable {
+    public enum Shape: Sendable, Equatable {
+        case string                 // plain or free-form DSL string
+        case integer
+        case boolean
+        case stringOrStringArray    // `action-keys`, `input-source`
+        case stringArray            // `apps`, `exclude-apps`, `inputs`
+        case constTrue              // `action-noop`, `action-spotlight` (only `true`)
+        case intMap                 // `when-vars { a = 1 }` (additionalProperties: integer)
+        case stringMap              // `[action-aliases]`, `[[remap]].map`
+    }
+    public var key: String
+    public var shape: Shape
+    /// Finite value set → JSON `enum`. nil for free-form / DSL strings.
+    public var enumDomain: [String]?
+    public var defaultBool: Bool?
+    public var defaultInt: Int?
+    /// `> n` knobs (timeout-ms, hold-while-timeout) → `exclusiveMinimum`.
+    public var exclusiveMinimum: Int?
+    public var doc: String
+    public var examples: [String]?
+
+    public init(_ key: String, _ shape: Shape, doc: String,
+                enumDomain: [String]? = nil, defaultBool: Bool? = nil,
+                defaultInt: Int? = nil, exclusiveMinimum: Int? = nil,
+                examples: [String]? = nil) {
+        self.key = key; self.shape = shape; self.doc = doc
+        self.enumDomain = enumDomain; self.defaultBool = defaultBool
+        self.defaultInt = defaultInt; self.exclusiveMinimum = exclusiveMinimum
+        self.examples = examples
+    }
+}
+
+// MARK: - Cross-field rules (lowered to JSON Schema by SchemaEmit)
+
+public enum ExclusionRule: Sendable, Equatable {
+    /// ≥1 of these keys must be present (the action-* union — NOT exactly-one,
+    /// because `action-shell` + `action-keys` legally co-occur, shell first).
+    case anyOfRequired([String])
+    /// exactly one of these is present (`input` xor `inputs` on fallbacks).
+    case oneOfRequired([String])
+    /// these keys may not all be present together (`hold-while` +
+    /// `hold-while-timeout`; the set/toggle/hold-var lifecycle triad).
+    case forbidsTogether([String])
+    /// `key` present ⇒ `needs` present (`action-set-value` ⇒ `action-set-var`).
+    case dependency(key: String, needs: String)
+}
+
+// MARK: - Object / table shapes
+
+/// A table (or array-of-tables item) shape: its fields, what is required,
+/// the cross-field rules, and any nested array-of-tables children.
+public struct ObjectShape: Sendable {
+    public var fields: [SchemaField]
+    public var required: [String]
+    public var exclusions: [ExclusionRule]
+    public var nested: [NestedTable]
+    public var doc: String
+
+    public init(fields: [SchemaField], required: [String] = [],
+                exclusions: [ExclusionRule] = [], nested: [NestedTable] = [],
+                doc: String = "") {
+        self.fields = fields; self.required = required
+        self.exclusions = exclusions; self.nested = nested; self.doc = doc
+    }
+
+    /// Every key this object accepts (own fields + nested-table keys). Used by
+    /// the parser's unknown-key validation (#52-bounded) and the shape tests.
+    public var keySet: Set<String> {
+        Set(fields.map(\.key)).union(nested.map(\.key))
+    }
+}
+
+public struct NestedTable: Sendable {
+    public var key: String          // e.g. "per-app", "bindings"
+    public var item: ObjectShape    // the array-of-tables item shape
+    public var required: Bool       // the parent must declare it
+    public var nonEmpty: Bool       // minItems: 1
+    public init(key: String, item: ObjectShape, required: Bool = false,
+                nonEmpty: Bool = false) {
+        self.key = key; self.item = item; self.required = required
+        self.nonEmpty = nonEmpty
+    }
+}
+
+public enum SectionKind: Sendable {
+    case table(ObjectShape)                          // [options]
+    case openStringMap(valueDoc: String)             // [action-aliases] / [input-aliases]
+    case arrayOfTables(ObjectShape)                  // [[bindings]] etc.
+}
+
+public struct SchemaSection: Sendable {
+    public var name: String          // the TOML key: "options", "bindings", …
+    public var kind: SectionKind
+    public var doc: String
+    public init(_ name: String, _ kind: SectionKind, doc: String) {
+        self.name = name; self.kind = kind; self.doc = doc
+    }
+}
+
+// MARK: - Shared field factories (reused across every binding-like context so
+// a field added once lands everywhere — completeness is structural).
+
+public enum ChordConfigSchema {
+    public static let title = "chord config.toml"
+
+    /// The action-* union members (key-down). Free-form vs enum vs const-true,
+    /// matching ActionParser. mission-control / screenshot enum values are the
+    /// `switch` cases in Config+Action.swift (the parser is the authority).
+    static func actionUnionFields() -> [SchemaField] {
+        [
+            SchemaField("action-shell", .string,
+                doc: "Shell command (run via /bin/sh -c). Supports @alias / @alias(a,b) refs from [action-aliases].",
+                examples: ["open -a Safari", "@focus_next"]),
+            SchemaField("action-keys", .stringOrStringArray,
+                doc: "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
+                examples: ["cmd - c", "[\"cmd - a\", \"cmd - c\"]"]),
+            SchemaField("action-noop", .constTrue,
+                doc: "Consume the event and do nothing (block a key). Only `true` is meaningful."),
+            SchemaField("action-set-var", .string,
+                doc: "Set a state variable (used by when-var gates). Must not be a reserved `_seq_*` name."),
+            SchemaField("action-set-value", .integer,
+                doc: "Value for action-set-var (0 clears). Requires action-set-var.", defaultInt: 1),
+            SchemaField("action-toggle-var", .string,
+                doc: "Flip a state variable between 0 and 1."),
+            SchemaField("action-hold-var", .string,
+                doc: "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer)."),
+            SchemaField("action-mission-control", .string,
+                doc: "macOS Mission Control action.",
+                enumDomain: ["show-all-windows", "show-app-windows"]),
+            SchemaField("action-screenshot", .string,
+                doc: "macOS screenshot action.",
+                enumDomain: ["selection", "screen"]),
+            SchemaField("action-spotlight", .constTrue,
+                doc: "Open Spotlight (cmd-space default). Only `true` is meaningful."),
+        ]
+    }
+
+    /// The `-on-up` release-action mirror. action-keys-on-up is string-only
+    /// (no array form). toggle-var/hold-var have no valid -on-up (the parser
+    /// rejects those), so they are intentionally absent here.
+    static func onUpFields() -> [SchemaField] {
+        [
+            SchemaField("action-shell-on-up", .string, doc: "Shell command to run on key-up."),
+            SchemaField("action-keys-on-up", .string, doc: "Keystroke on key-up (string only — no array)."),
+            SchemaField("action-noop-on-up", .constTrue, doc: "Consume the key-up. Only `true`."),
+            SchemaField("action-set-var-on-up", .string, doc: "Set a state variable on key-up."),
+            SchemaField("action-set-value-on-up", .integer, doc: "Value for action-set-var-on-up.", defaultInt: 1),
+        ]
+    }
+
+    /// when-var / when-var-value / when-vars condition gate.
+    static func gateFields() -> [SchemaField] {
+        [
+            SchemaField("when-var", .string, doc: "Only fire when this state variable equals when-var-value."),
+            SchemaField("when-var-value", .integer, doc: "Expected value for when-var.", defaultInt: 1),
+            SchemaField("when-vars", .intMap,
+                doc: "AND gate: fire only when every `name = value` here matches. Non-empty; all integers. Mutually exclusive with when-var."),
+        ]
+    }
+
+    /// hold-while / hold-while-timeout variable lifecycle.
+    static func lifecycleFields() -> [SchemaField] {
+        [
+            SchemaField("hold-while", .string,
+                doc: "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
+                examples: ["cmd + opt"]),
+            SchemaField("hold-while-timeout", .integer,
+                doc: "Clear the set variable after this many ms of inactivity (>0).", exclusiveMinimum: 0),
+        ]
+    }
+
+    /// apps / input-source / passthrough / repeat scope fields.
+    static func scopeFields() -> [SchemaField] {
+        [
+            SchemaField("apps", .stringArray,
+                doc: "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app.",
+                examples: ["[\"com.apple.Safari\"]", "[\"!com.apple.Terminal\"]"]),
+            SchemaField("input-source", .stringOrStringArray,
+                doc: "Restrict to keyboard input-source id(s)."),
+            SchemaField("passthrough", .boolean,
+                doc: "Let the original event reach the OS after firing.", defaultBool: false),
+            SchemaField("repeat", .string,
+                doc: "How key-repeat is handled.",
+                enumDomain: RepeatStrategy.allCases.map(\.rawValue), examples: ["fire-each"]),
+        ]
+    }
+
+    /// The cross-field rules shared by every binding-like context.
+    static func commonExclusions() -> [ExclusionRule] {
+        [
+            .anyOfRequired(actionUnionFields().map(\.key)),
+            .dependency(key: "action-set-value", needs: "action-set-var"),
+            .dependency(key: "action-set-value-on-up", needs: "action-set-var-on-up"),
+            .dependency(key: "when-var-value", needs: "when-var"),
+            .forbidsTogether(["hold-while", "hold-while-timeout"]),
+            .forbidsTogether(["when-var", "when-vars"]),
+            .forbidsTogether(["apps", "per-app"]),
+            .forbidsTogether(["action-set-var", "action-toggle-var"]),
+            .forbidsTogether(["action-set-var", "action-hold-var"]),
+            .forbidsTogether(["action-toggle-var", "action-hold-var"]),
+        ]
+    }
+
+    static func nameField() -> SchemaField {
+        SchemaField("name", .string, doc: "Display name; defaults to `binding-N`.")
+    }
+
+    // MARK: Per-context shapes
+
+    /// `[[bindings]]` — input required, no wildcard, per-app nesting allowed.
+    static func bindingShape() -> ObjectShape {
+        ObjectShape(
+            fields: [
+                nameField(),
+                SchemaField("input", .string,
+                    doc: "Trigger: `[MODIFIERS -] KEY`. Supports $input-aliases, side-aware L/R, scroll.up/down.",
+                    examples: ["cmd + opt - f13", "ctrl - scroll.up", "$ULTRA - c"]),
+            ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields() + scopeFields(),
+            required: ["input"],
+            exclusions: commonExclusions(),
+            nested: [NestedTable(key: "per-app", item: perAppShape())],
+            doc: "A key/chord → action binding.")
+    }
+
+    /// `[[bindings.per-app]]` — bundle-id required, every field an optional
+    /// override; no nested apps/per-app.
+    static func perAppShape() -> ObjectShape {
+        ObjectShape(
+            fields: [
+                SchemaField("bundle-id", .string, doc: "App this override applies to (bundle id)."),
+                SchemaField("input", .string, doc: "Optional per-app input override."),
+            ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields() + scopeFields().filter { $0.key != "apps" },
+            required: ["bundle-id"],
+            // A per-app entry LAYERS onto the base binding, so its action is
+            // optional (drop the action-union requirement); and it owns no
+            // apps/per-app of its own (drop that forbids rule).
+            exclusions: commonExclusions().filter { rule in
+                switch rule {
+                case .anyOfRequired: return false
+                case .forbidsTogether(let g) where g.contains("apps"): return false
+                default: return true
+                }
+            },
+            doc: "Per-app override layered onto the parent binding.")
+    }
+
+    /// `[[fallbacks]]` — input xor inputs, wildcard `*` allowed, no per-app.
+    static func fallbackShape() -> ObjectShape {
+        ObjectShape(
+            fields: [
+                nameField(),
+                SchemaField("input", .string,
+                    doc: "Trigger; the wildcard `*` is allowed here (catch-all). Mutually exclusive with inputs.",
+                    examples: ["*", "cmd - a"]),
+                SchemaField("inputs", .stringArray,
+                    doc: "Multiple triggers sharing one action. Mutually exclusive with input."),
+            ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields() + scopeFields(),
+            exclusions: [.oneOfRequired(["input", "inputs"])] + commonExclusions(),
+            doc: "A lower-priority binding tried only when no [[bindings]] row matched.")
+    }
+
+    /// `[[sequence]]` — prefix + timeout-ms + nested bindings (leader key).
+    static func sequenceShape() -> ObjectShape {
+        ObjectShape(
+            fields: [
+                SchemaField("name", .string, doc: "Sequence name; must not be a reserved `_seq_*` name."),
+                SchemaField("prefix", .string, doc: "Leader trigger (≥1 modifier).", examples: ["cmd - g"]),
+                SchemaField("timeout-ms", .integer, doc: "How long the prefix stays armed (ms, >0).", exclusiveMinimum: 0),
+            ],
+            required: ["prefix", "timeout-ms", "bindings"],
+            nested: [NestedTable(key: "bindings", item: sequenceBindingShape(), required: true, nonEmpty: true)],
+            doc: "Leader-key sequence: arm a prefix, then its child bindings fire within the timeout.")
+    }
+
+    /// `[[sequence.bindings]]` — child of a sequence; input primary-only.
+    static func sequenceBindingShape() -> ObjectShape {
+        ObjectShape(
+            fields: [
+                nameField(),
+                SchemaField("input", .string, doc: "Child trigger fired after the prefix."),
+            ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields() + scopeFields(),
+            required: ["input"],
+            exclusions: commonExclusions(),
+            doc: "A binding active only after its sequence prefix is armed.")
+    }
+
+    /// `[[remap]]` — modifiers + map of source→action-keys.
+    static func remapShape() -> ObjectShape {
+        ObjectShape(
+            fields: [
+                SchemaField("name", .string, doc: "Remap group name."),
+                SchemaField("modifiers", .string, doc: "Modifier mask applied to every map entry (≥1 modifier).", examples: ["cmd + opt"]),
+                SchemaField("map", .stringMap, doc: "source-key → action-keys string. Non-empty.", examples: ["{ h = \"left\", l = \"right\" }"]),
+                SchemaField("apps", .stringArray, doc: "Bundle-id globs this remap applies to."),
+            ],
+            required: ["modifiers", "map"],
+            doc: "Bulk key→key remap expanded into one binding per map entry.")
+    }
+
+    static func optionsShape() -> ObjectShape {
+        ObjectShape(
+            fields: [
+                SchemaField("passthrough-unmatched", .boolean,
+                    doc: "Let unmatched events reach the OS (default true).", defaultBool: true),
+                SchemaField("exclude-apps", .stringArray,
+                    doc: "Bundle-id globs where chord stays fully passive."),
+                SchemaField("fn-auto-arrows", .boolean,
+                    doc: "Map fn+hjkl etc. to arrows automatically (default true).", defaultBool: true),
+            ],
+            doc: "Global options. All keys optional.")
+    }
+
+    /// The single source of truth: every config.toml section.
+    public static var sections: [SchemaSection] {
+        [
+            SchemaSection("options", .table(optionsShape()), doc: "Global options."),
+            SchemaSection("action-aliases",
+                .openStringMap(valueDoc: "Shell command body. Reference via @name in action-shell."),
+                doc: "name → shell command. Open vocabulary."),
+            SchemaSection("input-aliases",
+                .openStringMap(valueDoc: "Modifier-set string, e.g. 'cmd + opt'. Reference via $name in input."),
+                doc: "name → modifier-set string. Names must not shadow built-in modifier tokens."),
+            SchemaSection("bindings", .arrayOfTables(bindingShape()), doc: "The primary key→action bindings."),
+            SchemaSection("fallbacks", .arrayOfTables(fallbackShape()), doc: "Lower-priority catch-all bindings."),
+            SchemaSection("sequence", .arrayOfTables(sequenceShape()), doc: "Leader-key sequences."),
+            SchemaSection("remap", .arrayOfTables(remapShape()), doc: "Bulk key remaps."),
+        ]
+    }
+}

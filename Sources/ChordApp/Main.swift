@@ -66,9 +66,10 @@ enum ChordApp {
     /// in sill, policy in the app.
     @MainActor
     private static let configVerbs: [String: [String]] = [
-        "--validate": ["--strict", "--json"],
-        "--show":     ["--json", "--include-dropped"],   // was --list
-        "--doctor":   [],
+        "--validate":    ["--strict", "--json"],
+        "--show":        ["--json", "--include-dropped"],   // was --list
+        "--doctor":      [],
+        "--emit-schema": [],
     ]
     @MainActor
     private static let daemonVerbs: [String: [String]] = [
@@ -184,9 +185,24 @@ enum ChordApp {
                                  includeDropped: inv.has("--include-dropped")))
         case "--doctor":
             return .code(runDoctor())
+        case "--emit-schema":
+            return .code(runEmitSchema())
         default:
             return .fail(2, stderr: "chord: unreachable config verb \(verb)")
         }
+    }
+
+    /// `chord config --emit-schema` — print the config.toml INPUT JSON Schema
+    /// (Draft-07) for taplo editor completion. Generated from
+    /// `ChordConfigSchema` (the chord-local descriptor). Stateless: no daemon
+    /// contact, no config read. DISTINCT from `config --show --json`, which
+    /// emits the chord.bindings.v3 parse-OUTPUT wire format.
+    /// Regenerate the committed copy: `chord config --emit-schema > config.schema.json`.
+    private static func runEmitSchema() -> Int32 {
+        // No trailing newline (terminator: "") so `… > config.schema.json`
+        // writes the schema byte-exact, matching the drift guard + siblings.
+        print(ChordConfigSchema.jsonSchema, terminator: "")
+        return 0
     }
 
     /// `daemon` domain — lifecycle (post a `Control` notification + wait,
@@ -261,6 +277,11 @@ enum ChordApp {
 
     @MainActor
     private static func runServer() {
+        // Best-effort: refresh the config.schema.json sidecar next to the user
+        // config so `#:schema ./config.schema.json` resolves for taplo.
+        // Idempotent + non-fatal (see ChordConfigSchema.installSchema).
+        ChordConfigSchema.installSchema()
+
         if !Permissions.isAccessibilityTrusted() {
             Log.line("startup: accessibility not granted — prompting")
             _ = Permissions.promptForAccessibility()
@@ -852,6 +873,7 @@ enum ChordApp {
           chord config --show --json        machine-readable (chord.bindings.v3)
           chord config --show --include-dropped   also list dropped bindings
           chord config --doctor             report Accessibility / config / daemon
+          chord config --emit-schema        config.toml JSON Schema for editors (Draft-07)
 
         daemon — lifecycle (need a running daemon; exit 3 if none)
           chord daemon --reload             tell the running daemon to reload config
