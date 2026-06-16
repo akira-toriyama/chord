@@ -12,6 +12,10 @@ public final class Controller {
     private var config: ChordConfig
     private var observers: [NSObjectProtocol] = []
     private var configWatcher: DispatchSourceFileSystemObject?
+    /// Accept source for the read-only `chord query --…` socket.
+    /// Internal (not private) so the QueryServer extension can install
+    /// + tear it down; nil when the query API is disabled (bind failure).
+    var querySource: DispatchSourceRead?
 
     public init(source: any EventSource = MacOSEventSource()) {
         self.source = source
@@ -20,6 +24,7 @@ public final class Controller {
     }
 
     public func start() throws {
+        publishStartMeta()
         loadConfig(reason: "startup")
         FrontmostTracker.shared.start()
         InputSourceTracker.shared.start()
@@ -33,6 +38,7 @@ public final class Controller {
 
         installControlIPC()
         installConfigWatcher()
+        installQueryServer()
         Control.writeStatus("started bindings=\(matcher.bindings.count)")
     }
 
@@ -44,6 +50,7 @@ public final class Controller {
         observers.removeAll()
         configWatcher?.cancel()
         configWatcher = nil
+        teardownQueryServer()
         Control.writeStatus("stopped")
     }
 
@@ -155,6 +162,8 @@ public final class Controller {
         if case .variable(let gated, _) = binding.condition {
             extendTimerIfPresent(name: gated)
         }
+        recordFire(name: binding.name, app: event.frontmostBundleID,
+                   action: describeAction(binding.action))
         Control.writeStatus("fired \(binding.name)")
         // chord 0.9.0+ passthrough: action fires above, but we let the
         // original event reach the OS. No paired-up to capture (the
@@ -257,7 +266,7 @@ public final class Controller {
     /// to read on the tap thread (the dictionary is copied inside the
     /// lock then released). The matcher consumes this via
     /// [Matcher.Event.state].
-    nonisolated private func stateSnapshot() -> StateSnapshot {
+    nonisolated func stateSnapshot() -> StateSnapshot {
         stateLock.lock()
         defer { stateLock.unlock() }
         var out: [String: Int] = [:]
@@ -475,7 +484,7 @@ public final class Controller {
         return pendingUps?.removeValue(forKey: trigger)
     }
 
-    nonisolated private func isPaused() -> Bool {
+    nonisolated func isPaused() -> Bool {
         pauseLock.lock(); defer { pauseLock.unlock() }
         return pausedFlag
     }
@@ -489,7 +498,7 @@ public final class Controller {
         Control.writeStatus("\(status) bindings=\(matcher.bindings.count)")
     }
 
-    nonisolated private func matcherSnapshot() -> Matcher {
+    nonisolated func matcherSnapshot() -> Matcher {
         matcherLock.lock()
         defer { matcherLock.unlock() }
         return sharedMatcher ?? Matcher(bindings: [], excludeApps: [])
@@ -519,6 +528,8 @@ public final class Controller {
                 excludeApps: result.config.options.excludeApps,
                 fnAutoArrows: result.config.options.fnAutoArrows)
             publishMatcher()
+            publishConfigMeta(actionAliases: result.config.actionAliases.count,
+                              inputAliases: result.config.inputAliases.count)
             // Reload wipes the variable store — the new config may
             // have removed the binding that owned a variable, and a
             // stale entry no one can clear would silently keep a
@@ -652,7 +663,7 @@ public final class Controller {
 /// Sendable weak reference to a non-Sendable class. Lets the
 /// CGEventTap callback (synchronous, on the tap thread) call back
 /// into the Controller without `@MainActor`-isolating the closure.
-private final class WeakWrap: @unchecked Sendable {
+final class WeakWrap: @unchecked Sendable {
     weak var value: Controller?
     init(_ v: Controller) { self.value = v }
 }

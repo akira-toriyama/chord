@@ -597,13 +597,27 @@ stray instances before relaunching.
 - **`daemon --reload` / `daemon --quit` talk to the running daemon over
   Distributed Notification Center** (`com.chord.app.control`, see
   [Sources/ChordApp/Control.swift](Sources/ChordApp/Control.swift))
-  — same pattern as facet / stroke. Don't invent a different IPC.
-  They exit `3` if no daemon is running.
+  — same pattern as facet / stroke. Don't invent a different IPC **for
+  control** (the write-only verbs). They exit `3` if no daemon is running.
 - **`daemon --show` is one-way the other direction**: DNC can't reply,
   so the daemon rewrites a small status file
   (`/tmp/chord.status`) on start / reload / each fired binding,
-  and `daemon --show` just reads it. Don't reach for a request/response
-  IPC — the file is enough.
+  and `daemon --show` just reads it. The file is enough **for that one
+  scalar status line** — don't reach for request/response just to read
+  pause state.
+- **`chord query --…` is the read-only request/response channel** — the
+  deliberate exception to "don't invent an IPC", for structured runtime
+  state the scalar status file can't carry: live state-var values (keyed
+  by name), loaded-binding counts, the recent-fires history. It's an
+  AF_UNIX socket (`/tmp/chord-query.sock`,
+  [QuerySchema](Sources/ChordCore/QuerySchema.swift), wire version
+  `chord.query.v1`); the daemon listens on a serial queue
+  ([QueryServer.swift](Sources/ChordApp/QueryServer.swift)) and replies
+  with one JSON document, never touching the tap hot path. The three IPC
+  shapes are split by direction + payload and must stay that way:
+  **control** (reload / quit / pause) is write-only DNC; the **one scalar
+  status line** is the status file; **structured reads** are the query
+  socket. Don't collapse them, and don't add a fourth.
 - **Config auto-reload**: a `DispatchSource` vnode source on
   [ChordConfig.path](Sources/ChordCore/Models.swift) re-arms on
   the atomic-save rename / delete and calls `controller.reload()`
@@ -727,14 +741,18 @@ applied to flags added to `chord <domain> --<verb> --…`:
 - **Don't invent a third style**. Today the only shapes are:
   - `chord <DOMAIN> --VERB` (the bare verb that selects the action)
   - `chord <DOMAIN> --VERB --MODIFIER` (modifier flag declared for
-    that verb in the domain's verb table — `configVerbs` / `daemonVerbs`)
-  - `chord <DOMAIN> --VERB --MODIFIER VALUE` (does not exist yet
-    in chord — every modifier flag is currently a bare boolean).
+    that verb in the domain's verb table — `configVerbs` / `daemonVerbs`
+    / `queryVerbs`)
+  - `chord <DOMAIN> --VERB --MODIFIER VALUE` (space-separated value via
+    CLIKit's `.value` arity — first used by `query --recent-fires
+    --limit N`. The value-taking modifiers are listed in the domain's
+    `*ValueFlags` set; the value is consumed verbatim, so a `-`-leading
+    arg is a value, not a flag — the D0 hazard. Every other modifier is
+    still a bare boolean).
 
   Adding e.g. `chord <DOMAIN> --MODIFIER=value` (`=`-attached value),
   short-flag-clustering (`-sj` for `-s -j`), or positional
-  arguments would be a new third style. Discuss before
-  introducing one.
+  arguments would be a new style. Discuss before introducing one.
 
 ## References
 
@@ -788,10 +806,14 @@ re-confirmation.
   capturing it); chord uses the literal `"AXTrustedCheckOptionPrompt"`
   string — same workaround facet uses.
 - [Distributed Notification Center](https://developer.apple.com/documentation/foundation/distributednotificationcenter)
-  *(reviewed 2026-05-24)* — the IPC chord uses for
-  `daemon --reload` / `daemon --quit`. Fire-and-forget; the status file at
-  `/tmp/chord.status` is the reverse channel. Same pattern as
-  facet / stroke; don't invent a separate request/response IPC.
+  *(reviewed 2026-05-24)* — the IPC chord uses for **control**
+  (`daemon --reload` / `daemon --quit`). Fire-and-forget; the status file at
+  `/tmp/chord.status` is the scalar reverse channel. Same pattern as
+  facet / stroke; don't invent a separate request/response IPC **for
+  control**. Read-only structured state is the documented exception —
+  the `chord query` AF_UNIX socket
+  ([QuerySchema](Sources/ChordCore/QuerySchema.swift), `chord.query.v1`);
+  see the §IPC notes above for the three-shapes split.
 
 ### Prior art
 

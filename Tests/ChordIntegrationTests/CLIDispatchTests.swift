@@ -174,6 +174,73 @@ final class CLIDispatchTests: XCTestCase {
         XCTAssertTrue(out?.stderr?.contains("unknown flag '--reload'") == true)
     }
 
+    // MARK: - query domain (read-only daemon state over the socket)
+
+    func testQueryWithNoVerbRejected() {
+        let out = ChordApp.dispatch(["query"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("needs a verb") == true)
+    }
+
+    func testQueryIncompatibleVerbsRejected() {
+        let out = ChordApp.dispatch(["query", "--status", "--vars"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("incompatible verbs") == true)
+    }
+
+    /// `--limit` is declared only for `--recent-fires`; on another verb
+    /// it's a recognised-but-inapplicable flag → "has no effect" (exit 2),
+    /// chord's no-silent-swallow policy.
+    func testQueryLimitOnWrongVerbRejected() {
+        let out = ChordApp.dispatch(["query", "--status", "--limit", "5"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(
+            out?.stderr?.contains("'--limit' has no effect with --status") == true)
+    }
+
+    func testQueryUnknownFlagRejected() {
+        let out = ChordApp.dispatch(["query", "--bogus"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("unknown flag '--bogus'") == true)
+    }
+
+    /// A non-integer `--limit` is rejected at the verb runner (exit 2),
+    /// before any daemon contact — deterministic regardless of daemon.
+    func testQueryBadLimitRejected() {
+        let out = ChordApp.dispatch(["query", "--recent-fires", "--limit", "abc"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("--limit needs a positive integer") == true)
+    }
+
+    /// A `-`-leading limit is taken verbatim by CLIKit's `.value` arity
+    /// (not mistaken for a flag — the D0 hazard), then rejected as
+    /// non-positive by the runner.
+    func testQueryNegativeLimitRejected() {
+        let out = ChordApp.dispatch(["query", "--recent-fires", "--limit", "-3"])
+        XCTAssertEqual(out?.exitCode, 2)
+        XCTAssertTrue(out?.stderr?.contains("got '-3'") == true)
+    }
+
+    /// With no daemon listening, a query exits 3 (same precondition
+    /// shape as the daemon control verbs). Skipped on a host where the
+    /// query socket exists (a daemon may be live and would answer 0).
+    func testQueryWithoutDaemonReportsExit3() throws {
+        try XCTSkipIf(querySocketExists(),
+                      "host has \(QuerySchema.socketPath) — a daemon may answer")
+        let out = ChordApp.dispatch(["query", "--status"])
+        XCTAssertEqual(out?.exitCode, 3)
+        XCTAssertEqual(out?.stderr, "chord: no daemon running\n")
+    }
+
+    /// A well-formed `--recent-fires --limit N` parses past validation —
+    /// the only failure left is "no daemon" (exit 3), never a usage
+    /// error (exit 2).
+    func testQueryValidLimitIsNotAUsageError() {
+        let out = ChordApp.dispatch(["query", "--recent-fires", "--limit", "10"])
+        XCTAssertNotEqual(out?.exitCode, 2,
+                          "a valid --limit must not be a usage error")
+    }
+
     // MARK: - SubcommandOutcome conveniences
 
     func testOutcomeOkAddsTrailingNewline() {
@@ -201,5 +268,9 @@ final class CLIDispatchTests: XCTestCase {
 
     private func daemonStatusFileExists() -> Bool {
         FileManager.default.fileExists(atPath: Control.statusPath)
+    }
+
+    private func querySocketExists() -> Bool {
+        FileManager.default.fileExists(atPath: QuerySchema.socketPath)
     }
 }

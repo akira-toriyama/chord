@@ -1,3 +1,4 @@
+import ChordCore
 import Foundation
 
 /// IPC between the chord daemon and its own CLI clients (`chord
@@ -9,6 +10,13 @@ import Foundation
 /// channel, so the daemon writes a small status file at
 /// [statusPath] on start / reload / each dispatch, and `daemon --show`
 /// just reads it.
+///
+/// [query] is the THIRD shape: a read-only request/response over the
+/// AF_UNIX socket at [QuerySchema.socketPath], for structured runtime
+/// state the scalar status file can't carry (live vars, counts,
+/// recent-fires history). Control stays write-only (DNC); the status
+/// file stays the one scalar line; structured reads use the query
+/// socket. See chord's CLAUDE.md §IPC.
 public enum Control {
     public static let center = "com.chord.app.control"
     public static let reload = "chord.reload"
@@ -44,6 +52,73 @@ public enum Control {
 
     public static func readStatus() -> String? {
         try? String(contentsOfFile: statusPath, encoding: .utf8)
+    }
+
+    /// Read-only query to the running daemon over the AF_UNIX
+    /// request/response socket ([QuerySchema.socketPath]). Sends one
+    /// request line, reads the JSON reply to EOF, returns it verbatim
+    /// (the daemon owns the wire format). Returns nil when no daemon is
+    /// listening — a missing socket file OR a refused connect (a stale
+    /// socket after a crash) both mean "not running" → the caller maps
+    /// it to exit 3. A short socket timeout caps a wedged daemon, same
+    /// don't-block-forever discipline as [postAndWait].
+    public static func query(_ request: QuerySchema.Request,
+                             timeout: TimeInterval = 2.0) -> String? {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        let cap = MemoryLayout.size(ofValue: addr.sun_path)
+        let pathBytes = QuerySchema.socketPath.utf8CString   // incl. trailing NUL
+        guard pathBytes.count <= cap else { return nil }
+        withUnsafeMutablePointer(to: &addr.sun_path) { tuplePtr in
+            tuplePtr.withMemoryRebound(to: CChar.self, capacity: cap) { dst in
+                pathBytes.withUnsafeBufferPointer { src in
+                    dst.update(from: src.baseAddress!, count: src.count)
+                }
+            }
+        }
+        let len = socklen_t(MemoryLayout<sockaddr_un>.size)
+        let connected = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, len) }
+        }
+        guard connected == 0 else { return nil }   // ENOENT / ECONNREFUSED → no daemon
+
+        var tv = timeval(tv_sec: Int(timeout), tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv,
+                   socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv,
+                   socklen_t(MemoryLayout<timeval>.size))
+        var noSig: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSig,
+                   socklen_t(MemoryLayout<Int32>.size))
+
+        // Send the request line.
+        let reqBytes = Array(request.line.utf8)
+        reqBytes.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            var off = 0
+            while off < reqBytes.count {
+                let n = write(fd, base + off, reqBytes.count - off)
+                if n > 0 { off += n; continue }
+                if n < 0 && errno == EINTR { continue }   // interrupted — retry
+                break                                      // timeout / peer gone
+            }
+        }
+
+        // Read the reply to EOF.
+        var out = Data()
+        var chunk = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let n = chunk.withUnsafeMutableBytes { read(fd, $0.baseAddress, $0.count) }
+            if n > 0 { out.append(contentsOf: chunk[0..<n]); continue }
+            if n < 0 && errno == EINTR { continue }   // interrupted — retry
+            break                                      // EOF / timeout / error
+        }
+        guard !out.isEmpty else { return nil }
+        return String(decoding: out, as: UTF8.self)
     }
 
     private static func mtime(_ path: String) -> TimeInterval {
