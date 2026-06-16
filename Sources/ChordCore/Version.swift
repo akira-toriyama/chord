@@ -15,5 +15,5 @@ import Foundation
 ///   • Info.plist / Info.plist.dev are NOT consumers — they're parallel
 ///     declarations and their drift is checked, not derived
 public enum ChordVersion {
-    public static let current = "0.9.0"
+    public static let current = "0.9.1"
 }
