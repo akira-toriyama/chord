@@ -1,3 +1,4 @@
+#:schema ./config.schema.json
 # chord — user configuration template
 # https://github.com/akira-toriyama/chord
 #
