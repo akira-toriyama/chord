@@ -1,13 +1,22 @@
 {
-  "originHash" : "3d43b0ef0b105cc43083edefdfba3d1634116cbf9101ebd72a80386ec2257aaa",
+  "originHash" : "5614c01afde453927c5c4dd94db92e8b137e49d25c3cb0dd428aee6f515368b5",
   "pins" : [
     {
       "identity" : "sill",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/akira-toriyama/sill.git",
       "state" : {
-        "revision" : "250260a5b3fd920c5ee299b3bfd18ccf5ac82aad",
-        "version" : "0.10.0"
+        "revision" : "af37673fd7e23fe2d68fca336d54b42bad18a7c2",
+        "version" : "0.11.0"
+      }
+    },
+    {
+      "identity" : "swift-toml-edit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/akira-toriyama/swift-toml-edit.git",
+      "state" : {
+        "revision" : "c29736ec0f6ccf9ba18f537a5b3d1e24f691106b",
+        "version" : "1.0.0"
       }
     }
   ],

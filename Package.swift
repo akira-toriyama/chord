@@ -37,28 +37,31 @@ let package = Package(
         .library(name: "ChordCore", targets: ["ChordCore"]),
     ],
     dependencies: [
-        // sill — the shared swift-app-family library (atelier). chord is
-        // NOT a theme consumer (its own separate lineage; no Palette /
-        // Effects / PaletteKit), but in atelier Phase 1.6 chord's 434-line
-        // hand-rolled TOML parser — the SUPERSET reference the shared
-        // parser was modelled on — folds into sill's pure, Foundation-only
-        // `Toml` module. ChordCore takes ONLY `Toml` (zero AppKit, zero
-        // theming) and uses its NESTED, strict `parse` skin. Floor bumped
-        // to 0.10.0 in atelier Phase 3 M4 for the `CLIKit` module — the
-        // family's shared pure argv tokenizer — which ChordApp consumes to
-        // drive the yabai-style `chord <domain> --<verb>` grammar (unknown-
-        // flag loud reject + did-you-mean + `-h`/`-V` carve-out). chord has
-        // no value-taking flags, so it doesn't hit the D0 hazard; CLIKit is
-        // for grammar consistency, not value tokenizing. Pinned to the
-        // next-minor range like the family apps; Package.resolved locks the
-        // exact commit.
+        // swift-toml-edit — the family's ONE TOML implementation (Sill-1).
+        // chord's 434-line hand-rolled parser was the SUPERSET reference the
+        // shared parser was modelled on; in atelier Phase 1.6 it folded into
+        // sill's `Toml`, and from sill 0.11.0 that module moved out into its
+        // own repo (swift-toml-edit). ChordCore takes ONLY `Toml` (zero
+        // AppKit, zero theming) via its NESTED, strict `parse` skin. The
+        // module name is unchanged, so chord's `import Toml` survives.
+        .package(url: "https://github.com/akira-toriyama/swift-toml-edit.git",
+                 .upToNextMinor(from: "1.0.0")),
+        // sill — the shared swift-app-family library (atelier). chord is NOT
+        // a theme consumer (no Palette / Effects / PaletteKit); it takes only
+        // `CLIKit`, the family's shared pure argv tokenizer (Phase 3 M4),
+        // which ChordApp consumes to drive the yabai-style `chord <domain>
+        // --<verb>` grammar (unknown-flag loud reject + did-you-mean +
+        // `-h`/`-V` carve-out). chord has no value-taking flags, so it
+        // doesn't hit the D0 hazard; CLIKit is for grammar consistency, not
+        // value tokenizing. Floor bumped to 0.11.0 (the release that removed
+        // sill's in-tree `Toml`). Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "0.10.0")),
+                 .upToNextMinor(from: "0.11.0")),
     ],
     targets: [
         .target(
             name: "ChordCore",
-            dependencies: [.product(name: "Toml", package: "sill")]),
+            dependencies: [.product(name: "Toml", package: "swift-toml-edit")]),
         .target(name: "ChordAdapterMacOS", dependencies: ["ChordCore"]),
         .target(name: "ChordAdapterTest", dependencies: ["ChordCore"]),
         .executableTarget(
