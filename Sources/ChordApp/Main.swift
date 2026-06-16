@@ -82,6 +82,24 @@ enum ChordApp {
         "--watch":  [],
         "--resign": [],
     ]
+    /// `query` domain — read-only daemon state over the AF_UNIX query
+    /// socket (exit 3 if no daemon). Output is always JSON (chord.query.v1);
+    /// the domain exists to export machine state, so there's no `--json`
+    /// modifier. `--recent-fires --limit N` is chord's one value-taking
+    /// modifier (declared in `queryValueFlags`); every other flag is a
+    /// bare boolean.
+    @MainActor
+    private static let queryVerbs: [String: [String]] = [
+        "--status":          [],
+        "--vars":            [],
+        "--loaded-bindings": [],
+        "--recent-fires":    ["--limit"],
+    ]
+    /// Modifiers that consume a following value (CLIKit `.value` arity)
+    /// rather than being bare booleans. Verbatim consumption (signed /
+    /// `-`-leading OK) — solves the D0 hazard for e.g. a future negative
+    /// arg. Today: only `query --recent-fires --limit N`.
+    private static let queryValueFlags: Set<String> = ["--limit"]
 
     /// Top-level dispatch. Peels the domain noun and routes to its verb
     /// table. Returns nil ONLY for bare `chord` (→ server mode); every
@@ -96,6 +114,8 @@ enum ChordApp {
         case "--version", "-V": return .ok("chord \(ChordVersion.current)")
         case "config": return dispatchDomain("config", rest, configVerbs, runConfig)
         case "daemon": return dispatchDomain("daemon", rest, daemonVerbs, runDaemon)
+        case "query":  return dispatchDomain("query", rest, queryVerbs, runQuery,
+                                             valueFlags: queryValueFlags)
         default:
             // A `-`-leading first token is almost always an old flat flag
             // (`chord --validate`) — point at the new domain home loudly
@@ -106,7 +126,7 @@ enum ChordApp {
                     + "Got '\(domain)'. See --help.")
             }
             return .fail(2, stderr: "chord: unknown command '\(domain)'. "
-                + "Domains: config daemon (or bare `chord` to run the daemon). "
+                + "Domains: config daemon query (or bare `chord` to run the daemon). "
                 + "See --help.")
         }
     }
@@ -121,14 +141,19 @@ enum ChordApp {
         _ domain: String,
         _ argv: [String],
         _ verbs: [String: [String]],
-        _ run: @MainActor (String, CLIKit.Invocation) -> SubcommandOutcome
+        _ run: @MainActor (String, CLIKit.Invocation) -> SubcommandOutcome,
+        valueFlags: Set<String> = []
     ) -> SubcommandOutcome {
-        // Every verb + every modifier is a recognised boolean flag, so
-        // CLIKit catches unknown flags (with a nearest-match hint); chord
-        // owns the verb-selection + modifier-applicability policy below.
+        // Every verb is a boolean flag; a modifier is `.value` (consumes
+        // the next token verbatim) iff it's in `valueFlags`, else a bare
+        // boolean. CLIKit catches unknown flags (with a nearest-match
+        // hint); chord owns the verb-selection + modifier-applicability
+        // policy below.
         var arity: [String: CLIKit.Arity] = [:]
         for v in verbs.keys { arity[v] = .flag }
-        for mods in verbs.values { for m in mods { arity[m] = .flag } }
+        for mods in verbs.values {
+            for m in mods { arity[m] = valueFlags.contains(m) ? .value : .flag }
+        }
         let inv: CLIKit.Invocation
         do { inv = try CLIKit.parse(argv, spec: CLIKit.Spec(arity: arity)) }
         catch let e as CLIKit.ParseError {
@@ -264,6 +289,37 @@ enum ChordApp {
             return SubcommandOutcome(exitCode: 0, stdout: s)
         }
         return .fail(3, stderr: "chord: no status file")
+    }
+
+    /// `query` domain — read-only live state over the AF_UNIX
+    /// request/response socket. The verb stem IS the wire endpoint
+    /// (`--vars` → `vars`), so CLI and protocol can't drift. Output is
+    /// the daemon's JSON reply verbatim (chord.query.v1); exit 3 if no
+    /// daemon is listening. DISTINCT from `daemon --show` (the one-line
+    /// status file) and `config --show --json` (the parsed-config
+    /// OUTPUT) — this is daemon runtime state.
+    @MainActor
+    private static func runQuery(_ verb: String,
+                                 _ inv: CLIKit.Invocation) -> SubcommandOutcome {
+        guard let endpoint = QuerySchema.Endpoint(rawValue: String(verb.dropFirst(2)))
+        else { return .fail(2, stderr: "chord: unreachable query verb \(verb)") }
+
+        // `--limit` is only declared for `--recent-fires` (dispatchDomain
+        // already rejects it elsewhere); validate the value here.
+        var limit: Int? = nil
+        if let raw = inv.value("--limit") {
+            guard let n = Int(raw), n > 0 else {
+                return .fail(2, stderr:
+                    "chord: --limit needs a positive integer, got '\(raw)'. See --help.")
+            }
+            limit = n
+        }
+
+        guard let reply = Control.query(
+            QuerySchema.Request(endpoint: endpoint, limit: limit))
+        else { return .fail(3, stderr: "chord: no daemon running") }
+        // The daemon's reply already ends with a newline.
+        return SubcommandOutcome(exitCode: 0, stdout: reply)
     }
 
     // MARK: - server
@@ -888,6 +944,13 @@ enum ChordApp {
           chord daemon --resign             re-sign Chord.app with chord-dev + restart
                                               (run once after `brew install` / upgrade)
 
+        query — read live daemon state as JSON (need a running daemon; exit 3 if none)
+          chord query --status              paused / ax-granted / uptime / config-loaded-at
+          chord query --vars                current state-variable values
+          chord query --loaded-bindings     bindings / fallbacks / alias counts
+          chord query --recent-fires        recently fired bindings (newest first)
+          chord query --recent-fires --limit N    cap to the N most recent
+
           chord --help, -h                  this text
           chord --version, -V               print version
 
@@ -900,7 +963,7 @@ enum ChordApp {
           0   success
           1   config --validate --strict tripped (warnings / dropped bindings)
           2   usage / bad flag
-          3   daemon precondition: a daemon command with no daemon running
+          3   daemon precondition: a daemon / query command with no daemon running
 
         CONFIG
           \(ChordConfig.path)

@@ -76,9 +76,12 @@ CI / introspection:
 - **`chord config --show [--json] [--include-dropped]`** — current parsed config
 - **`chord daemon --watch`** — live per-event trace
 - **`chord config --doctor`** — accessibility + config + daemon status
+- **`chord query --status` / `--vars` / `--loaded-bindings` / `--recent-fires`** —
+  read live daemon state as JSON (for tmux status bars, shell prompts, scripts)
 
 JSON output for `config --validate` / `config --show` conforms to the versioned
-[`chord.bindings.v3` JSON Schema](docs/schema/chord.bindings.v3.json).
+[`chord.bindings.v3` JSON Schema](docs/schema/chord.bindings.v3.json); `chord query`
+emits the separate `chord.query.v1` wire format (live runtime state, not parsed config).
 
 `chord` is hexagonal Swift 6 (Core / AdapterMacOS / AdapterTest /
 App), the same shape as
@@ -232,6 +235,10 @@ chord daemon --pause       suspend all bindings (passthrough mode)
 chord daemon --resume      re-enable bindings
 chord daemon --toggle      flip paused ↔ resumed (handy as a hotkey)
 chord daemon --show        print the last status line
+chord query --status       live state as JSON: paused / ax-granted / uptime / config-loaded-at
+chord query --vars         current state-variable values, as JSON
+chord query --loaded-bindings   binding / fallback / alias counts, as JSON
+chord query --recent-fires [--limit N]   recently fired bindings (newest first), as JSON
 chord --help         this text
 chord --version      print version
 ```
@@ -256,12 +263,15 @@ The grammar is yabai-style `chord <domain> --<verb> [--mod]`, powered by
 the shared sill CLIKit tokenizer (chord keeps its own verb vocabulary).
 Each domain takes exactly one verb; combining verbs, or passing a flag
 outside its domain, exits `2` (an unknown flag prints a "did you mean …?"
-hint). The two domains are `config` (settings; standalone, no daemon) and
-`daemon` (lifecycle; needs a running daemon, exits `3` if none). Exit
-codes: `0` ok / `1` (`config --validate --strict` tripped) / `2` usage /
-`3` daemon-not-running. Note `--show` exists in **both** domains and they
-differ: `config --show` lists the parsed config / bindings, while
-`daemon --show` prints the daemon's runtime status line.
+hint). The three domains are `config` (settings; standalone, no daemon),
+`daemon` (lifecycle; needs a running daemon, exits `3` if none) and `query`
+(read-only live state as JSON; needs a running daemon, exits `3` if none).
+Exit codes: `0` ok / `1` (`config --validate --strict` tripped) / `2` usage /
+`3` daemon-not-running. Note `--show` exists in **both** the config and daemon
+domains and they differ: `config --show` lists the parsed config / bindings,
+while `daemon --show` prints the daemon's runtime status line. To read live
+runtime state structurally — current state-var values, recent fires — use
+`chord query` (its own `chord.query.v1` socket, distinct from both).
 
 ## Migration (flat flags → yabai-style domains)
 
