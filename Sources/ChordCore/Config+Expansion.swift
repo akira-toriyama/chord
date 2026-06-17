@@ -83,20 +83,17 @@ extension Config {
 
         // Field names whose per-app override layers onto the base.
         // Everything binding-shape (input / when-var / hold-while /
-        // action-* / on-up variants) is layerable; metadata
-        // (`name`, `__line__`) is treated separately.
-        let layerableKeys: Set<String> = [
-            "input",
-            "action-shell", "action-keys", "action-noop",
-            "action-set-var", "action-set-value",
-            "action-shell-on-up", "action-keys-on-up",
-            "action-noop-on-up",
-            "action-set-var-on-up", "action-set-value-on-up",
-            "when-var", "when-var-value", "when-vars",
-            "hold-while", "hold-while-timeout",
-            "passthrough", "repeat",
-            "input-source",
-        ]
+        // action-* / on-up variants) is layerable; metadata (`name`,
+        // `__line__`) and the per-app identity key (`bundle-id`, which
+        // becomes `apps`) are not. #52-bounded: this set is DERIVED from
+        // the descriptor's perAppShape (the same single source that drives
+        // the unknown-key check + the schema), so a key added to the
+        // shape lands here too — it can't go stale. `rejected` fields
+        // (the invalid `*-on-up` forms) are excluded.
+        let layerableKeys = Set(
+            ChordConfigSchema.perAppShape().fields
+                .filter { !$0.rejected && $0.key != "bundle-id" }
+                .map(\.key))
 
         var out: [[String: TOML.Value]] = []
         for entry in perApp {

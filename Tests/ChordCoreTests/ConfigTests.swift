@@ -149,6 +149,141 @@ final class ConfigTests: XCTestCase {
         })
     }
 
+    // MARK: - #52-bounded: descriptor-driven unknown-key validation
+
+    /// A typo on an OPTIONAL binding key warns (.unknownKey) but the binding
+    /// still loads — the unknown key is lenient, like [options].
+    func testUnknownBindingKeyWarns() throws {
+        let source = """
+        [[bindings]]
+        name = "typo"
+        input = "cmd - a"
+        action-shell = "echo hi"
+        passthrouh = true
+        """
+        let r = try Config.parse(source)
+        XCTAssertEqual(r.config.bindings.count, 1, "binding still loads")
+        XCTAssertEqual(r.droppedBindings, 0)
+        XCTAssertEqual(r.warnings.filter { $0.kind == .unknownKey }.count, 1)
+        XCTAssertTrue(r.warnings.contains {
+            $0.kind == .unknownKey && $0.message.contains("'passthrouh'")
+        })
+    }
+
+    /// Unknown keys are caught in every closed shape, including the nested
+    /// per-app / sequence.bindings rows, each labelled with its section.
+    func testUnknownKeyAcrossNestedShapes() throws {
+        let source = """
+        [[bindings]]
+        input = "cmd - a"
+        action-noop = true
+          [[bindings.per-app]]
+          bundle-id = "com.apple.Terminal"
+          action-keys = "cmd - v"
+          appz = ["x"]
+
+        [[fallbacks]]
+        input = "*"
+        action-noop = true
+        nope = 1
+
+        [[sequence]]
+        prefix = "cmd - g"
+        timeout-ms = 800
+          [[sequence.bindings]]
+          input = "h"
+          action-noop = true
+          wat = 2
+
+        [[remap]]
+        modifiers = "cmd"
+        map = { h = "left" }
+        huh = 3
+        """
+        let r = try Config.parse(source)
+        let unknown = r.warnings.filter { $0.kind == .unknownKey }
+        XCTAssertEqual(unknown.count, 4)
+        XCTAssertTrue(unknown.contains { $0.message.contains("[[bindings.per-app]]") && $0.message.contains("'appz'") })
+        XCTAssertTrue(unknown.contains { $0.message.contains("[[fallbacks]]") && $0.message.contains("'nope'") })
+        XCTAssertTrue(unknown.contains { $0.message.contains("[[sequence.bindings]]") && $0.message.contains("'wat'") })
+        XCTAssertTrue(unknown.contains { $0.message.contains("[[remap]]") && $0.message.contains("'huh'") })
+    }
+
+    /// `action-toggle-var-on-up` / `action-hold-var-on-up` are recognised-
+    /// to-reject (rejected fields): the parser emits its SPECIFIC rejection,
+    /// NOT a misleading "unknown key" — the descriptor's keySet includes them
+    /// so the #52 check stays quiet.
+    func testRejectedOnUpKeysNotReportedAsUnknown() throws {
+        let source = """
+        [[bindings]]
+        name = "toggle-onup"
+        input = "cmd - a"
+        action-toggle-var = "x"
+        action-toggle-var-on-up = "x"
+        """
+        let r = try Config.parse(source)
+        XCTAssertFalse(r.warnings.contains { $0.kind == .unknownKey },
+                       "a recognised-to-reject key must not be flagged as unknown")
+        // The binding is dropped via the specific rejection instead.
+        XCTAssertEqual(r.config.bindings.count, 0)
+    }
+
+    /// The false-positive guard: a binding exercising a broad spread of known
+    /// keys (the descriptor's keySet) must produce ZERO .unknownKey warnings.
+    /// Catches a descriptor that drops a key the parser actually consumes.
+    func testKnownBindingKeysProduceNoUnknownWarning() throws {
+        let source = """
+        [[bindings]]
+        name = "full"
+        input = "cmd - a"
+        action-shell = "echo hi"
+        action-keys = "cmd - c"
+        action-shell-on-up = "echo bye"
+        when-vars = { layer = 1 }
+        input-source = "com.apple.keylayout.US"
+        passthrough = false
+        repeat = "ignore"
+          [[bindings.per-app]]
+          bundle-id = "com.apple.Terminal"
+          action-keys = "cmd - v"
+
+        [[bindings]]
+        name = "setvar"
+        input = "cmd - b"
+        action-set-var = "layer"
+        action-set-value = 1
+        hold-while = "cmd"
+        apps = ["com.apple.Safari"]
+        """
+        let r = try Config.parse(source)
+        let unknown = r.warnings.filter { $0.kind == .unknownKey }
+        XCTAssertTrue(unknown.isEmpty,
+                      "known keys must not be flagged: \(unknown.map { $0.message })")
+    }
+
+    /// #52-bounded: the per-app layerable set is DERIVED from perAppShape, so
+    /// every action the descriptor lists actually layers — closing a stale-
+    /// allowlist bug where action-toggle-var / action-hold-var /
+    /// action-mission-control / action-screenshot / action-spotlight were
+    /// silently dropped from a per-app override (dropping the whole binding
+    /// when the base had no action of its own).
+    func testPerAppLayersDescriptorActions() throws {
+        let source = """
+        [[bindings]]
+        name = "base"
+        input = "cmd - a"
+          [[bindings.per-app]]
+          bundle-id = "com.apple.Terminal"
+          action-toggle-var = "termlayer"
+        """
+        let r = try Config.parse(source)
+        XCTAssertFalse(r.warnings.contains { $0.kind == .unknownKey })
+        XCTAssertEqual(r.config.bindings.count, 1, "the per-app binding loads, not dropped")
+        guard case .toggleVariable = r.config.bindings.first?.action else {
+            return XCTFail("per-app action-toggle-var must layer onto the base binding")
+        }
+    }
+
     /// Two user-named bindings sharing a name still load (chord
     /// doesn't enforce uniqueness — the order-based first-match-wins
     /// matcher copes), but `config --show --json` consumers and the

@@ -326,6 +326,8 @@
             "condition-parse-error",
             "hold-while-parse-error",
             "action-set-parse-error",
+            "unknown-option-key",
+            "unknown-key",
             "other"
           ],
           "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a v3 schema bump. v2.x additions are forward-compatible: input-alias-non-string / input-alias-shadows-modifier / input-alias-invalid-body / undefined-input-alias (from [input-aliases] + $-prefixed references); condition-parse-error / hold-while-parse-error / action-set-parse-error (from v2 stateful bindings)."

@@ -663,11 +663,14 @@ public enum BindingsSchema {
             section = "[input-aliases]"
         default:
             // missing-input / missing-action / unknown-input-token /
-            // action-keys-parse-error / undefined-alias all come
-            // from [[bindings]] or [[fallbacks]] paths. Inferring
-            // which exactly requires extra metadata — for v1 we
-            // emit "[[bindings]]" and let the consumer cross-
-            // reference with sourceLine.
+            // action-keys-parse-error / undefined-alias — and the #52
+            // unknown-key check, which can also fire from [[sequence]] /
+            // [[remap]] / nested per-app rows — all come from binding-
+            // family paths. Inferring the exact one requires extra
+            // metadata; for v1 we emit "[[bindings]]" (the section the
+            // message text always names precisely) and let the consumer
+            // cross-reference with sourceLine. PR2.1 could carry the
+            // section explicitly on ConfigWarning.
             section = "[[bindings]]"
         }
         return WireDropped(

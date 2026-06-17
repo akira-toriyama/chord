@@ -28,6 +28,25 @@ final class SchemaTests: XCTestCase {
         XCTAssertNotNil(json["dropped"])
     }
 
+    /// #52-bounded: an unknown binding key surfaces in dropped[] with the
+    /// stable kind "unknown-key" — and the binding still loads (lenient).
+    func testUnknownKeySurfacesInDropped() throws {
+        let json = try parseAndEncode("""
+        [[bindings]]
+        name = "typo"
+        input = "f13"
+        action-noop = true
+        bogus-key = 1
+        """)
+        let bindings = json["bindings"] as! [[String: Any]]
+        XCTAssertEqual(bindings.count, 1, "binding still loads")
+        let dropped = json["dropped"] as! [[String: Any]]
+        let unknown = dropped.filter { $0["kind"] as? String == "unknown-key" }
+        XCTAssertEqual(unknown.count, 1)
+        XCTAssertEqual(unknown[0]["section"] as? String, "[[bindings]]")
+        XCTAssertTrue((unknown[0]["message"] as? String ?? "").contains("bogus-key"))
+    }
+
     func testKeyBindingShape() throws {
         let json = try parseAndEncode("""
         [[bindings]]

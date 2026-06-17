@@ -73,4 +73,19 @@ final class ConfigSchemaShapeTests: XCTestCase {
         XCTAssertTrue(ChordConfigSchema.remapShape().keySet.contains("map"))
         XCTAssertFalse(ChordConfigSchema.perAppShape().keySet.contains("per-app"))
     }
+
+    /// #52-bounded: `rejected` fields (action-toggle-var-on-up /
+    /// action-hold-var-on-up) live in the keySet (so the parser's
+    /// unknown-key check recognises them and doesn't mis-report a typo),
+    /// but are OMITTED from the emitted schema (so additionalProperties:false
+    /// keeps rejecting them — and the committed schema stays byte-identical).
+    func testRejectedKeysAreInKeySetButNotInSchema() throws {
+        let keySet = ChordConfigSchema.bindingShape().keySet
+        XCTAssertTrue(keySet.contains("action-toggle-var-on-up"))
+        XCTAssertTrue(keySet.contains("action-hold-var-on-up"))
+        let props = try XCTUnwrap(
+            try bindingItem(try emitted())["properties"] as? [String: Any])
+        XCTAssertNil(props["action-toggle-var-on-up"], "rejected key must not be schema-valid")
+        XCTAssertNil(props["action-hold-var-on-up"], "rejected key must not be schema-valid")
+    }
 }
