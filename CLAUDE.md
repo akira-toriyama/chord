@@ -136,8 +136,11 @@ event. Everything below depends on this contract:
   and is the authority — any wire-format change must update both
   [Sources/ChordCore/Schema.swift](Sources/ChordCore/Schema.swift)
   AND the schema file in the same commit, OR the consumer-facing
-  contract drifts silently. v1 / v2 JSON files are kept under
-  `docs/schema/` for history; do not edit them.
+  contract drifts silently. The v1 JSON file
+  (`chord.bindings.v1.json`) is kept under `docs/schema/` for
+  history; do not edit it. (No separate v2 file was ever
+  published — the v1→v3 jump happened within the live schema; v3
+  is current.)
 - **Consumer pinning guidance**: external repos integrating this
   schema should pin to a **tagged URL** (`…/v0.8.0/…`), not
   `…/main/…` — `main` moves under their feet, a tag does not.
@@ -548,7 +551,11 @@ stray instances before relaunching.
   fallback, *Rule of Repair*). **`config` domain** (settings;
   standalone, no daemon) — `config --validate` (`--strict` /
   `--json`) / `config --show` (`--json` / `--include-dropped`) /
-  `config --doctor`. **`daemon` domain** (lifecycle; needs a
+  `config --doctor` / `config --emit-schema` (config.toml INPUT
+  JSON Schema, Draft-07, for editor completion — emitted from the
+  `ChordConfigSchema` descriptor; regenerate the committed
+  `config.schema.json` with `chord config --emit-schema >
+  config.schema.json`). **`daemon` domain** (lifecycle; needs a
   running daemon, exit `3` if none) — `daemon --reload`
   (`--dry-run`) / `daemon --quit` / `daemon --pause` /
   `daemon --resume` / `daemon --toggle` / `daemon --show` /
