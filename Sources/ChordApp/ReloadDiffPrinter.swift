@@ -9,6 +9,22 @@ import ChordCore
 import Foundation
 
 extension ChordApp {
+    /// `chord daemon --reload --dry-run` parses the on-disk config.toml
+    /// and diffs it against the daemon's last-loaded snapshot
+    /// (written by `Controller.loadConfig` to
+    /// [BindingsSchema.snapshotPath]). NO IPC, NO daemon state
+    /// change — the actual reload only happens on a bare
+    /// `chord daemon --reload`.
+    ///
+    /// Diff granularity is name-keyed: a binding whose name exists
+    /// on both sides but whose semantic shape (input / apps /
+    /// action) differs is "changed"; a name that only appears on
+    /// one side is "added" / "removed". Line shifts due to inserts
+    /// elsewhere in the file are deliberately ignored.
+    ///
+    /// Exit codes:
+    ///   0 — diff printed (clean or otherwise)
+    ///   2 — catastrophic (TOML syntax / IO failure)
     static func runReloadDryRun() -> Int32 {
         do {
             let newRes = try Config.load()
@@ -142,33 +158,4 @@ extension ChordApp {
         default:      return action.kind
         }
     }
-
-    /// `chord daemon --resign` re-signs the installed Chord.app with the
-    /// persistent `chord-dev` self-signed identity and restarts the
-    /// daemon. Necessary after every `brew install` / `brew upgrade
-    /// chord`, because Homebrew's build sandbox blocks the in-formula
-    /// `setup-signing-cert.sh` from touching the user's login
-    /// keychain — install falls back to ad-hoc signing and TCC
-    /// re-prompts for Accessibility on every upgrade.
-    ///
-    /// Detection order for the installed Chord.app:
-    ///   1. /opt/homebrew/Cellar/chord/<latest>/Chord.app  (brew)
-    ///   2. /Applications/Chord.app                         (manual)
-    ///   3. $HOME/Applications/Chord.app                    (user)
-    ///
-    /// Exit codes:
-    ///   0 — re-signed (and restart attempted)
-    ///   1 — codesign failed
-    ///   2 — no Chord.app found in any expected location
-    /// `chord daemon --watch` — live per-event trace (chord 0.9.0+).
-    /// Truncates `/tmp/chord-watch.log` (= "subscribe" signal) and
-    /// then `tail -F`s it to stderr. The running daemon emits one
-    /// line per event while the file exists. Exit on Ctrl-C; the
-    /// file is left behind so a subsequent `chord daemon --watch` keeps
-    /// receiving lines. To stop the daemon from writing, the user
-    /// can `rm /tmp/chord-watch.log`.
-    ///
-    /// Exit codes:
-    ///   0 — clean exit (Ctrl-C, tail terminated)
-    ///   1 — couldn't spawn `tail` / filesystem error
 }

@@ -7,6 +7,25 @@
 import Foundation
 
 extension ChordApp {
+    /// `chord daemon --resign` re-signs the installed Chord.app with the
+    /// persistent `chord-dev` self-signed identity and restarts the
+    /// daemon. Necessary after every `brew install` / `brew upgrade
+    /// chord`, because Homebrew's build sandbox blocks the in-formula
+    /// `setup-signing-cert.sh` from touching the user's login
+    /// keychain — install falls back to ad-hoc signing and TCC
+    /// re-prompts for Accessibility on every upgrade.
+    ///
+    /// Detection order for the installed Chord.app:
+    ///   1. /opt/homebrew/Cellar/chord/<latest>/Chord.app  (brew)
+    ///   2. /Applications/Chord.app                         (manual)
+    ///   3. $HOME/Applications/Chord.app                    (user)
+    ///
+    /// Exit codes:
+    ///   0 — re-signed (and restart attempted)
+    ///   1 — codesign failed
+    ///   2 — no Chord.app found in any expected location
+    ///   3 — chord-dev identity missing from the login keychain
+    ///       (user needs to run setup-signing-cert.sh once)
     static func runResign() -> Int32 {
         guard let appPath = findChordApp() else {
             fputs("chord: no Chord.app found at /opt/homebrew/Cellar/chord/*/, " +

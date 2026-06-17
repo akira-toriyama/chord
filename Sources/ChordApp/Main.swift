@@ -536,22 +536,17 @@ enum ChordApp {
             : parts.joined(separator: " + ") + " - " + key
     }
 
-    /// `chord daemon --reload --dry-run` parses the on-disk config.toml
-    /// and diffs it against the daemon's last-loaded snapshot
-    /// (written by `Controller.loadConfig` to
-    /// [BindingsSchema.snapshotPath]). NO IPC, NO daemon state
-    /// change — the actual reload only happens on a bare
-    /// `chord daemon --reload`.
-    ///
-    /// Diff granularity is name-keyed: a binding whose name exists
-    /// on both sides but whose semantic shape (input / apps /
-    /// action) differs is "changed"; a name that only appears on
-    /// one side is "added" / "removed". Line shifts due to inserts
-    /// elsewhere in the file are deliberately ignored.
+    /// `chord daemon --watch` — live per-event trace (chord 0.9.0+).
+    /// Truncates `/tmp/chord-watch.log` (= "subscribe" signal) and
+    /// then `tail -F`s it to stderr. The running daemon emits one
+    /// line per event while the file exists. Exit on Ctrl-C; the
+    /// file is left behind so a subsequent `chord daemon --watch` keeps
+    /// receiving lines. To stop the daemon from writing, the user
+    /// can `rm /tmp/chord-watch.log`.
     ///
     /// Exit codes:
-    ///   0 — diff printed (clean or otherwise)
-    ///   2 — catastrophic (TOML syntax / IO failure)
+    ///   0 — clean exit (Ctrl-C, tail terminated)
+    ///   1 — couldn't spawn `tail` / filesystem error
     private static func runWatch() -> Int32 {
         let path = Log.watchPath
         // Truncate / create the file. Daemon checks existence on each
@@ -581,8 +576,6 @@ enum ChordApp {
         return 0
     }
 
-    ///   3 — chord-dev identity missing from the login keychain
-    ///       (user needs to run setup-signing-cert.sh once)
     private static func runDoctor() -> Int32 {
         var bad = false
         let ax = Permissions.isAccessibilityTrusted()
