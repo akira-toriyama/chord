@@ -1,61 +1,72 @@
-name: release
+name: Release
 
+# Thin caller of the shared rolling-DRAFT release (atelier Track 3).
+# A push to main makes git-cliff compute the next version from Conventional
+# Commits and create/update a single DRAFT release (no tag until you Publish
+# in the UI). The version-compute + draft-management logic lives once in
+# akira-toriyama/.github; this file supplies only chord's name + install
+# prose. See that reusable's header for the model. Config: cliff.toml.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
-
-permissions:
-  contents: write
+    inputs:
+      dry_run:
+        description: "Preview only (no draft; just artifacts)"
+        type: boolean
+        default: false
 
 concurrency:
   group: release
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   release:
-    # macos-15 ships Xcode 16+ → Swift 6. Same reason as build.yml.
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+    uses: akira-toriyama/.github/.github/workflows/release.yml@main
+    with:
+      app: Chord
+      # chord is yabai-style: `chord config --validate` is the post-build smoke.
+      smoke-cmd: config --validate
+      dry-run: ${{ github.event.inputs.dry_run == 'true' }}
+      install-notes: |
+        ## Install
 
-      - name: swift build (release)
-        run: swift build -c release
+        **Homebrew:**
 
-      - name: package Chord.app
-        run: ./package.sh
+        ```sh
+        brew install akira-toriyama/tap/chord
 
-      - name: tar
-        run: |
-          mkdir -p dist
-          tar czf "dist/chord-${GITHUB_SHA::7}.tar.gz" Chord.app
-          shasum -a 256 "dist/chord-${GITHUB_SHA::7}.tar.gz" \
-            > "dist/chord-${GITHUB_SHA::7}.tar.gz.sha256"
+        # One-time setup so the Accessibility grant persists across upgrades
+        $(brew --prefix)/share/chord/setup-signing-cert.sh   # create chord-dev identity
+        chord daemon --resign                                 # re-sign + restart
 
-      - name: Attach artifacts to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Upload Chord.app tar.gz + sha256 to the release matching
-          # the pushed tag (e.g. v0.5.0). The release itself is
-          # expected to exist already — the maintainer creates it
-          # manually with handwritten gitmoji notes after the build
-          # passes. If the release isn't there yet, log + exit clean
-          # so the workflow doesn't create the historic "v0.1.0-dev"
-          # rolling draft (intentionally retired).
-          #
-          # To attach artifacts after a later `gh release create`,
-          # either re-run this workflow from the Actions UI or run:
-          #   gh release upload "${TAG}" dist/*.tar.gz dist/*.sha256
-          tag="${GITHUB_REF_NAME}"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" \
-              dist/*.tar.gz dist/*.sha256 --clobber
-            echo "uploaded artifacts to release $tag"
-          else
-            echo "release $tag not found — skipping upload."
-            echo "create the release manually, then re-run this workflow"
-            echo "(or run: gh release upload $tag dist/*.tar.gz dist/*.sha256)"
-          fi
+        brew services start chord
+        ```
+
+        After every `brew upgrade chord`, run `chord daemon --resign` once —
+        Homebrew's build sandbox can't touch your login keychain during
+        install, so the bundle is ad-hoc signed and the Accessibility grant
+        would otherwise be lost on each upgrade. `chord daemon --resign` swaps
+        the ad-hoc signature for the persistent `chord-dev` identity and
+        restarts the daemon in one step.
+
+        **Prebuilt (`Chord.zip` below):** ad-hoc signed (not notarized), so
+        macOS quarantines it on download. After unzipping:
+
+        ```sh
+        xattr -dr com.apple.quarantine Chord.app
+        open Chord.app
+        ```
+
+        Then grant **Accessibility** to *chord* (System Settings → Privacy &
+        Security → Accessibility) and relaunch.
+
+        **Config:** chord reads `~/.config/chord/config.toml`:
+
+        ```sh
+        curl --create-dirs -o ~/.config/chord/config.toml \
+          https://raw.githubusercontent.com/akira-toriyama/chord/main/config.toml
+        ```
