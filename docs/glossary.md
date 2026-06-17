@@ -11,8 +11,9 @@ chord プロジェクトの **正規 (canonical) 用語表**。設計議論・PR
 
 1. **コード変更時に用語を新設 / rename / 意味変更したら、同 PR で本書を更新**
    (PR template の checkbox に従う)。
-2. **schema 契約** (`docs/schema/chord.bindings.v1.json`) の enum 値は
-   **frozen** とラベル付けし、rename は v2 bump の合図。
+2. **schema 契約** (`docs/schema/chord.bindings.v3.json`) の enum は
+   **値の追加は forward-compatible**、既存値の rename は schema version
+   bump の合図。
 3. **英名 = コード識別子と 1:1** を維持。Swift 型は CamelCase、TOML token
    は kebab-case のまま使う。**説明は日本語**。
 4. 「**Don't call it:**」欄は **PR レビューでの即時 NG ワード**。コメントで
@@ -566,6 +567,7 @@ yabai 式 `chord <domain> --<verb> [--mod]`（atelier Phase 3 M4）。bare `chor
 | `config --validate` | config をパース、warning/drop を報告 (`--strict` / `--json` 受理) | 0 / 1 (strict + issues) / 2 (parse error) |
 | `config --show` | 現行パース結果を出力 (`--json` / `--include-dropped` 受理・旧 `--list`) | 0 / 2 |
 | `config --doctor` | validate + AX 権限 + daemon liveness | 0 / 1 (何か NG) |
+| `config --emit-schema` | config.toml の INPUT JSON Schema (Draft-07) を stdout に（taplo 補完用・`ChordConfigSchema` descriptor から生成。committed copy は `chord config --emit-schema > config.schema.json` で再生成） | 0 |
 
 ### `daemon` domain（lifecycle・大半は DNC で daemon と通信・no daemon は exit 3）
 
@@ -579,10 +581,21 @@ yabai 式 `chord <domain> --<verb> [--mod]`（atelier Phase 3 M4）。bare `chor
 | `daemon --watch` | live per-event trace — `/tmp/chord-watch.log` を truncate して `tail -F`、daemon は存在する間だけ書く | 0 / 1 (spawn 失敗) |
 | `daemon --resign` | brew sandbox 後の Chord.app 再署名 + 再起動（DNC ではなく codesign + restart） | 0 (署名成功なら) |
 
+### `query` domain（live runtime 状態を JSON で・daemon 必須・no daemon は exit 3）
+
+DNC（write-only）や status file と別の **AF_UNIX req/res socket**（`/tmp/chord-query.sock`）越しに daemon の生状態を読む structured-read 口。出力は常に `chord.query.v1` JSON（parse 済 config の `chord.bindings.v3` とは別物）。
+
+| Verb | 動作 | Exit code |
+|---|---|---|
+| `query --status` | live state（paused / ax-granted / uptime / config-loaded-at） | 0 / 3 (no daemon) |
+| `query --vars` | 現在の state-variable 値 | 0 / 3 |
+| `query --loaded-bindings` | binding / fallback / alias の件数 | 0 / 3 |
+| `query --recent-fires [--limit N]` | 最近 fire した binding（新しい順・`--limit N` で件数上限＝chord 唯一の value-taking modifier） | 0 / 3 |
+
 ### Dispatch contract (chord 0.9.0+)
 
-`dispatch(_:)` が先頭トークン（domain noun）を peel し、`config` / `daemon` の per-domain verb テーブル
-(`configVerbs` / `daemonVerbs`) へ `dispatchDomain` で routing する (`Sources/ChordApp/Main.swift`)。共有 tokenizer
+`dispatch(_:)` が先頭トークン（domain noun）を peel し、`config` / `daemon` / `query` の per-domain verb テーブル
+(`configVerbs` / `daemonVerbs` / `queryVerbs`) へ `dispatchDomain` で routing する (`Sources/ChordApp/Main.swift`)。共有 tokenizer
 **sill `CLIKit`** が argv を解析（未知 flag は loud reject + nearest-match hint・`-h`/`-V` carve-out）。chord 側の policy:
 
 - **domain ごとに verb はちょうど 1 つ**。verb が 0 個 / 2 個以上は exit 2。
@@ -626,8 +639,8 @@ yabai 式 `chord <domain> --<verb> [--mod]`（atelier Phase 3 M4）。bare `chor
    主たる方に entry を置き、もう一方からはリンクで参照する
 3. 既存用語の **rename / 意味変更** は、`Don't call it:` 欄に旧名を追加する
    (= 旧名が CR で再登場することを防ぐ)
-4. **schema enum 値** (§3) の rename は、必ず `chord.bindings.v1.json` の
-   v2 bump とセットで議論する
+4. **schema enum 値** (§3) の rename は、必ず `chord.bindings.v3.json` の
+   version bump とセットで議論する（値の追加は forward-compatible）
 5. 新規 entry が `Don't call it:` 持ちなら、**1 件以上 forbidden 同義語を
    挙げる**。「これとは呼ぶな」を明示しないと結局揺れる
 
@@ -654,6 +667,6 @@ yabai 式 `chord <domain> --<verb> [--mod]`（atelier Phase 3 M4）。bare `chor
 - [docs/non-goals.md](non-goals.md) — chord が **意図的に持たない機能**。
   この glossary に登場しない概念がなぜ登場しないかの説明
 - [docs/architecture.md](architecture.md) — 層構造の詳細
-- [docs/schema/chord.bindings.v1.json](schema/chord.bindings.v1.json) —
-  frozen schema 契約 (このファイルの §3 と相互参照)
+- [docs/schema/chord.bindings.v3.json](schema/chord.bindings.v3.json) —
+  live な OUTPUT wire schema 契約 (このファイルの §3 と相互参照。`v1.json` は履歴)
 - [CLAUDE.md](../CLAUDE.md) — 設計判断と不変条件の出典
