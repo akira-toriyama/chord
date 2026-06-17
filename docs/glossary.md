@@ -178,7 +178,7 @@ ChordConfig
 
 ## 2. Config concepts (TOML レイヤ)
 
-ユーザが `config.toml` に書くトークン群。全て **frozen** (rename は v2 bump)。
+ユーザが `config.toml` に書くトークン群。全て **frozen** (rename は schema major bump = v4)。
 
 ### Sections
 
@@ -239,7 +239,7 @@ ChordConfig
 
 ## 3. Schema enum values (frozen)
 
-`docs/schema/chord.bindings.v3.json` の enum 値 (v1 / v2 は history 用に残置)。
+`docs/schema/chord.bindings.v3.json` の enum 値 (v1 は history 用に残置; v2 は別ファイル未発行)。
 **rename はすべて schema major bump**。新規追加は forward-compatible (既存 consumer
 が unknown を許容する前提)。
 
@@ -301,6 +301,7 @@ strict-side: `"lcmd"`, `"rcmd"`, `"lopt"`, `"ropt"`, `"lctrl"`, `"rctrl"`, `"lsh
 | `"per-app-parse-error"` | `[[bindings.per-app]]` 行不正 (bundle-id 欠如、`apps` と相互排他違反) (chord 0.8.0+) |
 | `"action-alias-call-error"` | `@name(args)` の引数不足・arg 解析失敗 (chord 0.9.0+) |
 | `"unknown-option-key"` | `[options]` 内に既知でないキー (typo 検出。chord 0.9.0+) |
+| `"unknown-key"` | `[[bindings]]` / `[[fallbacks]]` / `[[sequence]]` / `[[remap]]`（および nested `per-app` / `sequence.bindings`）行に descriptor 未知のキー (typo: `actoin-shell` 等)。runtime は黙って無視・`--strict` で exit 1。既知キー目録は `--emit-schema` を駆動する `ChordConfigSchema` descriptor と同一 (#52-bounded) |
 | `"duplicate-binding-name"` | ユーザ命名の `[[bindings]]` 行が同名で複数 (synth `binding-N` 名は除外) |
 | `"other"` | 将来の catch-all |
 
