@@ -15,22 +15,19 @@ jobs:
     # Xcode 15.4 = Swift 5.10, which can't parse our
     # `swift-tools-version:6.0` Package.swift and fails immediately.
     runs-on: macos-15
+    # Bounded so a hung `swift build` can't burn 6 h of free macOS minutes.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 
-      - name: Show Swift / Xcode version
-        run: |
-          swift --version
-          xcodebuild -version
-
+      # chord-specific: fail fast if the version strings drift across
+      # Package/Info.plist/Info.plist.dev before the expensive build.
       - name: check version sync (Swift / Info.plist / Info.plist.dev)
         run: ./scripts/check-version-sync.sh
 
-      - name: swift build
-        run: swift build -c release
-
-      - name: swift test
-        run: swift test
+      # Shared Swift build (setup-xcode + SPM cache + build + test).
+      # Consumed as a STEP so the `build` required check name is unchanged.
+      - uses: akira-toriyama/.github/actions/swift-build@main
 
       - name: smoke test (config --validate)
         run: |
