@@ -87,6 +87,15 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// look like "the option doesn't work". --strict turns it
         /// into a hard exit 1.
         case unknownOptionKey     = "unknown-option-key"
+        /// #52-bounded: a `[[bindings]]` / `[[fallbacks]]` / `[[sequence]]`
+        /// / `[[remap]]` row (or a nested `per-app` / `sequence.bindings`
+        /// row) contains a key the descriptor doesn't recognise (a typo:
+        /// `actoin-shell`, `passthrouh`). The key is silently ignored at
+        /// runtime, so without this warning the typo'd field would look
+        /// like it just "didn't take". --strict turns it into exit 1. The
+        /// known-key inventory is the same `ChordConfigSchema` descriptor
+        /// that drives `--emit-schema`, so the two can't drift.
+        case unknownKey           = "unknown-key"
         /// Two or more user-named `[[bindings]]` rows share the same
         /// `name`. Both still load (chord doesn't enforce unique
         /// names) but `config --show --json` consumers and the `daemon

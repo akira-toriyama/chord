@@ -37,15 +37,23 @@ public struct SchemaField: Sendable, Equatable {
     public var exclusiveMinimum: Int?
     public var doc: String
     public var examples: [String]?
+    /// A key the PARSER recognises but that is NOT schema-valid — it is
+    /// detected only to reject it with a specific error (the
+    /// `action-toggle-var-on-up` / `action-hold-var-on-up` forms, which
+    /// have no valid on-up half). It belongs in [ObjectShape.keySet] (so
+    /// the #52 unknown-key check doesn't mis-report it as a typo) but is
+    /// OMITTED from the emitted JSON Schema (#78) — the schema's
+    /// `additionalProperties: false` correctly rejects it.
+    public var rejected: Bool
 
     public init(_ key: String, _ shape: Shape, doc: String,
                 enumDomain: [String]? = nil, defaultBool: Bool? = nil,
                 defaultInt: Int? = nil, exclusiveMinimum: Int? = nil,
-                examples: [String]? = nil) {
+                examples: [String]? = nil, rejected: Bool = false) {
         self.key = key; self.shape = shape; self.doc = doc
         self.enumDomain = enumDomain; self.defaultBool = defaultBool
         self.defaultInt = defaultInt; self.exclusiveMinimum = exclusiveMinimum
-        self.examples = examples
+        self.examples = examples; self.rejected = rejected
     }
 }
 
@@ -164,6 +172,16 @@ public enum ChordConfigSchema {
             SchemaField("action-noop-on-up", .constTrue, doc: "Consume the key-up. Only `true`."),
             SchemaField("action-set-var-on-up", .string, doc: "Set a state variable on key-up."),
             SchemaField("action-set-value-on-up", .integer, doc: "Value for action-set-var-on-up.", defaultInt: 1),
+            // Recognised-to-reject (rejected = not schema-valid, kept out of
+            // the emitted schema): toggle-var / hold-var own their own on-up
+            // lifecycle, so an explicit -on-up form is a user error. The
+            // parser (Config+Binding.hasOnUpAction) detects these to emit a
+            // precise rejection; listing them here keeps the #52 unknown-key
+            // check from also flagging them as a typo.
+            SchemaField("action-toggle-var-on-up", .string,
+                doc: "Invalid — toggle-var has no on-up half.", rejected: true),
+            SchemaField("action-hold-var-on-up", .string,
+                doc: "Invalid — hold-var already owns the on-up half.", rejected: true),
         ]
     }
 

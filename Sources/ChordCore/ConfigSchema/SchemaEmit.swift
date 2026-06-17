@@ -60,7 +60,9 @@ public extension ChordConfigSchema {
         if !sectionDoc.isEmpty { obj["description"] = sectionDoc }
 
         var props: [String: Any] = [:]
-        for f in shape.fields { props[f.key] = emitField(f) }
+        // `rejected` fields are parser-recognised-to-reject, not schema-valid;
+        // omit them so `additionalProperties: false` keeps rejecting them.
+        for f in shape.fields where !f.rejected { props[f.key] = emitField(f) }
         for n in shape.nested {
             var arr: [String: Any] = ["type": "array", "items": emitObject(n.item, sectionDoc: n.item.doc)]
             if n.nonEmpty { arr["minItems"] = 1 }

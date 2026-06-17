@@ -61,6 +61,14 @@ public enum Config {
         var warnings: [ConfigWarning] = []
         var options = ChordConfig.Options()
 
+        // #52-bounded: descriptor-driven structural validation — warn on
+        // unknown keys in the array-of-tables sections ([[bindings]] /
+        // [[fallbacks]] / [[sequence]] / [[remap]]) and their nested rows.
+        // [options] is checked inline below; open string maps ([action-
+        // aliases] / [input-aliases]) accept any key by design.
+        warnings.append(contentsOf:
+            ChordConfigSchema.unknownKeyWarnings(root: root))
+
         if case .table(let opts)? = root["options"] {
             if let b = opts["passthrough-unmatched"]?.asBool {
                 options.passthroughUnmatched = b
@@ -75,12 +83,10 @@ public enum Config {
             // `exclude_apps` (underscore), etc. would otherwise look
             // exactly like the binding worked but had no effect.
             // TOML.lineKey is the synthetic line-number key the
-            // parser injects on the table header.
-            let known: Set<String> = [
-                "passthrough-unmatched",
-                "exclude-apps",
-                "fn-auto-arrows",
-            ]
+            // parser injects on the table header. #52-bounded: the
+            // known-key set is sourced from the descriptor (the same
+            // single source as `--emit-schema`), so it can't drift.
+            let known = ChordConfigSchema.optionsShape().keySet
             for key in opts.keys where key != TOML.lineKey && !known.contains(key) {
                 warnings.append(ConfigWarning(
                     kind: .unknownOptionKey,
