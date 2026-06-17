@@ -389,13 +389,18 @@ Rules:
 
 ### TOML parser
 
-- **`TOML.parse` is hand-rolled** in
-  [Sources/ChordCore/TOML.swift](Sources/ChordCore/TOML.swift) —
-  ported from stroke's `parseTOMLSubset`. Inline tables (`{a=1,
-  b=2}`) are **not** supported and `[[bindings]]` rows use the
-  dotted-key style (`action-shell` / `action-keys` / `action-noop`)
-  instead. Don't add an inline-table parser without a real need;
-  the dotted-key form keeps the parser inside its budget.
+- **TOML parsing is delegated to swift-toml-edit's `Toml` module**
+  (Sill-1 — the family's one TOML implementation).
+  [Sources/ChordCore/TOML.swift](Sources/ChordCore/TOML.swift) is now a
+  thin shim: `@_exported import Toml` + `public typealias TOML = Toml`,
+  so existing `TOML.parse` / `TOML.Value` references resolve unchanged.
+  The former hand-rolled parser (ported from stroke's `parseTOMLSubset`)
+  was retired when chord moved onto swift-toml-edit (sill 0.11.0 era).
+- **Inline tables ARE supported** and chord relies on them:
+  `when-vars = { a = 1, b = 2 }` (`[when]` conditions — Config+Condition.swift)
+  and `[[remap]] map = { … }` (Config+Remap.swift) both decode
+  `Toml.Value.table`. New `.toml` surface is bounded by swift-toml-edit's
+  full TOML 1.0 support, not a local parser budget.
 
 ### Modifiers (the L/R question)
 
@@ -901,6 +906,8 @@ chord は swift app family の共有ライブラリに乗る（plan [atelier](ht
 
 - **[sill](https://github.com/akira-toriyama/sill)** — 共有 theming / CLI 基盤。設計 → [`docs/DESIGN.md`](https://github.com/akira-toriyama/sill/blob/main/docs/DESIGN.md)。chord は headless ゆえ theming は非消費・`CLIKit`（CLI tokenizer）のみ使用。
 - **[swift-toml-edit](https://github.com/akira-toriyama/swift-toml-edit)** — family 唯一の TOML 実装（`Toml` module・Swift 版 toml_edit）。chord は config.toml パースに使用。
+
+**自己完結しない — 共有候補は sill に PR を模索**: app 単独で実装する前に「2 つ以上の app で冗長になりそうか」を問い、そうなら sill への PR を検討する（過剰共通化はしない・zero-debt ≠ 全部共有）。
 
 ## Roadmap board (GitHub Projects)
 
