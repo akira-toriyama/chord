@@ -893,6 +893,15 @@ re-confirmation.
   `.github/workflows/update-tap.yml` automating the formula bump
   on every published release.
 
+## Shared libraries (atelier)
+
+chord は swift app family の共有ライブラリに乗る（plan [atelier](https://github.com/akira-toriyama/atelier)）。
+共有 lib が持つ責務は**再実装せずライブラリ側を拡張**する（北極星＝「facet の theme を真似て」を二度と言わない）。
+モジュール → target の正確な配線は [Package.swift](Package.swift) を正とする。
+
+- **[sill](https://github.com/akira-toriyama/sill)** — 共有 theming / CLI 基盤。設計 → [`docs/DESIGN.md`](https://github.com/akira-toriyama/sill/blob/main/docs/DESIGN.md)。chord は headless ゆえ theming は非消費・`CLIKit`（CLI tokenizer）のみ使用。
+- **[swift-toml-edit](https://github.com/akira-toriyama/swift-toml-edit)** — family 唯一の TOML 実装（`Toml` module・Swift 版 toml_edit）。chord は config.toml パースに使用。
+
 ## Roadmap board (GitHub Projects)
 
 この repo の issue は集約 Project「roadmap」(akira-toriyama #5・
