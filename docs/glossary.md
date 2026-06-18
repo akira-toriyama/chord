@@ -132,11 +132,15 @@ binding は `action` 1 つに加えて **`extraDownActions[]`** を持つ
 
 ### Condition
 
-binding を発火させる **state ゲート述語**。v2 文法は narrow:
+binding を発火させる **state ゲート述語**。2 形:
 
-- `.variable(name: String, equals: Int)` — 単一変数等価のみ
+- `.variable(name: String, equals: Int)` — 単一変数等価 (v2)
+- `.conjunction([Condition])` — 2 件以上の AND ゲート (chord 0.9.0+)。
+  `when-vars = { a = 1, b = 2 }` inline-table から生成。wire では
+  `kind: "all"` + 再帰 `conditions[]` として出力。
 
-複雑な式 (`a == 1 && b == 2`) は将来検討 (issue #19)。
+OR / NOT は意図的に対象外 (式文法化を避ける)。`a == 1 && b == 2` を
+将来検討としていた issue #19 は `when-vars` 出荷で解消済。
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `Condition`
 - **Don't call it**: state-predicate, when-var-clause
