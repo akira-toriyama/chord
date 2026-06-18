@@ -234,17 +234,13 @@ final class StateTests: XCTestCase {
     }
 
     func testSchemaEmitsHoldWhileTimeout() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "j-layer"
         input = "rctrl + ralt + rshift - j"
         action-set-var = "jlayer"
         hold-while-timeout = 800
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
         XCTAssertEqual(b["hold_while_timeout"] as? Int, 800)
         XCTAssertNil(b["hold_while"],
                      "timeout-only binding omits hold_while in JSON")
@@ -253,28 +249,26 @@ final class StateTests: XCTestCase {
     // MARK: - Schema v2 emission
 
     func testSchemaEmitsSetVariableAction() throws {
-        let res = try Config.parse("""
+        let json = try parseToBindingsJSON("""
         [[bindings]]
         name = "enter"
         input = "cmd + opt - j"
         action-set-var = "wm"
         hold-while = "cmd + opt"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
         XCTAssertEqual(json["schema"] as? String, "chord.bindings.v3")
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let action = b["action"] as! [String: Any]
+        let bs = try XCTUnwrap(json["bindings"] as? [[String: Any]])
+        let b = bs[0]
+        let action = try XCTUnwrap(b["action"] as? [String: Any])
         XCTAssertEqual(action["kind"] as? String, "set-variable")
         XCTAssertEqual(action["variable"] as? String, "wm")
         XCTAssertEqual(action["value"] as? Int, 1)
-        let hold = b["hold_while"] as! [String]
+        let hold = try XCTUnwrap(b["hold_while"] as? [String])
         XCTAssertEqual(hold.sorted(), ["cmd", "opt"])
     }
 
     func testSchemaEmitsConditionAndOnUp() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "wm-l"
         input = "cmd + opt - l"
@@ -282,15 +276,11 @@ final class StateTests: XCTestCase {
         action-shell = "max"
         action-shell-on-up = "min"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let cond = b["condition"] as! [String: Any]
+        let cond = try XCTUnwrap(b["condition"] as? [String: Any])
         XCTAssertEqual(cond["kind"] as? String, "variable")
         XCTAssertEqual(cond["variable"] as? String, "wm")
         XCTAssertEqual(cond["equals"] as? Int, 1)
-        let onUp = b["action_on_up"] as! [String: Any]
+        let onUp = try XCTUnwrap(b["action_on_up"] as? [String: Any])
         XCTAssertEqual(onUp["kind"] as? String, "shell")
         XCTAssertEqual(onUp["command"] as? String, "min")
     }

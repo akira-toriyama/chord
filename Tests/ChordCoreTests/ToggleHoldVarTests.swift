@@ -157,18 +157,13 @@ final class ToggleHoldVarTests: XCTestCase {
     // MARK: - Schema round-trip
 
     func testSchemaEmitsToggleVariableKind() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "toggle"
         input = "cmd - x"
         action-toggle-var = "wm"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let action = b["action"] as! [String: Any]
+        let action = try XCTUnwrap(b["action"] as? [String: Any])
         XCTAssertEqual(action["kind"] as? String, "toggle-variable")
         XCTAssertEqual(action["variable"] as? String, "wm")
         XCTAssertNil(action["value"], "toggle has no value field")
@@ -177,21 +172,16 @@ final class ToggleHoldVarTests: XCTestCase {
     func testSchemaEmitsHoldVarAsSetVariablePair() throws {
         // hold-var is parse-time sugar; the JSON shows the desugared
         // setVariable + setVariable-on-up pair.
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "hold"
         input = "cmd - x"
         action-hold-var = "wm"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let primary = b["action"] as! [String: Any]
+        let primary = try XCTUnwrap(b["action"] as? [String: Any])
         XCTAssertEqual(primary["kind"] as? String, "set-variable")
         XCTAssertEqual(primary["value"] as? Int, 1)
-        let onUp = b["action_on_up"] as! [String: Any]
+        let onUp = try XCTUnwrap(b["action_on_up"] as? [String: Any])
         XCTAssertEqual(onUp["kind"] as? String, "set-variable")
         XCTAssertEqual(onUp["value"] as? Int, 0)
     }

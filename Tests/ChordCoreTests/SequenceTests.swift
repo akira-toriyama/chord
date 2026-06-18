@@ -474,7 +474,7 @@ final class SequenceTests: XCTestCase {
     // MARK: - Schema round-trip (sequence is invisible to consumers)
 
     func testSchemaShowsOnlyExpandedBindings() throws {
-        let res = try Config.parse("""
+        let json = try parseToBindingsJSON("""
         [[sequence]]
         name = "leader"
         prefix = "cmd + opt - j"
@@ -483,22 +483,18 @@ final class SequenceTests: XCTestCase {
           input = "k"
           action-keys = "return"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let bindings = json["bindings"] as! [[String: Any]]
+        let bindings = try XCTUnwrap(json["bindings"] as? [[String: Any]])
         XCTAssertEqual(bindings.count, 2,
                        "JSON shows the 2 expanded bindings, no sequence-specific shape")
         // Prefix is set-variable + hold_while_timeout.
         let prefix = bindings[0]
-        let action = prefix["action"] as! [String: Any]
+        let action = try XCTUnwrap(prefix["action"] as? [String: Any])
         XCTAssertEqual(action["kind"] as? String, "set-variable")
         XCTAssertEqual(action["variable"] as? String, "_seq_leader")
         XCTAssertEqual(prefix["hold_while_timeout"] as? Int, 1500)
         // Child carries a condition referencing the same variable.
         let child = bindings[1]
-        let cond = child["condition"] as! [String: Any]
+        let cond = try XCTUnwrap(child["condition"] as? [String: Any])
         XCTAssertEqual(cond["variable"] as? String, "_seq_leader")
     }
 }

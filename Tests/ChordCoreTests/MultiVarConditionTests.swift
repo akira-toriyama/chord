@@ -164,21 +164,16 @@ final class MultiVarConditionTests: XCTestCase {
     // MARK: - Schema
 
     func testSchemaEmitsConjunctionAsAllKind() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "multi"
         input = "cmd - x"
         when-vars = { a = 1, b = 2 }
         action-noop = true
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let cond = b["condition"] as! [String: Any]
+        let cond = try XCTUnwrap(b["condition"] as? [String: Any])
         XCTAssertEqual(cond["kind"] as? String, "all")
-        let nested = cond["conditions"] as! [[String: Any]]
+        let nested = try XCTUnwrap(cond["conditions"] as? [[String: Any]])
         XCTAssertEqual(nested.count, 2)
         XCTAssertEqual(nested[0]["kind"] as? String, "variable")
         XCTAssertEqual(nested[0]["variable"] as? String, "a")
@@ -189,19 +184,14 @@ final class MultiVarConditionTests: XCTestCase {
 
     func testSchemaSingleEntryEmitsAsVariable() throws {
         // 1-entry table collapses, so JSON still uses kind="variable".
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "single"
         input = "cmd - x"
         when-vars = { a = 1 }
         action-noop = true
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let cond = b["condition"] as! [String: Any]
+        let cond = try XCTUnwrap(b["condition"] as? [String: Any])
         XCTAssertEqual(cond["kind"] as? String, "variable")
         XCTAssertEqual(cond["variable"] as? String, "a")
     }

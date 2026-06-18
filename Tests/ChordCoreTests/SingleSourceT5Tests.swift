@@ -8,11 +8,7 @@ import XCTest
 final class SingleSourceT5Tests: XCTestCase {
 
     private func parseBindings(_ source: String) throws -> [String: Any] {
-        let res = try Config.parse(source)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        return try XCTUnwrap(
-            JSONSerialization.jsonObject(with: data) as? [String: Any])
+        try parseToBindingsJSON(source)
     }
 
     // MARK: item a — the modifier-token table is the single source
