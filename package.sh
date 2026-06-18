@@ -13,11 +13,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 variant="release"
-plist="Info.plist"
 bundle="Chord.app"
 if [[ "${1:-}" == "--dev" ]]; then
   variant="dev"
-  plist="Info.plist.dev"
   bundle="Chord-dev.app"
 fi
 
@@ -30,7 +28,22 @@ mkdir -p "$bundle/Contents/MacOS"
 mkdir -p "$bundle/Contents/Resources"
 
 cp .build/release/chord "$bundle/Contents/MacOS/chord"
-cp "$plist" "$bundle/Contents/Info.plist"
+cp Info.plist "$bundle/Contents/Info.plist"
+# The dev bundle's Info.plist is DERIVED from the single source (Info.plist)
+# at package time — no checked-in twin to drift. Distinct id/name so it
+# co-exists with a brew Chord.app; -dev version; "(dev build)" TCC prompts.
+if [[ "$variant" == "dev" ]]; then
+  dest="$bundle/Contents/Info.plist"
+  ver=$(plutil -extract CFBundleShortVersionString raw Info.plist)
+  plutil -replace CFBundleDisplayName        -string "chord (dev)"         "$dest"
+  plutil -replace CFBundleName               -string "chord-dev"           "$dest"
+  plutil -replace CFBundleIdentifier         -string "com.chord.chord.dev" "$dest"
+  plutil -replace CFBundleShortVersionString -string "${ver}-dev"          "$dest"
+  for key in NSAccessibilityUsageDescription NSInputMonitoringUsageDescription; do
+    d=$(plutil -extract "$key" raw "$dest")
+    plutil -replace "$key" -string "${d/chord/chord (dev build)}" "$dest"
+  done
+fi
 if [[ -f assets/icon/chord.icns ]]; then
   cp assets/icon/chord.icns "$bundle/Contents/Resources/AppIcon.icns"
 fi

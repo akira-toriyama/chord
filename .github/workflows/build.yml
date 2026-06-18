@@ -20,9 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # chord-specific: fail fast if the version strings drift across
-      # Package/Info.plist/Info.plist.dev before the expensive build.
-      - name: check version sync (Swift / Info.plist / Info.plist.dev)
+      # chord-specific: fail fast if the version strings drift between
+      # ChordVersion.current and Info.plist before the expensive build.
+      - name: check version sync (Swift / Info.plist)
         run: ./scripts/check-version-sync.sh
 
       # Shared Swift build (setup-xcode + SPM cache + build + test).
