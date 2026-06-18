@@ -307,26 +307,17 @@ public final class Controller {
         prevModsLock.unlock()
         guard prev != currentMods else { return }
 
-        let snapshot = matcherSnapshot()
         let state = variableStore.snapshot()
-        for b in snapshot.bindings where b.trigger == .modifiersOnly {
-            // App scope.
-            if let apps = b.apps {
-                guard let id = bundleID else { continue }
-                if !Matcher.appsAllow(id, patterns: apps) { continue }
-            }
-            // Condition gate.
-            if let cond = b.condition,
-               !Matcher.conditionHolds(cond, state: state)
-            {
-                continue
-            }
-            let prevSat = b.modifiers.matches(event: prev)
-            let curSat  = b.modifiers.matches(event: currentMods)
-            if !prevSat && curSat {
+        let edges = matcherSnapshot().modifierTransitions(
+            prev: prev, curr: currentMods, state: state, bundleID: bundleID)
+        for (b, edge) in edges {
+            switch edge {
+            case .entered:
                 fireBindingAction(b, isOnUp: false)
                 Log.debug("modifiers-only entry: '\(b.name)'")
-            } else if prevSat && !curSat, let onUp = b.onUpAction {
+            case .exited:
+                // modifierTransitions only emits `.exited` when onUp exists.
+                guard let onUp = b.onUpAction else { continue }
                 var upBinding = b
                 upBinding.action = onUp
                 fireBindingAction(upBinding, isOnUp: true)
