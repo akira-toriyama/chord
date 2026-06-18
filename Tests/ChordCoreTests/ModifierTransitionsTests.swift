@@ -26,9 +26,14 @@ final class ModifierTransitionsTests: XCTestCase {
                                  state: state, bundleID: bundleID)
     }
 
+    // NOTE: `prev`/`curr` are EVENT masks — they carry side-specific bits
+    // (`.lcmd`/`.rcmd`…), exactly as the OS reports and the live Controller
+    // passes. Binding constraints stay any-side (`.cmd`); `Modifiers.matches`
+    // resolves any-side against either physical side.
+
     func testEntryWhenMaskBecomesSatisfied() {
         let edges = transitions([modBinding("wm", mods: [.cmd, .opt])],
-                                prev: [], curr: [.cmd, .opt])
+                                prev: [], curr: [.lcmd, .lopt])
         XCTAssertEqual(edges.count, 1)
         XCTAssertEqual(edges.first?.binding.name, "wm")
         XCTAssertEqual(edges.first?.edge, .entered)
@@ -39,13 +44,13 @@ final class ModifierTransitionsTests: XCTestCase {
         let withOnUp = transitions(
             [modBinding("h", mods: [.cmd, .opt],
                         onUp: .setVariable(name: "h", value: 0))],
-            prev: [.cmd, .opt], curr: [])
+            prev: [.lcmd, .lopt], curr: [])
         XCTAssertEqual(withOnUp.count, 1)
         XCTAssertEqual(withOnUp.first?.edge, .exited)
 
         // Without onUp → no exit edge (nothing to fire on release).
         let noOnUp = transitions([modBinding("wm", mods: [.cmd, .opt])],
-                                 prev: [.cmd, .opt], curr: [])
+                                 prev: [.lcmd, .lopt], curr: [])
         XCTAssertTrue(noOnUp.isEmpty)
     }
 
@@ -53,9 +58,9 @@ final class ModifierTransitionsTests: XCTestCase {
         let b = [modBinding("wm", mods: [.cmd, .opt],
                             onUp: .setVariable(name: "wm", value: 0))]
         // Still satisfied before and after → neither entry nor exit.
-        XCTAssertTrue(transitions(b, prev: [.cmd, .opt], curr: [.cmd, .opt]).isEmpty)
+        XCTAssertTrue(transitions(b, prev: [.lcmd, .lopt], curr: [.lcmd, .lopt]).isEmpty)
         // Still unsatisfied before and after → nothing.
-        XCTAssertTrue(transitions(b, prev: [.shift], curr: [.ctrl]).isEmpty)
+        XCTAssertTrue(transitions(b, prev: [.lshift], curr: [.lctrl]).isEmpty)
     }
 
     func testNonModifierOnlyBindingsIgnored() {
@@ -63,7 +68,7 @@ final class ModifierTransitionsTests: XCTestCase {
             modBinding("mods", mods: [.cmd]),
             Binding(name: "key", trigger: .key(0x69), modifiers: [.cmd],
                     apps: nil, action: .noop),
-        ], prev: [], curr: [.cmd])
+        ], prev: [], curr: [.lcmd])
         XCTAssertEqual(edges.map(\.binding.name), ["mods"])
     }
 
@@ -71,11 +76,11 @@ final class ModifierTransitionsTests: XCTestCase {
         let b = [modBinding("safari-only", mods: [.cmd],
                             apps: ["com.apple.Safari"])]
         // Wrong app → no transition.
-        XCTAssertTrue(transitions(b, prev: [], curr: [.cmd],
+        XCTAssertTrue(transitions(b, prev: [], curr: [.lcmd],
                                   bundleID: "com.google.Chrome").isEmpty)
         // Right app → entry.
         XCTAssertEqual(
-            transitions(b, prev: [], curr: [.cmd],
+            transitions(b, prev: [], curr: [.lcmd],
                         bundleID: "com.apple.Safari").first?.edge,
             .entered)
     }
@@ -84,10 +89,10 @@ final class ModifierTransitionsTests: XCTestCase {
         let b = [modBinding("gated", mods: [.cmd],
                             condition: .variable(name: "on", equals: 1))]
         // Gate unmet → no transition.
-        XCTAssertTrue(transitions(b, prev: [], curr: [.cmd]).isEmpty)
+        XCTAssertTrue(transitions(b, prev: [], curr: [.lcmd]).isEmpty)
         // Gate met → entry.
         XCTAssertEqual(
-            transitions(b, prev: [], curr: [.cmd],
+            transitions(b, prev: [], curr: [.lcmd],
                         state: StateSnapshot(variables: ["on": 1])).first?.edge,
             .entered)
     }
