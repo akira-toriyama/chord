@@ -52,6 +52,16 @@ fn-auto-arrows = true
 #   • keys:     "cmd + ctrl - f13"
 #   • mouse:    "mouse.side1"               (left | right | middle | side1 | side2)
 #   • scroll:   "ctrl - scroll.up"          (up | down | left | right)
+#   • v-key:    "MY_VKEY"                    (bare name from [v-key-aliases]; a
+#                                             vendor-HID key a ZMK `&vkey <id>`
+#                                             emits. No `$`. Needs the Input
+#                                             Monitoring grant — see README.
+#                                             "v-key" in [[fallbacks]] = any-vkey
+#                                             wildcard.)
+#
+# [v-key-aliases]   maps NAME = <id 1-255> for the vendor-HID v-keys above.
+#                   For a canon keyboard, copy the generated block from
+#                   canon's config/vkey-aliases.toml. (chord 0.10.0+)
 #
 # Modifier names:
 #   cmd | opt (= alt) | ctrl | shift | fn | hyper (= cmd+opt+ctrl+shift)

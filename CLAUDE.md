@@ -28,7 +28,10 @@ Implementation: chord uses **CGEventTap** rather than the older
 Carbon `RegisterEventHotKey` API. That's what makes F21–F24 (no
 Carbon virtual keycodes exist for those), mouse buttons, and
 scroll-wheel events all bindable at the OS level. The cost is a
-one-time Accessibility grant.
+one-time Accessibility grant (plus a conditional Input Monitoring
+grant for the opt-in v-key vendor-HID path — requested only when a
+v-key binding is configured; see `VKeyHIDSource` /
+`Controller.configDeclaresVKeys`).
 
 ## Build / run
 
@@ -840,8 +843,13 @@ re-confirmation.
   *(reviewed 2026-05-24)* — the de-facto HID remapper on macOS.
   chord's F21–F24 keycode numbers are the slots Karabiner emits
   for HID usages 0x70–0x73; the `hyper` modifier sugar is named
-  after Karabiner's popular `Hyper` rule. Don't try to ship
-  HID-level remapping inside chord — that's Karabiner's job.
+  after Karabiner's popular `Hyper` rule. Don't ship general
+  HID-level *remapping* of ordinary keys inside chord — that's
+  Karabiner's job. (The v-key path is a deliberately narrow
+  exception: it *reads* one self-defined vendor report — usage page
+  0xFF31 — from the canon dongle via IOHIDManager and never
+  intercepts or remaps normal keyboard HID. See docs/non-goals.md
+  §USP / §2.)
 
 ### Formats / conventions
 

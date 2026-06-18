@@ -25,6 +25,11 @@ Triggers:
 - **`fn`-auto for arrow / nav keys** — macOS always tags those
   with `fn`; `input = "ctrl - right"` matches without spelling
   the bit out
+- **Vendor-HID "v-keys"** — fire on the raw vendor selector a
+  ZMK keymap emits via `&vkey <id>` (its own HID usage page, so
+  it can't clash with real keys); name ids in `[v-key-aliases]`
+  and bind with a bare `input = "NAME"`. Needs Input Monitoring
+  (see Install). (chord 0.10.0+)
 
 Actions:
 
@@ -89,7 +94,9 @@ App), the same shape as
 [facet](https://github.com/akira-toriyama/facet). One TOML file
 is the only thing you have to look at to know what it'll do — no
 GUI, no settings panel, no persisted state. macOS Accessibility
-grant is required once.
+grant is required once. (Only [v-key](#v-keys-vendor-hid-from-zmk)
+bindings need a second grant — Input Monitoring — and only when one
+is configured.)
 
 ## Install
 
@@ -124,6 +131,17 @@ For a Dock-less always-on daemon, run `./package.sh` to assemble
 `Chord.app` and launch it via `open Chord.app`. The first launch
 will prompt for Accessibility — grant it in **System Settings →
 Privacy & Security → Accessibility**, then relaunch.
+
+**Input Monitoring (v-keys only).** If your config uses
+[v-key](#v-keys-vendor-hid-from-zmk) bindings — vendor-HID keys a ZMK
+keymap emits — chord additionally needs the **Input Monitoring**
+grant, a *separate* TCC permission from Accessibility, in **System
+Settings → Privacy & Security → Input Monitoring**. `Chord.app`
+carries its own signing identity (distinct from your terminal), so
+the GUI daemon needs its own grant even when the CLI already has
+Accessibility. chord asks for it only when a v-key binding is
+configured — non-v-key users are never prompted. `chord config
+--doctor` reports it on the `input monitoring:` line.
 
 ## Configure
 
@@ -209,6 +227,49 @@ mask; `action-*-on-up` fires on the release half. The state
 surface is deliberately narrow — single-variable equality, no
 nested modes. See Pattern 9 in [`config.toml`](./config.toml) for
 the full annotated example.
+
+### v-keys (vendor HID from ZMK)
+
+A **v-key** is a raw vendor-defined HID code a ZMK keyboard emits
+through a `&vkey <id>` behavior — on its own usage page, so it never
+collides with a real keystroke. chord reads it straight from the
+keyboard (see **Input Monitoring** under [Install](#install)) and
+routes it like any other trigger.
+
+Name each id in a `[v-key-aliases]` table, then bind it with a
+**bare** `input = "NAME"` — no `$`, because a v-key alias is a
+complete trigger on its own (like `f13`):
+
+```toml
+[v-key-aliases]
+KP_X1   = 0x01
+TU_LL_Q = 0x10
+TU_LL_C = 0x26
+
+[[bindings]]
+name = "v-key: app switcher"
+input = "TU_LL_C"        # bare alias name — no $ prefix
+action-shell = "open -a Safari"
+
+[[fallbacks]]
+name = "any unassigned v-key beeps"
+input = "v-key"          # wildcard: every v-key with no binding
+action-shell = "afplay /System/Library/Sounds/Tink.aiff"
+```
+
+v-keys flow through the normal matcher, so `apps`, `when-var`, and
+`*-on-up` all work on a v-key binding. ids are `1`–`255` and alias
+names are case-insensitive. v-keys carry no modifiers, so they are
+**not** valid in `[[sequence]]` or `[[remap]]` (both compose a
+modifier set onto the trigger).
+
+If you drive chord from a
+[canon](https://github.com/akira-toriyama/canon) keyboard, the
+`[v-key-aliases]` block is generated from the ZMK keymap — copy it
+from canon's
+[`config/vkey-aliases.toml`](https://github.com/akira-toriyama/canon/blob/main/config/vkey-aliases.toml)
+(produced by `scripts/gen-vkey-aliases.py`, the single source of
+truth) into your `config.toml`.
 
 See [`config.toml`](./config.toml) for the full template with every
 option commented inline.

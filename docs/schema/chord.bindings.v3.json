@@ -194,6 +194,35 @@
           "properties": {
             "kind": { "const": "anyKey" }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "description": "Modifier-only trigger — fires on a bare modifier mask entry/exit with no primary key (chord 0.9.0+). `name` and `keycode` are absent.",
+          "properties": {
+            "kind": { "const": "modifiersOnly" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "keycode"],
+          "description": "Vendor-HID v-key — a selector id (1–255) a ZMK keymap emits via `&vkey <id>` (chord 0.10.0+). `name` is the id as `\"0x%02X\"`; `keycode` is the id.",
+          "properties": {
+            "kind": { "const": "vkey" },
+            "name": { "type": "string" },
+            "keycode": { "type": "integer", "minimum": 1, "maximum": 255 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "description": "Wildcard v-key trigger — fires only inside [[fallbacks]] sections (chord 0.10.0+). `name` and `keycode` are absent.",
+          "properties": {
+            "kind": { "const": "anyVKey" }
+          }
         }
       ]
     },
