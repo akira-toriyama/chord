@@ -82,7 +82,9 @@ public final class Controller {
         switch event.kind {
         case .modifiersChanged:
             Log.debug("flagsChanged: mods=0x\(String(event.modifiers.rawValue, radix: 16))")
-            clearStaleVariables(currentMods: event.modifiers)
+            for name in variableStore.clearStale(currentMods: event.modifiers) {
+                Log.debug("state: clear \(name) (hold-while released)")
+            }
             fireModifierOnlyBindings(currentMods: event.modifiers,
                                      bundleID: event.frontmostBundleID)
             emitWatch(event: event, outcome: "passthrough (modifiers-only event)")
@@ -100,7 +102,7 @@ public final class Controller {
         }
 
         let snapshot = matcherSnapshot()
-        let state = stateSnapshot()
+        let state = variableStore.snapshot()
         let me = Matcher.Event(trigger: event.trigger,
                                modifiers: event.modifiers,
                                bundleID: event.frontmostBundleID,
@@ -135,17 +137,17 @@ public final class Controller {
         // no legitimate reason to know about the controller's store).
         switch binding.action {
         case .setVariable(let name, let value):
-            applyVariable(name: name, value: value,
-                          holdWhile: binding.holdWhile,
-                          timeoutMs: binding.holdWhileTimeoutMs)
+            variableStore.set(name: name, value: value,
+                              holdWhile: binding.holdWhile,
+                              timeoutMs: binding.holdWhileTimeoutMs)
             Log.debug("state: set \(name)=\(value) " +
                       "via '\(binding.name)'" +
                       lifecycleTag(binding))
         case .toggleVariable(let name):
-            // Flip 0↔1 atomically (single stateLock window) — any non-zero
+            // Flip 0↔1 atomically (single lock window) — any non-zero
             // value collapses to 0, matching the documented contract. The
             // live store is the source of truth, not the per-event snapshot.
-            let (current, next) = applyToggleVariable(name: name)
+            let (current, next) = variableStore.toggle(name: name)
             Log.debug("state: toggle \(name) \(current)→\(next) " +
                       "via '\(binding.name)'")
         case .keys, .shell, .noop:
@@ -165,7 +167,7 @@ public final class Controller {
         // action so a setVariable + reset on the same binding still
         // ends in a fresh timer. (Self-gate is rare but possible.)
         if case .variable(let gated, _) = binding.condition {
-            extendTimerIfPresent(name: gated)
+            variableStore.extendTimer(name: gated)
         }
         recordFire(name: binding.name, app: event.frontmostBundleID,
                    action: describeAction(binding.action))
@@ -245,9 +247,9 @@ public final class Controller {
         }
         if let onUp = binding.onUpAction {
             if case .setVariable(let name, let value) = onUp {
-                applyVariable(name: name, value: value,
-                              holdWhile: binding.holdWhile,
-                              timeoutMs: binding.holdWhileTimeoutMs)
+                variableStore.set(name: name, value: value,
+                                  holdWhile: binding.holdWhile,
+                                  timeoutMs: binding.holdWhileTimeoutMs)
                 Log.debug("state: set \(name)=\(value) " +
                           "via '\(binding.name)' (on-up)")
             } else {
@@ -263,134 +265,12 @@ public final class Controller {
         return .consume
     }
 
-    /// Snapshot of the variable store, value-typed and lock-free
-    /// to read on the tap thread (the dictionary is copied inside the
-    /// lock then released). The matcher consumes this via
-    /// [Matcher.Event.state].
-    nonisolated func stateSnapshot() -> StateSnapshot {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        var out: [String: Int] = [:]
-        for (k, e) in (sharedState ?? [:]) { out[k] = e.value }
-        return StateSnapshot(variables: out)
-    }
-
-    /// Apply a [Action.setVariable] under [stateLock]. Writing 0
-    /// clears the entry (matches the matcher's "unset == 0" reading,
-    /// keeps the dict from accumulating zeroed keys over time).
-    /// `timeoutMs` schedules a B-α inactivity timer on the variable;
-    /// passing `nil` (or value == 0) cancels any prior timer.
-    nonisolated private func applyVariable(name: String, value: Int,
-                                           holdWhile: Modifiers?,
-                                           timeoutMs: Int?) {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        // Always cancel a pre-existing timer — either we're about
-        // to replace it (new lifecycle) or we're clearing the entry.
-        cancelTimerLocked(name: name)
-        if sharedState == nil { sharedState = [:] }
-        if value == 0 {
-            sharedState?.removeValue(forKey: name)
-        } else {
-            sharedState?[name] = VariableEntry(value: value,
-                                               holdWhile: holdWhile,
-                                               timeoutMs: timeoutMs)
-            if let ms = timeoutMs {
-                scheduleTimerLocked(name: name, ms: ms)
-            }
-        }
-    }
-
-    /// Flip a variable 0↔1 atomically — the read and the write happen in a
-    /// SINGLE `stateLock` window. The tap thread and the vkey HID callback
-    /// (main thread) both toggle the same store; doing the read via
-    /// `stateSnapshot()` and the write via `applyVariable()` would release
-    /// the lock in between, so two concurrent toggles could read the same
-    /// value and lose one flip. Returns `(old, new)` for logging.
-    @discardableResult
-    nonisolated private func applyToggleVariable(name: String) -> (old: Int, new: Int) {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        let current = sharedState?[name]?.value ?? 0
-        // Toggles never carry a hold-while / timeout, so always cancel any
-        // pre-existing timer (matches applyVariable's clear-on-write rule).
-        cancelTimerLocked(name: name)
-        if current == 0 {
-            if sharedState == nil { sharedState = [:] }
-            sharedState?[name] = VariableEntry(value: 1, holdWhile: nil,
-                                               timeoutMs: nil)
-            return (0, 1)
-        } else {
-            sharedState?.removeValue(forKey: name)
-            return (current, 0)
-        }
-    }
-
-    /// Reset the inactivity timer for a variable that's currently
-    /// active and timer-bound. Called when a gated binding fires
-    /// (B-α reset-on-use) — the variable stays alive as long as the
-    /// user keeps using it within the timeout window. No-op when the
-    /// variable is unset or has no timer.
-    nonisolated private func extendTimerIfPresent(name: String) {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        guard let entry = sharedState?[name],
-              let ms = entry.timeoutMs else { return }
-        cancelTimerLocked(name: name)
-        scheduleTimerLocked(name: name, ms: ms)
-    }
-
-    /// Timer fired — clear the variable. Re-checks under the lock
-    /// because the variable may have been reset / cleared between
-    /// scheduling and firing.
-    nonisolated private func timerFired(name: String) {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        sharedTimers.removeValue(forKey: name)
-        if sharedState?.removeValue(forKey: name) != nil {
-            Log.debug("state: clear \(name) (timeout)")
-        }
-    }
-
-    /// Locked-precondition helpers. Caller must hold stateLock.
-    /// Marked nonisolated because the tap-thread paths invoke them
-    /// inside their own stateLock window — main-actor isolation would
-    /// force an async hop the tap thread can't take.
-
-    nonisolated private func cancelTimerLocked(name: String) {
-        if let t = sharedTimers.removeValue(forKey: name) {
-            t.cancel()
-        }
-    }
-
-    nonisolated private func scheduleTimerLocked(name: String, ms: Int) {
-        let timer = DispatchSource.makeTimerSource(queue: stateTimerQueue)
-        timer.schedule(deadline: .now() + .milliseconds(ms))
-        let weakSelf = WeakWrap(self)
-        timer.setEventHandler {
-            weakSelf.value?.timerFired(name: name)
-        }
-        sharedTimers[name] = timer
-        timer.resume()
-    }
-
-    /// Cancel every running timer. Used by reset paths (reload,
-    /// stop) so a delayed fire doesn't try to mutate a stale store.
-    nonisolated private func cancelAllTimersLocked() {
-        for (_, t) in sharedTimers { t.cancel() }
-        sharedTimers.removeAll()
-    }
-
-    /// Wipe the variable store. Called on every config reload — the
-    /// new config may have dropped a binding that owned a variable,
-    /// leaving us with state that nothing can ever clear. Clean slate
-    /// on reload sidesteps the leak (and matches the user's mental
-    /// model: "reload restarts the daemon's state").
+    /// Wipe all daemon state on config reload — the new config may have
+    /// dropped a binding that owned a variable, leaving state nothing can
+    /// ever clear. Clean slate on reload sidesteps the leak (and matches
+    /// the user's mental model: "reload restarts the daemon's state").
     nonisolated private func resetState() {
-        stateLock.lock()
-        cancelAllTimersLocked()
-        sharedState = nil
-        stateLock.unlock()
+        variableStore.reset()
         pendingUpsLock.lock()
         pendingUps = nil
         pendingUpsLock.unlock()
@@ -428,7 +308,7 @@ public final class Controller {
         guard prev != currentMods else { return }
 
         let snapshot = matcherSnapshot()
-        let state = stateSnapshot()
+        let state = variableStore.snapshot()
         for b in snapshot.bindings where b.trigger == .modifiersOnly {
             // App scope.
             if let apps = b.apps {
@@ -463,11 +343,11 @@ public final class Controller {
     ) {
         switch binding.action {
         case .setVariable(let name, let value):
-            applyVariable(name: name, value: value,
-                          holdWhile: binding.holdWhile,
-                          timeoutMs: binding.holdWhileTimeoutMs)
+            variableStore.set(name: name, value: value,
+                              holdWhile: binding.holdWhile,
+                              timeoutMs: binding.holdWhileTimeoutMs)
         case .toggleVariable(let name):
-            applyToggleVariable(name: name)
+            variableStore.toggle(name: name)
         case .keys, .shell, .noop:
             ActionDispatcher.dispatch(binding)
         }
@@ -514,27 +394,6 @@ public final class Controller {
         _ = handle(InputEvent(trigger: .vkey(selector), modifiers: [],
                               frontmostBundleID: bundle, kind: .down,
                               inputSourceID: isrc))
-    }
-
-    /// Walk the variable store and remove any entry whose `holdWhile`
-    /// mask is no longer satisfied by the current modifier mask.
-    /// Called from the `.modifiersChanged` path; touches the lock
-    /// once per flagsChanged event (cheap — the dict is tiny).
-    nonisolated private func clearStaleVariables(currentMods: Modifiers) {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        guard var dict = sharedState else { return }
-        var mutated = false
-        for (name, entry) in dict {
-            guard let hold = entry.holdWhile else { continue }
-            if !hold.isStillHeld(in: currentMods) {
-                dict.removeValue(forKey: name)
-                cancelTimerLocked(name: name)
-                mutated = true
-                Log.debug("state: clear \(name) (hold-while released)")
-            }
-        }
-        if mutated { sharedState = dict }
     }
 
     /// Record a binding so its `.up` half can implicitly consume the
@@ -795,39 +654,45 @@ private let matcherLock = NSLock()
 nonisolated(unsafe) private var pausedFlag: Bool = false
 private let pauseLock = NSLock()
 
-// v2 state store. Both writes (Action.setVariable interception) and
-// reads (per-event snapshot) happen on the tap thread, so the lock
-// window is the dict copy itself — never wraps a callback. The
-// `holdWhile` field records which modifier mask, if any, ties the
-// variable's lifetime to a held-down mod set; flagsChanged handling
-// inspects this to auto-clear on release.
-struct VariableEntry: Sendable {
-    let value: Int
-    let holdWhile: Modifiers?
-    /// Inactivity timeout (ms). `nil` = no timer attached.
-    let timeoutMs: Int?
+// v2 state store. The variable dictionary, its lock, and the B-α
+// inactivity timers now live in ChordCore's `VariableStore` (directly
+// unit-tested). The daemon injects a DispatchSource-backed scheduler;
+// the store is internally thread-safe (its own NSLock), so the tap
+// thread and the vkey HID callback share it without further isolation.
+let variableStore = VariableStore(scheduler: DispatchStateScheduler())
+
+/// Production [StateScheduler]: a one-shot `DispatchSourceTimer` on a
+/// dedicated serial queue (replaces the old `sharedTimers` /
+/// `stateTimerQueue` globals).
+struct DispatchStateScheduler: StateScheduler {
+    private static let queue = DispatchQueue(label: "chord.state.timer",
+                                             qos: .userInitiated)
+    func schedule(afterMs: Int,
+                  _ fire: @escaping @Sendable () -> Void) -> StateSchedulerToken {
+        let timer = DispatchSource.makeTimerSource(queue: Self.queue)
+        timer.schedule(deadline: .now() + .milliseconds(afterMs))
+        timer.setEventHandler(handler: fire)
+        timer.resume()
+        return DispatchTimerToken(timer)
+    }
 }
-nonisolated(unsafe) var sharedState: [String: VariableEntry]?
-let stateLock = NSLock()
+
+/// Cancelable wrapping a `DispatchSourceTimer` (non-Sendable, hence
+/// `@unchecked` — `cancel()` is safe to call from any thread).
+final class DispatchTimerToken: StateSchedulerToken, @unchecked Sendable {
+    private let timer: DispatchSourceTimer
+    init(_ timer: DispatchSourceTimer) { self.timer = timer }
+    func cancel() { timer.cancel() }
+}
 
 /// chord 0.9.0+ modifier-only trigger support: the last observed
 /// OS modifier mask, used to detect mask-entry / mask-exit transitions
 /// against each `Binding.trigger == .modifiersOnly` row. Updated on
 /// every `.modifiersChanged` event before firing the corresponding
-/// bindings. NSLock-guarded same as pendingUps / sharedState — tap
-/// thread is the sole writer.
+/// bindings. NSLock-guarded same as pendingUps — tap thread is the
+/// sole writer.
 nonisolated(unsafe) var sharedPrevMods: Modifiers = []
 let prevModsLock = NSLock()
-
-// Per-variable inactivity timers (B-α). Lives under stateLock — the
-// timer fires on a private queue, then re-enters the lock to mutate
-// sharedState. DispatchSourceTimer is non-Sendable; the
-// nonisolated(unsafe) + lock pattern is the same idiom used for
-// sharedMatcher / sharedState / pendingUps elsewhere in this file.
-nonisolated(unsafe) var sharedTimers: [String: DispatchSourceTimer] = [:]
-let stateTimerQueue = DispatchQueue(
-    label: "chord.state.timer",
-    qos: .userInitiated)
 
 // Pending-up table: tap-side bookkeeping for the B1 contract
 // (consume the up of every consumed down so the OS sees a coherent
