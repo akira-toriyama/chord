@@ -39,6 +39,20 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
     /// any-side flags when parsing config, never as a separate bit.
     public static let hyper: Modifiers = [.cmd, .opt, .ctrl, .shift]
 
+    /// The four logical modifier categories, each as its
+    /// `(any, left, right)` bit triple, in canonical order
+    /// `[cmd, opt, ctrl, shift]`. Single source for [matches],
+    /// [isStillHeld], and `Schema.modifierSides` so the per-category
+    /// side logic can never drift between them. (`fn` is symmetric —
+    /// no L/R split — and is handled separately by each caller.)
+    public static let sideCategories:
+        [(any: Modifiers, left: Modifiers, right: Modifiers)] = [
+        (.cmd,   .lcmd,   .rcmd),
+        (.opt,   .lopt,   .ropt),
+        (.ctrl,  .lctrl,  .rctrl),
+        (.shift, .lshift, .rshift),
+    ]
+
     /// Does this BINDING constraint accept the given EVENT modifier
     /// set? `event` carries only side-specific bits (lcmd / rcmd /
     /// etc.) plus `fn` — those are what the tap actually observes.
@@ -61,11 +75,9 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
     /// them with `fn`, so a strict comparison would force every
     /// arrow binding to spell out `+ fn`).
     public func matches(event: Modifiers, ignoreFn: Bool = false) -> Bool {
-        let categoriesOK =
-               matchCategory(any: .cmd,   l: .lcmd,   r: .rcmd,   event: event)
-            && matchCategory(any: .opt,   l: .lopt,   r: .ropt,   event: event)
-            && matchCategory(any: .ctrl,  l: .lctrl,  r: .rctrl,  event: event)
-            && matchCategory(any: .shift, l: .lshift, r: .rshift, event: event)
+        let categoriesOK = Modifiers.sideCategories.allSatisfy {
+            matchCategory(any: $0.any, l: $0.left, r: $0.right, event: event)
+        }
         if ignoreFn { return categoriesOK }
         return categoriesOK && self.contains(.fn) == event.contains(.fn)
     }
@@ -76,17 +88,12 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
     /// of extra modifiers — adding shift on top of a held cmd+opt
     /// must NOT clear a `hold-while = "cmd + opt"` variable.
     public func isStillHeld(in current: Modifiers) -> Bool {
-        for (any, l, r): (Modifiers, Modifiers, Modifiers) in [
-            (.cmd,   .lcmd,   .rcmd),
-            (.opt,   .lopt,   .ropt),
-            (.ctrl,  .lctrl,  .rctrl),
-            (.shift, .lshift, .rshift),
-        ] {
-            let needAny = self.contains(any)
-            let needL = self.contains(l)
-            let needR = self.contains(r)
-            let hasL = current.contains(l)
-            let hasR = current.contains(r)
+        for cat in Modifiers.sideCategories {
+            let needAny = self.contains(cat.any)
+            let needL = self.contains(cat.left)
+            let needR = self.contains(cat.right)
+            let hasL = current.contains(cat.left)
+            let hasR = current.contains(cat.right)
             if needL && !hasL { return false }
             if needR && !hasR { return false }
             // any-side ("cmd") requirement satisfied when either
@@ -216,6 +223,21 @@ public enum Action: Hashable, Sendable {
     /// toggle"). Single, value-less variant — `action-set-value` is
     /// rejected for this action.
     case toggleVariable(name: String)
+
+    /// Stable wire/log discriminator for this action — the single
+    /// source for the `action.kind` string emitted by the schema
+    /// ([Schema.wireAction]) and the `--watch` log
+    /// ([Controller.describeAction]). Adding an `Action` case is a
+    /// compile error here until its string is assigned.
+    public var kindString: String {
+        switch self {
+        case .keys:           return "keys"
+        case .shell:          return "shell"
+        case .noop:           return "noop"
+        case .setVariable:    return "set-variable"
+        case .toggleVariable: return "toggle-variable"
+        }
+    }
 }
 
 /// Predicate gate evaluated against the controller's state snapshot.

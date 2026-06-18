@@ -21,7 +21,7 @@ extension Config {
     ) -> Binding? {
         let section = isFallback ? "[[fallbacks]]" : "[[bindings]]"
         let name = row["name"]?.asString ?? "binding-\(index + 1)"
-        let line = row[TOML.lineKey]?.asInt.map { Int($0) }
+        let line = row.sourceLine
         let source = sourceTag(line: line)
         guard let inputRaw = row["input"]?.asString else {
             warnings.append(ConfigWarning(

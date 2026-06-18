@@ -196,7 +196,7 @@ public enum Config {
             for (key, value) in raw {
                 if key == TOML.lineKey { continue }
                 let keyLower = key.lowercased()
-                if keyLower == "v-key" || keyLower == "vkey"
+                if InputParser.vkeyWildcardNames.contains(keyLower)
                     || InputParser.reservedModifierTokens.contains(keyLower)
                     || KeyCodes.code(forName: keyLower) != nil
                 {

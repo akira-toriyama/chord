@@ -43,7 +43,7 @@ public extension ChordConfigSchema {
         let known = shape.keySet
         // A per-app row identifies by bundle-id rather than name.
         let name = row["name"]?.asString ?? row["bundle-id"]?.asString
-        let line = row[TOML.lineKey]?.asInt
+        let line = row.sourceLine
         let who = name.map { " '\($0)'" } ?? ""
         // Sorted for deterministic warning order (TOML tables are unordered).
         for key in row.keys.sorted()

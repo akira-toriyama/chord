@@ -57,7 +57,7 @@ extension Config {
 
         let rows = root["sequence"]?.asArrayOfTables ?? []
         for (i, row) in rows.enumerated() {
-            let line = row[TOML.lineKey]?.asInt.map { Int($0) }
+            let line = row.sourceLine
             let source = sourceTag(line: line)
             let rawName = row["name"]?.asString
             let seqName = rawName ?? "sequence-\(i + 1)"
@@ -171,7 +171,7 @@ extension Config {
 
             // Child bindings.
             for (ci, child) in childRows.enumerated() {
-                let childLine = child[TOML.lineKey]?.asInt.map { Int($0) } ?? line
+                let childLine = child.sourceLine ?? line
                 let childSrc = sourceTag(line: childLine)
                 let childName = child["name"]?.asString
                     ?? "\(seqName).\(ci + 1)"
@@ -198,7 +198,7 @@ extension Config {
                 let childLower = childInputRaw
                     .trimmingCharacters(in: .whitespaces).lowercased()
                 if vkeyAliases[childLower] != nil
-                    || childLower == "v-key" || childLower == "vkey" {
+                    || InputParser.vkeyWildcardNames.contains(childLower) {
                     warnings.append(ConfigWarning(
                         kind: .sequenceParseError,
                         message:
