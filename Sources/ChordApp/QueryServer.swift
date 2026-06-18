@@ -145,7 +145,8 @@ extension Controller {
                 axGranted: Permissions.isAccessibilityTrusted(),
                 version: ChordVersion.current,
                 uptimeS: uptime,
-                configLoadedAt: meta.configLoadedAt.map(QuerySchema.iso)))
+                configLoadedAt: meta.configLoadedAt.map(QuerySchema.iso),
+                inputMonitoringGranted: Permissions.isInputMonitoringTrusted()))
         case .vars:
             return QuerySchema.encode(QuerySchema.VarsResponse(
                 queriedAt: iso, vars: stateSnapshot().variables))

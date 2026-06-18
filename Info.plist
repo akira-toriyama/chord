@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>chord taps keyboard and mouse events to dispatch user-configured bindings.</string>
+	<key>NSInputMonitoringUsageDescription</key>
+	<string>chord reads the keyboard's vendor-defined "original key" HID reports to dispatch user-configured [[vkey]] bindings.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 akira-toriyama. MIT License.</string>
 </dict>

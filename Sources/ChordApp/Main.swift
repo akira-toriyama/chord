@@ -582,6 +582,14 @@ enum ChordApp {
         print("accessibility: \(ax ? "ok" : "NOT GRANTED")")
         if !ax { bad = true }
 
+        // Advisory only — Input Monitoring is needed solely by the vkey
+        // vendor-HID source; the core CGEventTap daemon runs on
+        // Accessibility alone. Don't flip `bad` (would break installs
+        // that never use v-key bindings).
+        let im = Permissions.isInputMonitoringTrusted()
+        print("input monitoring: " +
+              (im ? "ok" : "not granted (only needed for v-key bindings)"))
+
         let cfgPath = ChordConfig.path
         let cfgPresent = FileManager.default.fileExists(atPath: cfgPath)
         print("config: \(cfgPath) — " +

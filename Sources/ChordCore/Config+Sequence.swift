@@ -47,6 +47,7 @@ extension Config {
         root: [String: TOML.Value],
         actionAliases: [String: String],
         inputAliases: [String: Modifiers],
+        vkeyAliases: [String: UInt8] = [:],
         warnings: inout [ConfigWarning]
     ) -> SequenceParse {
         var expanded: [Binding] = []
@@ -157,6 +158,7 @@ extension Config {
                 from: prefixRow, index: i, isFallback: false,
                 actionAliases: actionAliases,
                 inputAliases: inputAliases,
+                vkeyAliases: vkeyAliases,
                 allowReservedVarNames: true,
                 warnings: &warnings)
             else {
@@ -185,6 +187,29 @@ extension Config {
                     continue
                 }
 
+                // vkeys are modifier-less HID triggers; a sequence child is
+                // composed with the prefix's modifier set (below), which a
+                // vkey can never carry — so v-key aliases / the `v-key`
+                // wildcard are not valid sequence children. Reject with a
+                // clear message rather than letting the composed
+                // "<mods> - <alias>" surface a confusing unknown-token
+                // error. (Need a vkey gated on a mode? Use a plain
+                // [[bindings]] with when-var.)
+                let childLower = childInputRaw
+                    .trimmingCharacters(in: .whitespaces).lowercased()
+                if vkeyAliases[childLower] != nil
+                    || childLower == "v-key" || childLower == "vkey" {
+                    warnings.append(ConfigWarning(
+                        kind: .sequenceParseError,
+                        message:
+                            "[[sequence.bindings]] '\(childName)'\(childSrc): " +
+                            "v-key triggers are not supported in sequences " +
+                            "(vkeys carry no modifiers) — child dropped",
+                        sourceLine: childLine, bindingName: childName))
+                    dropped += 1
+                    continue
+                }
+
                 // Compose: prefix modset + " - " + child primary.
                 // Children are primary-only by design (issue spec) —
                 // if the user wrote their own modifier prefix, the
@@ -204,6 +229,7 @@ extension Config {
                     from: childRow, index: ci, isFallback: false,
                     actionAliases: actionAliases,
                     inputAliases: inputAliases,
+                    vkeyAliases: vkeyAliases,
                     allowReservedVarNames: true,
                     warnings: &warnings)
                 {

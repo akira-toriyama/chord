@@ -43,6 +43,13 @@ public extension ChordConfigSchema {
                 "description": s.doc,
                 "additionalProperties": ["type": "string", "description": valueDoc],
             ]
+        case .openIntMap(let valueDoc, let min, let max):
+            return [
+                "type": "object",
+                "description": s.doc,
+                "additionalProperties": ["type": "integer", "description": valueDoc,
+                                         "minimum": min, "maximum": max],
+            ]
         case .arrayOfTables(let shape):
             return [
                 "type": "array",

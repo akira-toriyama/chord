@@ -10,30 +10,37 @@ public enum ActionDispatcher {
     /// Run a binding's action. Called synchronously from inside the
     /// tap callback (still fast: shell exec is `Task.detached`'d).
     public static func dispatch(_ binding: Binding) {
-        switch binding.action {
+        dispatch(action: binding.action, name: binding.name)
+    }
+
+    /// Run a bare [Action] under a display `name`. The shared executor the
+    /// `Binding` overload above funnels through; also usable directly by
+    /// callers that hold an `Action` without a `Binding` to wrap.
+    public static func dispatch(action: Action, name: String) {
+        switch action {
         case .noop:
-            Log.debug("dispatch.noop: \(binding.name)")
+            Log.debug("dispatch.noop: \(name)")
         case .keys(let mods, let code):
-            Log.debug("dispatch.keys: \(binding.name) → " +
+            Log.debug("dispatch.keys: \(name) → " +
                       "mods=\(mods.rawValue) code=\(code)")
             postKeys(modifiers: mods, code: code)
         case .shell(let cmd):
-            Log.debug("dispatch.shell: \(binding.name) → \(cmd)")
+            Log.debug("dispatch.shell: \(name) → \(cmd)")
             Task.detached(priority: .userInitiated) {
-                ActionDispatcher.runShell(cmd, binding: binding)
+                ActionDispatcher.runShell(cmd, name: name)
             }
-        case .setVariable(let name, let value):
+        case .setVariable(let varName, let value):
             // The actual state mutation lives on the Controller side;
             // the dispatcher is the wrong place to own variable state
             // (this module knows about CGEvent / shell, not Core's
             // model). The Controller intercepts setVariable before
             // calling dispatch, so reaching here is a no-op safety
             // net for tests that exercise the dispatcher directly.
-            Log.debug("dispatch.setVariable: \(binding.name) → \(name)=\(value)")
-        case .toggleVariable(let name):
+            Log.debug("dispatch.setVariable: \(name) → \(varName)=\(value)")
+        case .toggleVariable(let varName):
             // Same safety net as setVariable — Controller owns the
             // store and intercepts toggleVariable before dispatch.
-            Log.debug("dispatch.toggleVariable: \(binding.name) → \(name)")
+            Log.debug("dispatch.toggleVariable: \(name) → \(varName)")
         }
     }
 
@@ -94,14 +101,14 @@ public enum ActionDispatcher {
 
     // MARK: - shell
 
-    static func runShell(_ command: String, binding: Binding) {
+    static func runShell(_ command: String, name: String) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
         proc.arguments = ["-l", "-c", command]
         // Login shell so PATH is the user's interactive PATH
         // (Homebrew, asdf, mise etc. — same fix focusfx documents).
         var env = ProcessInfo.processInfo.environment
-        env["CHORD_BINDING_NAME"] = binding.name
+        env["CHORD_BINDING_NAME"] = name
         if let id = FrontmostTracker.shared.bundleID {
             env["CHORD_FRONTMOST_BUNDLE_ID"] = id
         }
