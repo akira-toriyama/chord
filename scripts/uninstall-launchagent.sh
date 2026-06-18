@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+REPO="$(pwd)"
+
 LABEL="com.chord.chord"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 UID_=$(id -u)
@@ -31,7 +34,7 @@ fi
 # it mid-uninstall, masking the real shutdown.
 pkill -f "(/Applications|$HOME/Applications)/Chord(-dev)?\.app/Contents/MacOS/chord" \
   2>/dev/null || true
-pkill -f "/Users/.*/dev/chord/\.build/(debug|release)/chord" \
+pkill -f "$REPO/\.build/(debug|release)/chord" \
   2>/dev/null || true
 
 case "${1:-}" in
