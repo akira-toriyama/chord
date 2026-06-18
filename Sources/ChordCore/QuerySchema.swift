@@ -130,17 +130,22 @@ public enum QuerySchema {
         public let endpoint: String
         public let paused: Bool
         public let axGranted: Bool
+        /// Input Monitoring (`kTCCServiceListenEvent`) granted? Needed by
+        /// the vkey vendor-HID source; a SEPARATE grant from `axGranted`.
+        public let inputMonitoringGranted: Bool
         public let version: String
         public let uptimeS: Int
         public let configLoadedAt: String?
 
         public init(queriedAt: String, paused: Bool, axGranted: Bool,
-                    version: String, uptimeS: Int, configLoadedAt: String?) {
+                    version: String, uptimeS: Int, configLoadedAt: String?,
+                    inputMonitoringGranted: Bool = false) {
             self.schema = QuerySchema.version
             self.queriedAt = queriedAt
             self.endpoint = Endpoint.status.rawValue
             self.paused = paused
             self.axGranted = axGranted
+            self.inputMonitoringGranted = inputMonitoringGranted
             self.version = version
             self.uptimeS = uptimeS
             self.configLoadedAt = configLoadedAt
@@ -148,10 +153,11 @@ public enum QuerySchema {
 
         enum CodingKeys: String, CodingKey {
             case schema, endpoint, paused, version
-            case queriedAt      = "queried_at"
-            case axGranted      = "ax_granted"
-            case uptimeS        = "uptime_s"
-            case configLoadedAt = "config_loaded_at"
+            case queriedAt              = "queried_at"
+            case axGranted              = "ax_granted"
+            case inputMonitoringGranted = "input_monitoring_granted"
+            case uptimeS                = "uptime_s"
+            case configLoadedAt         = "config_loaded_at"
         }
     }
 

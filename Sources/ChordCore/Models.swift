@@ -137,6 +137,21 @@ public enum Trigger: Hashable, Sendable {
     /// effects to bare modifier chords (e.g. "play a tone when
     /// ULTRA_LL is pressed").
     case modifiersOnly
+    /// Vendor-defined HID "original key" (vkey). The keyboard firmware
+    /// (canon `&vkey <id>`) sends a 1-byte selector over a vendor HID
+    /// report; chord reads it via [VKeyHIDSource] and matches it here.
+    /// A binding selects one via `input = "<alias>"` where the alias
+    /// resolves through `[v-key-aliases]` to this id. vkeys carry no OS
+    /// modifiers, so a vkey binding's `modifiers` is always empty — but
+    /// `apps` / `when-var` / `onUp` all work exactly like any binding
+    /// (vkey events flow through the normal Matcher + down/up path).
+    case vkey(UInt8)
+    /// Wildcard counterpart to [anyKey] for the vendor-HID path: matches
+    /// any `.vkey` event not already handled. `[[fallbacks]]` only
+    /// (parser produces it solely from the fallback path), via the
+    /// reserved `input = "v-key"` literal — the single-sound "undefined
+    /// vkey" feedback bucket.
+    case anyVKey
 }
 
 public enum MouseButton: Int, Hashable, Sendable, Codable {
@@ -370,6 +385,7 @@ public struct StateSnapshot: Hashable, Sendable {
     /// `Condition.variable("wm", equals: 0)` to mean "wm is cleared".
     public func value(_ name: String) -> Int { variables[name] ?? 0 }
 }
+
 
 /// Whole-program configuration. The TOML file lands here.
 public struct ChordConfig: Sendable {

@@ -52,11 +52,31 @@ public enum InputParser {
     public static func parse(_ raw: String,
                              allowWildcard: Bool = false,
                              allowModifiersOnly: Bool = false,
-                             inputAliases: [String: Modifiers] = [:])
+                             inputAliases: [String: Modifiers] = [:],
+                             vkeyAliases: [String: UInt8] = [:])
         throws -> Parsed
     {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { throw InputParseError.empty }
+
+        // Vendor-HID v-key trigger. A v-key alias is a COMPLETE trigger
+        // (like a custom key name — no `$` sigil, parallel to `f13`), so
+        // it is resolved BEFORE the keycode fast-path below: a declared
+        // v-key alias can never be silently re-read as a literal key.
+        // The bare `v-key` / `vkey` literal is the any-vkey wildcard
+        // (`[[fallbacks]]` only) — the vendor-HID counterpart of `*`.
+        let lowered = trimmed.lowercased()
+        if lowered == "v-key" || lowered == "vkey" {
+            guard allowWildcard else {
+                throw InputParseError.unknownToken(
+                    "v-key (any-vkey wildcard only allowed in [[fallbacks]])",
+                    context: raw)
+            }
+            return Parsed(modifiers: [], trigger: .anyVKey)
+        }
+        if let id = vkeyAliases[lowered] {
+            return Parsed(modifiers: [], trigger: .vkey(id))
+        }
 
         // Fast path: the whole string is a valid primary token
         // (e.g. `f13`, `mouse.side1`, `keycode-200`, `*`). Treat as

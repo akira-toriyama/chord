@@ -180,6 +180,66 @@ public enum Config {
             }
         }
 
+        // [v-key-aliases] — `name = <id>` lookup for vendor-HID "original
+        // keys". A binding selects one via a BARE `input = "<name>"` (no
+        // `$` sigil — a v-key is a complete trigger, like a custom key
+        // name, parallel to `f13`). The value is the 1–255 id the
+        // firmware's `&vkey <id>` sends (canon Report ID 0x20). The
+        // resolved map is threaded into `InputParser.parse`, where a hit
+        // becomes a `.vkey(id)` trigger; from there a vkey binding flows
+        // through the ordinary Matcher (apps / when-var / on-up all work).
+        // Names that would shadow a real key / modifier / the `v-key`
+        // wildcard are rejected — the bare-name resolution would otherwise
+        // be ambiguous.
+        var vkeyAliasesParsed: [String: UInt8] = [:]
+        if case .table(let raw)? = root["v-key-aliases"] {
+            for (key, value) in raw {
+                if key == TOML.lineKey { continue }
+                let keyLower = key.lowercased()
+                if keyLower == "v-key" || keyLower == "vkey"
+                    || InputParser.reservedModifierTokens.contains(keyLower)
+                    || KeyCodes.code(forName: keyLower) != nil
+                {
+                    warnings.append(ConfigWarning(
+                        kind: .vkeyAliasInvalid,
+                        message:
+                            "[v-key-aliases] '\(key)': name shadows a built-in " +
+                            "key / modifier / the v-key wildcard — ignored " +
+                            "(rename so `input = \"\(key)\"` stays unambiguous)",
+                        bindingName: key))
+                    continue
+                }
+                guard let idRaw = value.asInt.map({ Int($0) }) else {
+                    warnings.append(ConfigWarning(
+                        kind: .vkeyAliasInvalid,
+                        message:
+                            "[v-key-aliases] '\(key)': value must be an " +
+                            "integer 1–255 (the id `&vkey <id>` sends) — ignored",
+                        bindingName: key))
+                    continue
+                }
+                guard (1...255).contains(idRaw) else {
+                    warnings.append(ConfigWarning(
+                        kind: .vkeyAliasInvalid,
+                        message:
+                            "[v-key-aliases] '\(key)': id \(idRaw) out of " +
+                            "range 1–255 — ignored",
+                        bindingName: key))
+                    continue
+                }
+                if let existing = vkeyAliasesParsed[keyLower] {
+                    warnings.append(ConfigWarning(
+                        kind: .vkeyAliasInvalid,
+                        message:
+                            "[v-key-aliases] '\(key)': duplicate name " +
+                            "(already = \(existing)) — first wins, ignored",
+                        bindingName: key))
+                    continue
+                }
+                vkeyAliasesParsed[keyLower] = UInt8(idRaw)
+            }
+        }
+
         // v0.7.0 sequence sugar: parse `[[sequence]]` rows first and
         // expand them into prefix + child bindings. The expansion
         // produces ordinary Binding values (no new runtime concepts),
@@ -190,6 +250,7 @@ public enum Config {
         let seq = parseSequences(root: root,
                                  actionAliases: actionAliases,
                                  inputAliases: inputAliasesParsed,
+                                 vkeyAliases: vkeyAliasesParsed,
                                  warnings: &warnings)
 
         var bindings: [Binding] = seq.expanded
@@ -213,6 +274,7 @@ public enum Config {
                                           isFallback: false,
                                           actionAliases: actionAliases,
                                           inputAliases: inputAliasesParsed,
+                                          vkeyAliases: vkeyAliasesParsed,
                                           warnings: &warnings)
                 else {
                     dropped += 1
@@ -272,6 +334,7 @@ public enum Config {
         let remap = parseRemaps(root: root,
                                 actionAliases: actionAliases,
                                 inputAliases: inputAliasesParsed,
+                                vkeyAliases: vkeyAliasesParsed,
                                 warnings: &warnings)
         bindings.append(contentsOf: remap.expanded)
         dropped += remap.dropped
@@ -288,6 +351,7 @@ public enum Config {
                                        isFallback: true,
                                        actionAliases: actionAliases,
                                        inputAliases: inputAliasesParsed,
+                                       vkeyAliases: vkeyAliasesParsed,
                                        warnings: &warnings)
                 {
                     fallbacks.append(b)
@@ -301,6 +365,7 @@ public enum Config {
                                            isFallback: true,
                                            actionAliases: actionAliases,
                                            inputAliases: inputAliasesParsed,
+                                           vkeyAliases: vkeyAliasesParsed,
                                            warnings: &warnings)
                     {
                         fallbacks.append(b)

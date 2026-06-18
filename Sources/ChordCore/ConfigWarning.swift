@@ -57,6 +57,10 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// whose `name` is not in `[input-aliases]`. Parallel to
         /// `undefinedAlias` for shell-action `@name` references.
         case undefinedInputAlias  = "undefined-input-alias"
+        /// `[v-key-aliases]` entry is malformed: value not an integer,
+        /// id out of 1–255, name shadows a real key / modifier / the
+        /// `v-key` wildcard, or a duplicate name. The entry is ignored.
+        case vkeyAliasInvalid     = "v-key-alias-invalid"
         /// v2: `when-var` / `when-var-value` malformed or orphan.
         case conditionParseError  = "condition-parse-error"
         /// v2: `hold-while = "…"` fails to parse as a modifier mask.

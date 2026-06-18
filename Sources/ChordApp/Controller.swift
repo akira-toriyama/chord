@@ -8,6 +8,12 @@ import Foundation
 @MainActor
 public final class Controller {
     private let source: any EventSource
+    /// Vendor-HID "original key" source (canon `&vkey`). Reads selectors
+    /// off the Imprint dongle via IOHIDManager; started lazily in
+    /// `loadConfig` only when the config declares a v-key trigger
+    /// (`input = "<v-key-alias>"`), so non-vkey users are never prompted
+    /// for Input Monitoring.
+    private let vkeySource: VKeyHIDSource
     private var matcher: Matcher
     private var config: ChordConfig
     private var observers: [NSObjectProtocol] = []
@@ -19,6 +25,7 @@ public final class Controller {
 
     public init(source: any EventSource = MacOSEventSource()) {
         self.source = source
+        self.vkeySource = VKeyHIDSource()
         self.config = .init()
         self.matcher = Matcher(bindings: [], excludeApps: [])
     }
@@ -44,6 +51,7 @@ public final class Controller {
 
     public func stop() {
         source.stop()
+        vkeySource.stop()
         for o in observers {
             DistributedNotificationCenter.default().removeObserver(o)
         }
@@ -134,13 +142,10 @@ public final class Controller {
                       "via '\(binding.name)'" +
                       lifecycleTag(binding))
         case .toggleVariable(let name):
-            // Read current value at fire time (state-snapshot is the
-            // copy we already have for matching). Flip 0↔1; any non-zero
-            // value collapses to 0, matching the documented contract.
-            let current = me.state.value(name)
-            let next = current == 0 ? 1 : 0
-            applyVariable(name: name, value: next,
-                          holdWhile: nil, timeoutMs: nil)
+            // Flip 0↔1 atomically (single stateLock window) — any non-zero
+            // value collapses to 0, matching the documented contract. The
+            // live store is the source of truth, not the per-event snapshot.
+            let (current, next) = applyToggleVariable(name: name)
             Log.debug("state: toggle \(name) \(current)→\(next) " +
                       "via '\(binding.name)'")
         case .keys, .shell, .noop:
@@ -300,6 +305,31 @@ public final class Controller {
         }
     }
 
+    /// Flip a variable 0↔1 atomically — the read and the write happen in a
+    /// SINGLE `stateLock` window. The tap thread and the vkey HID callback
+    /// (main thread) both toggle the same store; doing the read via
+    /// `stateSnapshot()` and the write via `applyVariable()` would release
+    /// the lock in between, so two concurrent toggles could read the same
+    /// value and lose one flip. Returns `(old, new)` for logging.
+    @discardableResult
+    nonisolated private func applyToggleVariable(name: String) -> (old: Int, new: Int) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        let current = sharedState?[name]?.value ?? 0
+        // Toggles never carry a hold-while / timeout, so always cancel any
+        // pre-existing timer (matches applyVariable's clear-on-write rule).
+        cancelTimerLocked(name: name)
+        if current == 0 {
+            if sharedState == nil { sharedState = [:] }
+            sharedState?[name] = VariableEntry(value: 1, holdWhile: nil,
+                                               timeoutMs: nil)
+            return (0, 1)
+        } else {
+            sharedState?.removeValue(forKey: name)
+            return (current, 0)
+        }
+    }
+
     /// Reset the inactivity timer for a variable that's currently
     /// active and timer-bound. Called when a gated binding fires
     /// (B-α reset-on-use) — the variable stays alive as long as the
@@ -374,6 +404,12 @@ public final class Controller {
         prevModsLock.lock()
         sharedPrevMods = []
         prevModsLock.unlock()
+        // Drop any held-vkey edge latch so a reload starts clean (the
+        // published Matcher already carries the new vkey bindings; this
+        // only resets the press/release latch the HID callback reads).
+        vkeyLock.lock()
+        lastVKeyDown = 0
+        vkeyLock.unlock()
     }
 
     /// chord 0.9.0+ modifier-only triggers. Walks all bindings with
@@ -435,12 +471,53 @@ public final class Controller {
                           holdWhile: binding.holdWhile,
                           timeoutMs: binding.holdWhileTimeoutMs)
         case .toggleVariable(let name):
-            let current = stateSnapshot().value(name)
-            applyVariable(name: name, value: current == 0 ? 1 : 0,
-                          holdWhile: nil, timeoutMs: nil)
+            applyToggleVariable(name: name)
         case .keys, .shell, .noop:
             ActionDispatcher.dispatch(binding)
         }
+    }
+
+    // MARK: - vkey (vendor-HID) hot path
+
+    /// A vendor-HID selector arrived from [VKeyHIDSource] (on the main run
+    /// loop). It is normalised into an `InputEvent` carrying a `.vkey(id)`
+    /// trigger and fed through the SAME `handle(_:)` path the CGEventTap
+    /// uses, so a vkey binding (`input = "<v-key-alias>"`) gets the full
+    /// Matcher (apps / when-var / on-up), pendingUps pairing, recordFire
+    /// and pause handling for free — no separate dispatch path.
+    ///
+    /// Firmware contract: `selector` is the pressed id `1...255`, or `0`
+    /// on release. One report per edge, so a press is a `.down` of
+    /// `.vkey(id)` and a release is the `.up` of the previously-held id
+    /// (the release report carries no id, hence the `lastVKeyDown` latch).
+    /// A same-id repeat is ignored; an `A → B` roll (a fresh id before the
+    /// `0`) releases A then presses B.
+    nonisolated private func handleVKey(selector: UInt8) {
+        let bundle = FrontmostTracker.shared.bundleID
+        let isrc = InputSourceTracker.shared.id
+
+        vkeyLock.lock()
+        let prev = lastVKeyDown
+        if selector == prev {              // duplicate report / autorepeat
+            vkeyLock.unlock()
+            return
+        }
+        lastVKeyDown = selector            // track the wire even if paused
+        vkeyLock.unlock()
+
+        // Release the previously-held vkey first (covers 0=release and the
+        // defensive A→B roll where no 0 was seen in between). `handle`
+        // pairs this against the pendingUp registered on its down.
+        if prev != 0 {
+            _ = handle(InputEvent(trigger: .vkey(prev), modifiers: [],
+                                  frontmostBundleID: bundle, kind: .up,
+                                  inputSourceID: isrc))
+        }
+        // 0 is release-only — nothing to press.
+        guard selector != 0 else { return }
+        _ = handle(InputEvent(trigger: .vkey(selector), modifiers: [],
+                              frontmostBundleID: bundle, kind: .down,
+                              inputSourceID: isrc))
     }
 
     /// Walk the variable store and remove any entry whose `holdWhile`
@@ -550,8 +627,49 @@ public final class Controller {
             // non-fatal — the daemon keeps running, dry-run just
             // shows everything as "added" until the next reload.
             saveLoadedSnapshot(result: result)
+            // Bring the vendor-HID source up if (and only if) this config
+            // declares a vkey-triggered binding. Idempotent — safe to call
+            // on startup and every reload; the first config that adds a
+            // vkey installs it, later reloads are no-ops.
+            maybeStartVKeySource()
         } catch {
             Log.line("config \(reason) error: \(error)")
+        }
+    }
+
+    /// True when the loaded config has any `.vkey` / `.anyVKey` trigger
+    /// (a `input = "<v-key-alias>"` binding or the `v-key` wildcard
+    /// fallback). Gates the IOHIDManager install so non-vkey users are
+    /// never opened against the device / prompted for Input Monitoring.
+    private func configDeclaresVKeys() -> Bool {
+        func isVKey(_ t: Trigger) -> Bool {
+            switch t {
+            case .vkey, .anyVKey: return true
+            default: return false
+            }
+        }
+        return matcher.bindings.contains { isVKey($0.trigger) }
+            || matcher.fallbacks.contains { isVKey($0.trigger) }
+    }
+
+    /// Start the vendor-HID source on the first reload that declares a
+    /// vkey trigger. Failure is non-fatal: the core CGEventTap daemon keeps
+    /// running, vkeys are simply disabled until Input Monitoring is granted.
+    private func maybeStartVKeySource() {
+        guard configDeclaresVKeys() else { return }
+        let weakSelf = WeakWrap(self)
+        do {
+            try vkeySource.start { selector in
+                weakSelf.value?.handleVKey(selector: selector)
+            }
+        } catch {
+            Log.line(
+                "vkey: Input Monitoring unavailable — \(error). Vendor-HID "
+                + "keys disabled (grant chord under System Settings → Privacy "
+                + "& Security → Input Monitoring, then `chord daemon --reload`). "
+                + "Daemon continues.")
+            // Surface the system prompt so the user can act on it.
+            Permissions.promptForInputMonitoring()
         }
     }
 
@@ -722,3 +840,11 @@ let stateTimerQueue = DispatchQueue(
 // release arrives (user lifts cmd before lifting the primary key).
 nonisolated(unsafe) var pendingUps: [Trigger: Binding]?
 let pendingUpsLock = NSLock()
+
+// vkey (vendor-HID) press/release edge latch. The release report carries
+// no id, so `lastVKeyDown` (0 = nothing held) remembers which `.vkey(id)`
+// to synthesise the `.up` for. Touched by the HID callback (main run loop)
+// and cleared on reload — same nonisolated(unsafe)+NSLock idiom as
+// sharedMatcher / pendingUps above.
+nonisolated(unsafe) private var lastVKeyDown: UInt8 = 0
+private let vkeyLock = NSLock()

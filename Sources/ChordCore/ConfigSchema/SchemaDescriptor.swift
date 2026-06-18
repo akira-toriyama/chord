@@ -112,6 +112,7 @@ public struct NestedTable: Sendable {
 public enum SectionKind: Sendable {
     case table(ObjectShape)                          // [options]
     case openStringMap(valueDoc: String)             // [action-aliases] / [input-aliases]
+    case openIntMap(valueDoc: String, min: Int, max: Int)  // [v-key-aliases]
     case arrayOfTables(ObjectShape)                  // [[bindings]] etc.
 }
 
@@ -357,6 +358,9 @@ public enum ChordConfigSchema {
             SchemaSection("input-aliases",
                 .openStringMap(valueDoc: "Modifier-set string, e.g. 'cmd + opt'. Reference via $name in input."),
                 doc: "name → modifier-set string. Names must not shadow built-in modifier tokens."),
+            SchemaSection("v-key-aliases",
+                .openIntMap(valueDoc: "Vendor-HID v-key id 1–255 (the value `&vkey <id>` sends).", min: 1, max: 255),
+                doc: "name → vendor-HID v-key id. Reference via a bare `input = \"<name>\"` (no $ sigil — a complete trigger like `f13`). Names must not shadow built-in keys / modifiers."),
             SchemaSection("bindings", .arrayOfTables(bindingShape()), doc: "The primary key→action bindings."),
             SchemaSection("fallbacks", .arrayOfTables(fallbackShape()), doc: "Lower-priority catch-all bindings."),
             SchemaSection("sequence", .arrayOfTables(sequenceShape()), doc: "Leader-key sequences."),

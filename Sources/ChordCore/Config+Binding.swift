@@ -15,6 +15,7 @@ extension Config {
         isFallback: Bool,
         actionAliases: [String: String],
         inputAliases: [String: Modifiers],
+        vkeyAliases: [String: UInt8] = [:],
         allowReservedVarNames: Bool = false,
         warnings: inout [ConfigWarning]
     ) -> Binding? {
@@ -34,7 +35,8 @@ extension Config {
                 inputRaw,
                 allowWildcard: isFallback,
                 allowModifiersOnly: !isFallback,
-                inputAliases: inputAliases) }
+                inputAliases: inputAliases,
+                vkeyAliases: vkeyAliases) }
         catch let e as InputParser.InputParseError {
             // Differentiate `$name` typos (undefinedInputAlias) from
             // plain modifier typos (unknownToken) so CI / schema

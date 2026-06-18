@@ -573,6 +573,12 @@ public enum BindingsSchema {
         case .modifiersOnly:
             return WireTrigger(kind: "modifiersOnly",
                                name: nil, keycode: nil)
+        case .vkey(let id):
+            return WireTrigger(kind: "vkey",
+                               name: String(format: "0x%02X", Int(id)),
+                               keycode: UInt16(id))
+        case .anyVKey:
+            return WireTrigger(kind: "anyVKey", name: nil, keycode: nil)
         }
     }
 
@@ -661,6 +667,8 @@ public enum BindingsSchema {
              .inputAliasShadowsModifier,
              .inputAliasInvalidBody:
             section = "[input-aliases]"
+        case .vkeyAliasInvalid:
+            section = "[v-key-aliases]"
         default:
             // missing-input / missing-action / unknown-input-token /
             // action-keys-parse-error / undefined-alias — and the #52

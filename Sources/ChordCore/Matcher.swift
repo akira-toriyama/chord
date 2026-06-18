@@ -151,6 +151,13 @@ public struct Matcher: Sendable {
             if case .key = event { return true }
             return false
         }
+        // Vendor-HID wildcard: `.anyVKey` (the `input = "v-key"`
+        // fallback literal) matches every `.vkey` event not already
+        // handled — the single-sound "undefined vkey" feedback bucket.
+        if case .anyVKey = ruleTrigger {
+            if case .vkey = event { return true }
+            return false
+        }
         return ruleTrigger == event
     }
 

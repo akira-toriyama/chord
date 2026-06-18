@@ -1254,6 +1254,16 @@
         "type" : "object"
       },
       "type" : "array"
+    },
+    "v-key-aliases" : {
+      "additionalProperties" : {
+        "description" : "Vendor-HID v-key id 1–255 (the value `&vkey <id>` sends).",
+        "maximum" : 255,
+        "minimum" : 1,
+        "type" : "integer"
+      },
+      "description" : "name → vendor-HID v-key id. Reference via a bare `input = \"<name>\"` (no $ sigil — a complete trigger like `f13`). Names must not shadow built-in keys \/ modifiers.",
+      "type" : "object"
     }
   },
   "title" : "chord config.toml",

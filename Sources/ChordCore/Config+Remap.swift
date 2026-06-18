@@ -25,6 +25,7 @@ extension Config {
         root: [String: TOML.Value],
         actionAliases: [String: String],
         inputAliases: [String: Modifiers],
+        vkeyAliases: [String: UInt8] = [:],
         warnings: inout [ConfigWarning]
     ) -> (expanded: [Binding], dropped: Int) {
         var expanded: [Binding] = []
@@ -92,6 +93,23 @@ extension Config {
                     dropped += 1
                     continue
                 }
+                // vkeys carry no modifiers, so a v-key alias can't be a
+                // remap source (the source is composed with `modifiers`
+                // below). Reject with a clear message instead of a
+                // confusing composed-string unknown-token error.
+                let keyLower = key.lowercased()
+                if vkeyAliases[keyLower] != nil
+                    || keyLower == "v-key" || keyLower == "vkey" {
+                    warnings.append(ConfigWarning(
+                        kind: .remapParseError,
+                        message:
+                            "[[remap]] '\(baseName)'\(source): map key '\(key)' " +
+                            "is a v-key — v-keys are not supported in remaps " +
+                            "(they carry no modifiers); entry dropped",
+                        sourceLine: line, bindingName: entryName))
+                    dropped += 1
+                    continue
+                }
                 let composedInput = "\(modsRaw) - \(key)"
                 var synth: [String: TOML.Value] = [
                     "name": .string(entryName),
@@ -104,6 +122,7 @@ extension Config {
                                        isFallback: false,
                                        actionAliases: actionAliases,
                                        inputAliases: inputAliases,
+                                       vkeyAliases: vkeyAliases,
                                        warnings: &warnings) {
                     expanded.append(b)
                 } else {
