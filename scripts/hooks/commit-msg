@@ -19,7 +19,7 @@ esac
 
 # Pattern: :gitmoji: type(scope)!: subject
 #          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-re='^:[a-z0-9_+-]+:[[:space:]]+(feat|fix|docs|test|refactor|perf|build|ci|chore|revert|security|style)(\([a-z0-9_/-]+\))?(!)?:[[:space:]]+.+$'
+re='^:[a-z0-9_+-]+:[[:space:]]+(feat|fix|docs|test|refactor|perf|build|ci|chore|revert|style)(\([a-z0-9_/-]+\))?(!)?:[[:space:]]+.+$'
 
 if [[ ! "$first_line" =~ $re ]]; then
   cat <<EOF >&2

@@ -26,7 +26,6 @@ Same set as facet / stroke — CI (`commit-lint.yml`) enforces them.
 | ci        | `:construction_worker:`  | `.github/workflows/` only                    |
 | chore     | `:rocket:` / `:rotating_light:` | tidy-ups, dep bumps, formatting       |
 | revert    | `:rewind:`               | revert a previous commit                     |
-| security  | `:lock:`                 | security-relevant change                     |
 | style     | `:art:`                  | whitespace / formatting only                 |
 
 ## Scopes (suggested)
