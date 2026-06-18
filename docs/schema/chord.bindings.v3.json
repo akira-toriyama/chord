@@ -61,6 +61,10 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Bundle-id glob patterns where chord is globally disabled."
+        },
+        "fn_auto_arrows": {
+          "type": "boolean",
+          "description": "chord 0.8.0+: when true (default), arrow / nav triggers ignore the `fn` bit during matching (macOS always tags those events with `fn`). Schema-v3.x forward-compatible addition — older v3 consumers that ignore unknown option keys keep working."
         }
       }
     },
@@ -68,7 +72,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["index", "name", "input", "action"],
-      "description": "`source_line` is absent when the TOML parser couldn't track it. `apps` is absent (== unscoped) or an array of bundle-id glob patterns. `condition`, `hold_while`, `action_on_up` are v2 additions and absent when the user did not declare them.",
+      "description": "`source_line` is absent when the TOML parser couldn't track it. `apps` is absent (== unscoped) or an array of bundle-id glob patterns. `condition`, `hold_while`, `action_on_up` are v2 additions and absent when the user did not declare them. `passthrough`, `repeat`, `input_source` are chord 0.9.0+ additions, omitted from JSON when at their default (false / fire-each / unset).",
       "properties": {
         "index":       { "type": "integer", "minimum": 0 },
         "name":        { "type": "string" },
@@ -100,6 +104,20 @@
           "type": "array",
           "items": { "$ref": "#/$defs/action" },
           "description": "Additional actions that fire on the same key-down, in order, right after `action` (Karabiner `to`-array shape). chord's bounded form: a binding declaring BOTH `action-shell` and `action-keys` runs the shell as `action` (it fires first) and posts the keys here. Absent when the binding has only the single primary action."
+        },
+        "passthrough": {
+          "type": "boolean",
+          "description": "chord 0.9.0+: when true, the original event reaches the OS in addition to firing `action` (currently `action-shell` only). Omitted from JSON when false — the common case."
+        },
+        "repeat": {
+          "type": "string",
+          "enum": ["ignore", "passthrough"],
+          "description": "chord 0.9.0+: typematic-autorepeat strategy. `ignore` = fire on first key-down only, swallow repeats; `passthrough` = fire on first key-down only, let repeats reach the OS. The default `fire-each` (fire on every repeat) is OMITTED from JSON, so this property only ever carries the two non-default values."
+        },
+        "input_source": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "chord 0.9.0+: input-source-id glob filter list (same allow / `!`-deny / `*`-wildcard semantics as `apps`). The binding fires only when the current macOS text input source matches. Omitted when unset (no filter)."
         }
       }
     },
@@ -281,19 +299,48 @@
             "variable": { "type": "string", "minLength": 1 },
             "value": { "type": "integer" }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "variable"],
+          "description": "chord 0.9.0+: flip a variable between 0 and 1 on each key-down (`action-toggle-var = \"name\"`). Value-less by construction — there is no `value` field (any non-zero reads as 1, toggles to 0). `raw` is present for the primary action and absent for `action_on_up`.",
+          "properties": {
+            "kind": { "const": "toggle-variable" },
+            "raw": { "type": "string", "description": "Original `action-toggle-var = \"…\"` user string. Absent for `action_on_up`." },
+            "variable": { "type": "string", "minLength": 1 }
+          }
         }
       ]
     },
     "condition": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "variable", "equals"],
-      "description": "v2: state-gate predicate. Discriminated by `kind` for future expansion; v2 only emits `\"variable\"`. The matcher consults the controller's store and skips the binding when the predicate is false. Treats an unset variable as 0 — `equals: 0` is the idiomatic \"mode cleared\" check.",
-      "properties": {
-        "kind": { "const": "variable" },
-        "variable": { "type": "string", "minLength": 1 },
-        "equals":   { "type": "integer" }
-      }
+      "description": "State-gate predicate, discriminated by `kind`. The matcher consults the controller's store and skips the binding when the predicate is false. Treats an unset variable as 0 — `equals: 0` is the idiomatic \"mode cleared\" check.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "variable", "equals"],
+          "description": "v2: single-variable equality. Emitted for `when-var = \"…\"` and for a 1-entry `when-vars` table (which collapses to this shape).",
+          "properties": {
+            "kind": { "const": "variable" },
+            "variable": { "type": "string", "minLength": 1 },
+            "equals":   { "type": "integer" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "conditions"],
+          "description": "chord 0.9.0+: AND-gate over a list of nested predicates (emitted for a multi-entry `when-vars = { a = 1, b = 2 }` table). `conditions[]` is recursive — each entry is itself a condition — so future nesting needs no schema change.",
+          "properties": {
+            "kind": { "const": "all" },
+            "conditions": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/condition" }
+            }
+          }
+        }
+      ]
     },
     "validation": {
       "type": "object",
