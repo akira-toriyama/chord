@@ -66,7 +66,7 @@ public enum InputParser {
         // The bare `v-key` / `vkey` literal is the any-vkey wildcard
         // (`[[fallbacks]]` only) — the vendor-HID counterpart of `*`.
         let lowered = trimmed.lowercased()
-        if lowered == "v-key" || lowered == "vkey" {
+        if vkeyWildcardNames.contains(lowered) {
             guard allowWildcard else {
                 throw InputParseError.unknownToken(
                     "v-key (any-vkey wildcard only allowed in [[fallbacks]])",
@@ -134,26 +134,43 @@ public enum InputParser {
         return Parsed(modifiers: mods, trigger: trigger)
     }
 
-    /// Built-in modifier tokens (lowercased, including the common
-    /// spellings: `cmd`/`command`/`⌘`/`alt`/`opt` etc). Used by
-    /// `Config` to reject `[input-aliases]` names that would shadow a
-    /// real modifier. Lookup is case-insensitive: callers should
-    /// `.lowercased()` before checking.
-    public static let reservedModifierTokens: Set<String> = [
-        "cmd", "⌘", "command",
-        "opt", "⌥", "alt", "option",
-        "ctrl", "⌃", "control",
-        "shift", "⇧",
-        "fn", "hyper",
-        "lcmd",   "lcommand",
-        "rcmd",   "rcommand",
-        "lopt",   "lalt", "loption",
-        "ropt",   "ralt", "roption",
-        "lctrl",  "lcontrol",
-        "rctrl",  "rcontrol",
-        "lshift",
-        "rshift",
+    /// Built-in modifier vocabulary: lowercased token → the mask to
+    /// union into the running modifier set. The single source for both
+    /// [reservedModifierTokens] (its key set) and [parseModifiers]
+    /// (the lookup), so the two can never drift. Includes the common
+    /// spellings (`cmd`/`command`/`⌘`/`alt`/`opt` …); `hyper` expands
+    /// to its composite mask; `l*`/`r*` are the strict-side variants
+    /// (see [Modifiers.matches(event:)]). Lookup is case-insensitive:
+    /// callers `.lowercased()` before checking.
+    static let modifierTokenMasks: [String: Modifiers] = [
+        "cmd": .cmd, "⌘": .cmd, "command": .cmd,
+        "opt": .opt, "⌥": .opt, "alt": .opt, "option": .opt,
+        "ctrl": .ctrl, "⌃": .ctrl, "control": .ctrl,
+        "shift": .shift, "⇧": .shift,
+        "fn": .fn,
+        "hyper": .hyper,
+        "lcmd": .lcmd, "lcommand": .lcmd,
+        "rcmd": .rcmd, "rcommand": .rcmd,
+        "lopt": .lopt, "lalt": .lopt, "loption": .lopt,
+        "ropt": .ropt, "ralt": .ropt, "roption": .ropt,
+        "lctrl": .lctrl, "lcontrol": .lctrl,
+        "rctrl": .rctrl, "rcontrol": .rctrl,
+        "lshift": .lshift,
+        "rshift": .rshift,
     ]
+
+    /// Built-in modifier tokens. Used by `Config` to reject
+    /// `[input-aliases]` / `[v-key-aliases]` names that would shadow a
+    /// real modifier. Derived from [modifierTokenMasks] — lookup is
+    /// case-insensitive: callers should `.lowercased()` before checking.
+    public static let reservedModifierTokens: Set<String> =
+        Set(modifierTokenMasks.keys)
+
+    /// The bare any-vkey wildcard spellings — `[[fallbacks]]`-only, the
+    /// vendor-HID counterpart of `*`. Single source for the wildcard
+    /// branch in [parse] and the v-key-alias / `[[remap]]` /
+    /// `[[sequence]]` rejection guards in `Config`. Case-insensitive.
+    public static let vkeyWildcardNames: Set<String> = ["v-key", "vkey"]
 
     /// Parse a modifier-only chain like `"cmd + opt"` or
     /// `"hyper"`. Used by v2's `hold-while` and v0.8.0's
@@ -204,51 +221,34 @@ public enum InputParser {
         var out: Modifiers = []
         for tok in raw.split(separator: "+") {
             let t = tok.trimmingCharacters(in: .whitespaces).lowercased()
-            switch t {
-            case "":             continue
+            if t.isEmpty { continue }
 
-            // Any-side modifiers (most common).
-            case "cmd", "⌘", "command":         out.insert(.cmd)
-            case "opt", "⌥", "alt", "option":   out.insert(.opt)
-            case "ctrl", "⌃", "control":        out.insert(.ctrl)
-            case "shift", "⇧":                  out.insert(.shift)
-            case "fn":                          out.insert(.fn)
-            case "hyper":                       out.formUnion(.hyper)
+            // Built-in modifier token — any-side (`cmd`), side-specific
+            // (`rctrl`, ZMK ULTRA_LL / MEGA_RM-style), `fn`, or the
+            // `hyper` sugar. See [modifierTokenMasks].
+            if let mask = modifierTokenMasks[t] {
+                out.formUnion(mask)
+                continue
+            }
 
-            // Side-specific modifiers (ZMK ULTRA_LL / MEGA_RM-style
-            // patterns). `r*` = strict right (left must be absent),
-            // `l*` = strict left (right must be absent). Use the
-            // any-side spelling above unless side actually matters.
-            case "lcmd",   "lcommand":          out.insert(.lcmd)
-            case "rcmd",   "rcommand":          out.insert(.rcmd)
-            case "lopt",   "lalt", "loption":   out.insert(.lopt)
-            case "ropt",   "ralt", "roption":   out.insert(.ropt)
-            case "lctrl",  "lcontrol":          out.insert(.lctrl)
-            case "rctrl",  "rcontrol":          out.insert(.rctrl)
-            case "lshift":                      out.insert(.lshift)
-            case "rshift":                      out.insert(.rshift)
-
-            default:
-                // `$name` reference into [input-aliases]. The `$`
-                // prefix is the *explicit* signal that the token is
-                // a user-defined modifier-set alias — parallels the
-                // `@name` syntax used for shell-action `[actionAliases]`
-                // resolution. Without a prefix the token must be a
-                // built-in modifier (the cases above); bare alias
-                // references are not supported. The map's bodies are
-                // pre-validated at load time (Config.swift), so a hit
-                // here guarantees a valid mask.
-                if t.hasPrefix("$") {
-                    let aliasName = String(t.dropFirst())
-                    if let aliased = inputAliases[aliasName] {
-                        out.formUnion(aliased)
-                    } else {
-                        throw InputParseError.undefinedInputAlias(
-                            aliasName, context: context)
-                    }
+            // `$name` reference into [input-aliases]. The `$` prefix is
+            // the *explicit* signal that the token is a user-defined
+            // modifier-set alias — parallels the `@name` syntax used
+            // for shell-action `[actionAliases]` resolution. Without a
+            // prefix the token must be a built-in modifier (above);
+            // bare alias references are not supported. The map's bodies
+            // are pre-validated at load time (Config.swift), so a hit
+            // here guarantees a valid mask.
+            if t.hasPrefix("$") {
+                let aliasName = String(t.dropFirst())
+                if let aliased = inputAliases[aliasName] {
+                    out.formUnion(aliased)
                 } else {
-                    throw InputParseError.unknownToken(t, context: context)
+                    throw InputParseError.undefinedInputAlias(
+                        aliasName, context: context)
                 }
+            } else {
+                throw InputParseError.unknownToken(t, context: context)
             }
         }
         return out

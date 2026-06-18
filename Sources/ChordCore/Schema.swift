@@ -245,6 +245,27 @@ public enum BindingsSchema {
         public let variable: String?
         /// `set-variable` only — value (0 = clear).
         public let value: Int?
+
+        /// `kind` is always present; every other field is per-kind and
+        /// defaults to `nil` so each [wireAction] case names only the
+        /// fields it populates. Codable/JSON shape is unchanged.
+        public init(kind: String,
+                    raw: String? = nil,
+                    modifiers: [String]? = nil,
+                    key: WireKey? = nil,
+                    command: String? = nil,
+                    alias: String? = nil,
+                    variable: String? = nil,
+                    value: Int? = nil) {
+            self.kind = kind
+            self.raw = raw
+            self.modifiers = modifiers
+            self.key = key
+            self.command = command
+            self.alias = alias
+            self.variable = variable
+            self.value = value
+        }
     }
 
     public struct WireKey: Codable, Sendable, Hashable {
@@ -540,19 +561,24 @@ public enum BindingsSchema {
     /// "right" / "both". Matches the binding-constraint semantics
     /// described in [Modifiers.matches(event:)].
     static func modifierSides(_ m: Modifiers) -> ModifierSides {
-        func side(any: Modifiers, l: Modifiers, r: Modifiers) -> String {
-            let hasL = m.contains(l), hasR = m.contains(r)
-            if hasL && hasR     { return "both" }
-            if hasL             { return "left" }
-            if hasR             { return "right" }
-            if m.contains(any)  { return "any" }
+        func side(_ cat: (any: Modifiers, left: Modifiers, right: Modifiers))
+            -> String
+        {
+            let hasL = m.contains(cat.left), hasR = m.contains(cat.right)
+            if hasL && hasR        { return "both" }
+            if hasL                { return "left" }
+            if hasR                { return "right" }
+            if m.contains(cat.any) { return "any" }
             return "absent"
         }
-        return ModifierSides(
-            cmd:   side(any: .cmd,   l: .lcmd,   r: .rcmd),
-            opt:   side(any: .opt,   l: .lopt,   r: .ropt),
-            ctrl:  side(any: .ctrl,  l: .lctrl,  r: .rctrl),
-            shift: side(any: .shift, l: .lshift, r: .rshift))
+        // Triples come from the single [Modifiers.sideCategories] table
+        // — canonical order [cmd, opt, ctrl, shift], mirrored by
+        // ModifierSides' field order below.
+        let c = Modifiers.sideCategories
+        return ModifierSides(cmd:   side(c[0]),
+                             opt:   side(c[1]),
+                             ctrl:  side(c[2]),
+                             shift: side(c[3]))
     }
 
     private static func wireTrigger(_ t: Trigger) -> WireTrigger {
@@ -602,52 +628,34 @@ public enum BindingsSchema {
     private static func wireAction(action: Action,
                                    raw: String?,
                                    aliasName: String?) -> WireAction {
+        let kind = action.kindString
         switch action {
         case .keys(let mods, let code):
             return WireAction(
-                kind: "keys",
+                kind: kind,
                 raw: raw,
                 modifiers: modifierTokens(mods),
                 key: WireKey(name: KeyCodes.name(forCode: code),
-                             keycode: code),
-                command: nil,
-                alias: nil,
-                variable: nil,
-                value: nil)
+                             keycode: code))
         case .shell(let body):
             return WireAction(
-                kind: "shell",
+                kind: kind,
                 raw: raw,
-                modifiers: nil,
-                key: nil,
                 command: body,
-                alias: aliasName,
-                variable: nil,
-                value: nil)
+                alias: aliasName)
         case .noop:
-            return WireAction(kind: "noop", raw: nil, modifiers: nil,
-                              key: nil, command: nil, alias: nil,
-                              variable: nil, value: nil)
+            return WireAction(kind: kind)
         case .setVariable(let name, let v):
             return WireAction(
-                kind: "set-variable",
+                kind: kind,
                 raw: raw,
-                modifiers: nil,
-                key: nil,
-                command: nil,
-                alias: nil,
                 variable: name,
                 value: v)
         case .toggleVariable(let name):
             return WireAction(
-                kind: "toggle-variable",
+                kind: kind,
                 raw: raw,
-                modifiers: nil,
-                key: nil,
-                command: nil,
-                alias: nil,
-                variable: name,
-                value: nil)
+                variable: name)
         }
     }
 

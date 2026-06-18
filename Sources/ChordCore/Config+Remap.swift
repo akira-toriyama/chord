@@ -32,7 +32,7 @@ extension Config {
         var dropped = 0
         let rows = root["remap"]?.asArrayOfTables ?? []
         for (ri, row) in rows.enumerated() {
-            let line = row[TOML.lineKey]?.asInt.map { Int($0) }
+            let line = row.sourceLine
             let source = sourceTag(line: line)
             let baseName = row["name"]?.asString ?? "remap-\(ri + 1)"
 
@@ -99,7 +99,7 @@ extension Config {
                 // confusing composed-string unknown-token error.
                 let keyLower = key.lowercased()
                 if vkeyAliases[keyLower] != nil
-                    || keyLower == "v-key" || keyLower == "vkey" {
+                    || InputParser.vkeyWildcardNames.contains(keyLower) {
                     warnings.append(ConfigWarning(
                         kind: .remapParseError,
                         message:

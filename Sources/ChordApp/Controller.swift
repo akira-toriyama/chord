@@ -192,14 +192,10 @@ public final class Controller {
     }
 
     /// Compact action description for `chord daemon --watch` lines.
+    /// Sourced from [Action.kindString] (same discriminator the wire
+    /// schema emits) so the watch log and `--json` never diverge.
     nonisolated private func describeAction(_ a: Action) -> String {
-        switch a {
-        case .keys:           return "keys"
-        case .shell:          return "shell"
-        case .noop:           return "noop"
-        case .setVariable:    return "set-variable"
-        case .toggleVariable: return "toggle-variable"
-        }
+        a.kindString
     }
 
     /// One-line structured per-event log for `chord daemon --watch`. Emits

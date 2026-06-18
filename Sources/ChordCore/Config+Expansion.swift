@@ -56,7 +56,7 @@ extension Config {
         guard let perApp = row["per-app"]?.asArrayOfTables else {
             return .single(row)
         }
-        let line = row[TOML.lineKey]?.asInt.map { Int($0) }
+        let line = row.sourceLine
         let baseName = row["name"]?.asString
         let displayName = baseName ?? "[[bindings]] entry"
         let source = sourceTag(line: line)
@@ -97,7 +97,7 @@ extension Config {
 
         var out: [[String: TOML.Value]] = []
         for entry in perApp {
-            let entryLine = entry[TOML.lineKey]?.asInt.map { Int($0) } ?? line
+            let entryLine = entry.sourceLine ?? line
             let entrySource = sourceTag(line: entryLine)
             guard let bundleID = entry["bundle-id"]?.asString,
                   !bundleID.isEmpty
@@ -148,7 +148,7 @@ extension Config {
         guard let inputsRaw = row["inputs"] else {
             return .single(row)
         }
-        let line = row[TOML.lineKey]?.asInt.map { Int($0) }
+        let line = row.sourceLine
         let baseName = row["name"]?.asString
         let displayName = baseName ?? "[[fallbacks]] entry"
         let source = sourceTag(line: line)
