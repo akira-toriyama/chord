@@ -128,19 +128,22 @@ final class VKeyTests: XCTestCase {
                        .key(KeyCodes.code(forName: "a")!))
     }
 
-    /// Hex (`0x1A`) and decimal (`26`) id forms are equivalent.
+    /// Hex (`0x1A`) and decimal (`26`) id forms are equivalent. (Alias
+    /// names are deliberately NON-keycode — a single-letter name like `H`
+    /// would be rejected as keycode-shadowing, see
+    /// `testAliasShadowingKeycodeIgnored`.)
     func testHexAndDecimalIds() throws {
         let r = try Config.parse("""
         [v-key-aliases]
-        H = 0x1A
-        D = 26
+        VKHEX = 0x1A
+        VKDEC = 26
 
         [[bindings]]
-        input = "H"
+        input = "VKHEX"
         action-noop = true
 
         [[bindings]]
-        input = "D"
+        input = "VKDEC"
         action-noop = true
         """)
         XCTAssertEqual(r.config.bindings.count, 2)
