@@ -14,6 +14,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+REPO="$(pwd)"
 
 LABEL="com.chord.chord"
 PLIST_DEST="$HOME/Library/LaunchAgents/${LABEL}.plist"
@@ -73,7 +74,7 @@ fi
 # rationale. We only target THIS install's process family.
 pkill -f "(/Applications|$HOME/Applications)/Chord(-dev)?\.app/Contents/MacOS/chord" \
   2>/dev/null || true
-pkill -f "/Users/.*/dev/chord/\.build/(debug|release)/chord" \
+pkill -f "$REPO/\.build/(debug|release)/chord" \
   2>/dev/null || true
 sleep 0.3
 
