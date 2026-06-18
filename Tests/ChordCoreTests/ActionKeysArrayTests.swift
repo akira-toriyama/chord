@@ -172,22 +172,17 @@ final class ActionKeysArrayTests: XCTestCase {
     // MARK: - Schema round-trip
 
     func testSchemaEmitsExtraActionsForKeysArray() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "seq"
         input = "cmd - p"
         action-keys = ["cmd - c", "cmd - v"]
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
         // Primary is keys.
-        let action = b["action"] as! [String: Any]
+        let action = try XCTUnwrap(b["action"] as? [String: Any])
         XCTAssertEqual(action["kind"] as? String, "keys")
         // Extra actions emitted.
-        let extras = b["extra_actions"] as! [[String: Any]]
+        let extras = try XCTUnwrap(b["extra_actions"] as? [[String: Any]])
         XCTAssertEqual(extras.count, 1)
         XCTAssertEqual(extras[0]["kind"] as? String, "keys")
     }

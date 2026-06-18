@@ -71,34 +71,24 @@ final class AutorepeatTests: XCTestCase {
     // MARK: - Schema round-trip
 
     func testSchemaOmitsRepeatWhenDefault() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "plain"
         input = "cmd - x"
         action-shell = "echo"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
         XCTAssertNil(b["repeat"],
                      "default fire-each is omitted from JSON")
     }
 
     func testSchemaEmitsRepeatWhenSet() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "noisy"
         input = "cmd - x"
         action-shell = "echo"
         repeat = "ignore"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
         XCTAssertEqual(b["repeat"] as? String, "ignore")
     }
 }

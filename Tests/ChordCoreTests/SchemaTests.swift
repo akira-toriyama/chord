@@ -5,11 +5,7 @@ import XCTest
 final class SchemaTests: XCTestCase {
 
     private func parseAndEncode(_ source: String) throws -> [String: Any] {
-        let res = try Config.parse(source)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-        return json
+        try parseToBindingsJSON(source)
     }
 
     func testSchemaIdentifierAndTopLevelShape() throws {
@@ -38,9 +34,9 @@ final class SchemaTests: XCTestCase {
         action-noop = true
         bogus-key = 1
         """)
-        let bindings = json["bindings"] as! [[String: Any]]
+        let bindings = try XCTUnwrap(json["bindings"] as? [[String: Any]])
         XCTAssertEqual(bindings.count, 1, "binding still loads")
-        let dropped = json["dropped"] as! [[String: Any]]
+        let dropped = try XCTUnwrap(json["dropped"] as? [[String: Any]])
         let unknown = dropped.filter { $0["kind"] as? String == "unknown-key" }
         XCTAssertEqual(unknown.count, 1)
         XCTAssertEqual(unknown[0]["section"] as? String, "[[bindings]]")
@@ -54,27 +50,27 @@ final class SchemaTests: XCTestCase {
         input = "cmd + shift - 4"
         action-keys = "cmd + shift - 4"
         """)
-        let bindings = json["bindings"] as! [[String: Any]]
+        let bindings = try XCTUnwrap(json["bindings"] as? [[String: Any]])
         XCTAssertEqual(bindings.count, 1)
         let b = bindings[0]
         XCTAssertEqual(b["name"] as? String, "screenshot")
         XCTAssertEqual(b["index"] as? Int, 0)
         XCTAssertNotNil(b["source_line"])
-        let input = b["input"] as! [String: Any]
+        let input = try XCTUnwrap(b["input"] as? [String: Any])
         XCTAssertEqual(input["raw"] as? String, "cmd + shift - 4")
         XCTAssertEqual(input["fn"] as? Bool, false)
-        let mods = input["modifiers"] as! [String]
+        let mods = try XCTUnwrap(input["modifiers"] as? [String])
         XCTAssertEqual(mods, ["cmd", "shift"])
-        let sides = input["modifier_sides"] as! [String: String]
+        let sides = try XCTUnwrap(input["modifier_sides"] as? [String: String])
         XCTAssertEqual(sides["cmd"],  "any")
         XCTAssertEqual(sides["shift"], "any")
         XCTAssertEqual(sides["opt"],  "absent")
         XCTAssertEqual(sides["ctrl"], "absent")
-        let trigger = input["trigger"] as! [String: Any]
+        let trigger = try XCTUnwrap(input["trigger"] as? [String: Any])
         XCTAssertEqual(trigger["kind"] as? String, "key")
         XCTAssertEqual(trigger["name"] as? String, "4")
         XCTAssertEqual(trigger["keycode"] as? Int, 0x15)
-        let action = b["action"] as! [String: Any]
+        let action = try XCTUnwrap(b["action"] as? [String: Any])
         XCTAssertEqual(action["kind"] as? String, "keys")
         XCTAssertEqual(action["raw"] as? String, "cmd + shift - 4")
     }
@@ -86,8 +82,10 @@ final class SchemaTests: XCTestCase {
         input = "rctrl + ralt + rshift - c"
         action-noop = true
         """)
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let sides = ((b["input"] as! [String: Any])["modifier_sides"]) as! [String: String]
+        let bindings = try XCTUnwrap(json["bindings"] as? [[String: Any]])
+        let b = bindings[0]
+        let input = try XCTUnwrap(b["input"] as? [String: Any])
+        let sides = try XCTUnwrap(input["modifier_sides"] as? [String: String])
         XCTAssertEqual(sides["ctrl"],  "right")
         XCTAssertEqual(sides["opt"],   "right")
         XCTAssertEqual(sides["shift"], "right")
@@ -101,8 +99,10 @@ final class SchemaTests: XCTestCase {
         input = "rctrl - *"
         action-shell = "true"
         """)
-        let fb = (json["fallbacks"] as! [[String: Any]])[0]
-        let trigger = ((fb["input"] as! [String: Any])["trigger"]) as! [String: Any]
+        let fallbacks = try XCTUnwrap(json["fallbacks"] as? [[String: Any]])
+        let fb = fallbacks[0]
+        let input = try XCTUnwrap(fb["input"] as? [String: Any])
+        let trigger = try XCTUnwrap(input["trigger"] as? [String: Any])
         XCTAssertEqual(trigger["kind"] as? String, "anyKey")
         // Per chord.bindings.v3 schema: for the `anyKey` trigger
         // branch, `name` and `keycode` are absent (chord's
@@ -126,7 +126,7 @@ final class SchemaTests: XCTestCase {
         apps = ["com.example.app"]
         action-noop = true
         """)
-        let bindings = json["bindings"] as! [[String: Any]]
+        let bindings = try XCTUnwrap(json["bindings"] as? [[String: Any]])
         // Unscoped binding omits `apps`; scoped binding emits the
         // array. Test the contract: unscoped → absent, scoped →
         // present-array.
@@ -144,8 +144,9 @@ final class SchemaTests: XCTestCase {
         input = "f13"
         action-shell = "@say_hi"
         """)
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let action = b["action"] as! [String: Any]
+        let bindings = try XCTUnwrap(json["bindings"] as? [[String: Any]])
+        let b = bindings[0]
+        let action = try XCTUnwrap(b["action"] as? [String: Any])
         XCTAssertEqual(action["kind"] as? String, "shell")
         XCTAssertEqual(action["command"] as? String, "echo hi")
         XCTAssertEqual(action["alias"] as? String, "say_hi")
@@ -159,7 +160,7 @@ final class SchemaTests: XCTestCase {
         input = "ctlr - a"
         action-shell = "true"
         """)
-        let dropped = json["dropped"] as! [[String: Any]]
+        let dropped = try XCTUnwrap(json["dropped"] as? [[String: Any]])
         XCTAssertEqual(dropped.count, 1)
         let d = dropped[0]
         XCTAssertEqual(d["kind"] as? String, "unknown-input-token")
@@ -171,10 +172,7 @@ final class SchemaTests: XCTestCase {
     // MARK: - validation block
 
     func testValidationBlockAbsentWhenNotRequested() throws {
-        let res = try Config.parse("[[bindings]]\nname=\"x\"\ninput=\"f13\"\naction-noop=true")
-        let doc = BindingsSchema.makeDocument(from: res)  // no validation
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let json = try parseToBindingsJSON("[[bindings]]\nname=\"x\"\ninput=\"f13\"\naction-noop=true")
         XCTAssertNil(json["validation"] ?? nil)
     }
 

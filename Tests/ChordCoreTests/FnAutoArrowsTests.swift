@@ -204,25 +204,17 @@ final class FnAutoArrowsTests: XCTestCase {
     // MARK: - Schema round-trip
 
     func testSchemaEmitsFnAutoArrowsInOptions() throws {
-        let res = try Config.parse("""
+        let json = try parseToBindingsJSON("""
         [options]
         fn-auto-arrows = false
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let opts = json["options"] as! [String: Any]
+        let opts = try XCTUnwrap(json["options"] as? [String: Any])
         XCTAssertEqual(opts["fn_auto_arrows"] as? Bool, false)
     }
 
     func testSchemaDefaultsFnAutoArrowsTrue() throws {
-        let res = try Config.parse("")
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let opts = json["options"] as! [String: Any]
+        let json = try parseToBindingsJSON("")
+        let opts = try XCTUnwrap(json["options"] as? [String: Any])
         XCTAssertEqual(opts["fn_auto_arrows"] as? Bool, true)
     }
 }

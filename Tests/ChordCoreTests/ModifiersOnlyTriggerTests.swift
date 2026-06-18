@@ -77,19 +77,14 @@ final class ModifiersOnlyTriggerTests: XCTestCase {
     // MARK: - Schema round-trip
 
     func testSchemaEmitsModifiersOnlyKind() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "mods"
         input = "cmd + opt"
         action-set-var = "wm"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let trigger = (b["input"] as! [String: Any])["trigger"]
-            as! [String: Any]
+        let input = try XCTUnwrap(b["input"] as? [String: Any])
+        let trigger = try XCTUnwrap(input["trigger"] as? [String: Any])
         XCTAssertEqual(trigger["kind"] as? String, "modifiersOnly")
     }
 

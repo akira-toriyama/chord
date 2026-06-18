@@ -119,18 +119,13 @@ final class NativeActionTests: XCTestCase {
     // MARK: - Schema
 
     func testSchemaShowsDesugaredKeysWithSemanticRaw() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "mc"
         input = "cmd - m"
         action-mission-control = "show-all-windows"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let action = b["action"] as! [String: Any]
+        let action = try XCTUnwrap(b["action"] as? [String: Any])
         // JSON shows plain .keys, but `raw` preserves the original
         // native-action intent so consumers can disambiguate.
         XCTAssertEqual(action["kind"] as? String, "keys")

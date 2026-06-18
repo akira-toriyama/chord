@@ -132,35 +132,25 @@ final class InputSourceMatchingTests: XCTestCase {
     // MARK: - Schema
 
     func testSchemaEmitsInputSource() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "us"
         input = "cmd - x"
         action-noop = true
         input-source = ["com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"]
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
-        let src = b["input_source"] as! [String]
+        let src = try XCTUnwrap(b["input_source"] as? [String])
         XCTAssertEqual(src, ["com.apple.keylayout.US",
                              "!com.apple.inputmethod.Kotoeri.*"])
     }
 
     func testSchemaOmitsInputSourceWhenAbsent() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "plain"
         input = "cmd - x"
         action-noop = true
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
         XCTAssertNil(b["input_source"])
     }
 }

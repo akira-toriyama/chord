@@ -128,35 +128,25 @@ final class PassthroughTests: XCTestCase {
     // MARK: - Schema round-trip
 
     func testSchemaEmitsPassthrough() throws {
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "relay"
         input = "ctrl - x"
         action-shell = "echo"
         passthrough = true
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
         XCTAssertEqual(b["passthrough"] as? Bool, true)
     }
 
     func testSchemaOmitsPassthroughWhenFalse() throws {
         // Nil-Optional fields are omitted by JSONEncoder — keeps the
         // common case (passthrough = false) lean.
-        let res = try Config.parse("""
+        let b = try firstBinding("""
         [[bindings]]
         name = "plain"
         input = "cmd - x"
         action-shell = "echo"
         """)
-        let doc = BindingsSchema.makeDocument(from: res)
-        let data = try BindingsSchema.encodeJSON(doc)
-        let json = try JSONSerialization.jsonObject(with: data)
-            as! [String: Any]
-        let b = (json["bindings"] as! [[String: Any]])[0]
         XCTAssertNil(b["passthrough"],
                      "passthrough is omitted from JSON when false")
     }
