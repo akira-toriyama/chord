@@ -11,7 +11,11 @@
 //                       (incl. F13–F24). No AppKit, no CGEvent.
 //
 //   ChordAdapterMacOS   real-world glue: CGEventTap capture of
-//                       keyboard + mouse, accessibility prompt,
+//                       keyboard + mouse, NSWorkspace frontmost
+//                       tracking, accessibility + Input Monitoring
+//                       prompts, opt-in vendor-HID v-key read
+//                       (VKeyHIDSource via IOHIDManager — usage page
+//                       0xFF31, gated by configDeclaresVKeys()),
 //                       action dispatch (CGEvent post, shell exec).
 //                       The ONLY place CGEvent / AppKit / IOKit
 //                       types appear.

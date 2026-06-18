@@ -42,7 +42,8 @@ public enum Permissions {
 
     /// Input Monitoring (`kTCCServiceListenEvent`) currently granted?
     /// Pure check — never prompts. Needed by [VKeyHIDSource]; without it
-    /// `IOHIDManagerOpen` succeeds but input-report callbacks never fire.
+    /// `IOHIDManagerOpen` fails (the v-key source treats that as denial,
+    /// throws, and prompts) so v-keys stay dead until granted + reloaded.
     public static func isInputMonitoringTrusted() -> Bool {
         IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
     }

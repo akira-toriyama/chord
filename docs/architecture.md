@@ -14,7 +14,7 @@
 │ ─ FrontmostTracker   │                       │  ─ Matcher           │
 │ ─ ActionDispatcher   │                       │  ─ Config + TOML     │
 │ ─ Permissions        │                       │  ─ KeyCodes / Models │
-│   (AppKit/CG/AX)     │                       │  (no AppKit / no CG) │
+│  (AppKit/CG/AX/IOKit)│                       │  (no AppKit / no CG) │
 └──────────────────────┘                       └──────────▲───────────┘
                                                           │
                                               implements  │
@@ -38,6 +38,12 @@ unit tests are the contract.
 event APIs. If you find yourself writing `CGEvent` outside this
 module, there's a missing protocol — add it to `ChordCore` and
 have the adapter conform.
+
+That OS surface includes `IOKit.hid`: `VKeyHIDSource` (chord 0.10.0+)
+reads the canon dongle's vendor-HID v-key reports via `IOHIDManager`.
+`ChordCore` still must not `import IOKit` — the v-key selector
+crosses the seam only as an abstract `Trigger.vkey(UInt8)`, so the
+layer rule holds.
 
 `ChordAdapterTest` exists so the matcher pipeline can be driven
 end-to-end without real hardware. It is a `.target` (not a
@@ -97,8 +103,12 @@ notification latency, which in practice is sub-millisecond.
 
 ## What's NOT in scope
 
-- HID-level remapping. Use Karabiner-Elements for that; chord
-  taps the result.
+- HID-level remapping **of ordinary keys**. Use Karabiner-Elements
+  for that; chord taps the CGEvent result. (Exception: chord *reads*
+  one self-defined vendor HID report — canon's v-key selector, usage
+  page `0xFF31` — via `IOHIDManager`; a bounded read of one vendor
+  page on one matched device, not general HID interception or
+  remapping. See [docs/non-goals.md](non-goals.md) §USP / §2.)
 - Click-and-drag gestures or path-based input. Use
   [stroke](https://github.com/akira-toriyama/stroke) for that.
 - Window-management primitives. Use [yabai](https://github.com/koekeishiya/yabai),

@@ -3,7 +3,7 @@
 ## Threat model
 
 `chord` taps every keystroke and pointer-button event the macOS
-session produces. Its security posture is dominated by two facts:
+session produces. Its security posture is dominated by these facts:
 
 1. **Accessibility access** is required and granted by the user
    in System Settings. chord never asks for it again at runtime
@@ -14,6 +14,13 @@ session produces. Its security posture is dominated by two facts:
    the source of truth for what runs; chord trusts its contents
    verbatim. Treat it the same way you treat `.zshrc` or
    `Brewfile`.
+3. **Input Monitoring (conditional, v-key only)** — only when the
+   config declares v-key bindings does chord open the canon dongle
+   (matched by VID/PID) via `IOHIDManager` under the Input
+   Monitoring grant (`kTCCServiceListenEvent`) and read one vendor
+   usage page (`0xFF31`, report `0x20`). It subscribes to no other
+   device and reads no general keyboard HID; non-v-key users are
+   never prompted for it.
 
 ## What chord does NOT do
 
@@ -23,6 +30,9 @@ session produces. Its security posture is dominated by two facts:
 - It does not bypass the TCC accessibility prompt. If the prompt
   was suppressed by a third-party tool, chord still runs the
   permission check.
+- It does not read HID reports from any device other than the
+  matched canon dongle, and only that dongle's self-defined vendor
+  page (never general keyboard HID).
 
 ## Reporting a vulnerability
 

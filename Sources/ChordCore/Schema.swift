@@ -218,7 +218,8 @@ public enum BindingsSchema {
     }
 
     public struct WireTrigger: Codable, Sendable, Hashable {
-        /// `"key"` | `"mouseButton"` | `"scroll"` | `"anyKey"`.
+        /// `"key"` | `"mouseButton"` | `"scroll"` | `"anyKey"` |
+        /// `"modifiersOnly"` | `"vkey"` | `"anyVKey"`.
         public let kind: String
         public let name: String?
         public let keycode: UInt16?
