@@ -12,6 +12,13 @@ import Foundation
 ///     allowlist; one match is enough
 ///   • exclusion entries (`"!com.apple.dt.Xcode"`) win over any
 ///     allowlist hit when the bundle id matches
+public enum ModifierEdge: Hashable, Sendable {
+    /// The binding's modifier mask just became satisfied (entry action).
+    case entered
+    /// The mask just stopped being satisfied (fire the binding's onUp).
+    case exited
+}
+
 public struct Matcher: Sendable {
     public let bindings: [Binding]
     /// Document-ordered fallback bindings, consulted only after every
@@ -120,6 +127,35 @@ public struct Matcher: Sendable {
             return b
         }
         return nil
+    }
+
+    /// Pure: which `.modifiersOnly` bindings cross an entry/exit edge as
+    /// the OS modifier mask goes `prev → curr`. Applies the same app-scope
+    /// and condition gates as [find]; an `.exited` pair is returned only
+    /// when the binding carries an `onUpAction` (the caller swaps it in).
+    /// Extracted from the Controller so the `.modifiersChanged` path no
+    /// longer re-implements `appsAllow` / `conditionHolds` / the edge math.
+    public func modifierTransitions(
+        prev: Modifiers, curr: Modifiers,
+        state: StateSnapshot, bundleID: String?
+    ) -> [(binding: Binding, edge: ModifierEdge)] {
+        var out: [(binding: Binding, edge: ModifierEdge)] = []
+        for b in bindings where b.trigger == .modifiersOnly {
+            if let apps = b.apps {
+                guard let id = bundleID else { continue }
+                if !Matcher.appsAllow(id, patterns: apps) { continue }
+            }
+            if let cond = b.condition,
+               !Matcher.conditionHolds(cond, state: state) { continue }
+            let prevSat = b.modifiers.matches(event: prev)
+            let curSat = b.modifiers.matches(event: curr)
+            if !prevSat && curSat {
+                out.append((b, .entered))
+            } else if prevSat && !curSat, b.onUpAction != nil {
+                out.append((b, .exited))
+            }
+        }
+        return out
     }
 
     /// Pure function — Matcher stays value-type and the tap thread
