@@ -23,7 +23,8 @@ final class ConfigSchemaShapeTests: XCTestCase {
         let props = try XCTUnwrap(root["properties"] as? [String: Any])
         XCTAssertEqual(Set(props.keys),
                        ["options", "action-aliases", "input-aliases",
-                        "bindings", "fallbacks", "sequence", "remap"])
+                        "v-key-aliases", "bindings", "fallbacks",
+                        "sequence", "remap"])
     }
 
     /// Every action-* union member the parser reads must appear in the binding
