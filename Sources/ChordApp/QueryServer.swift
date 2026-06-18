@@ -149,7 +149,7 @@ extension Controller {
                 inputMonitoringGranted: Permissions.isInputMonitoringTrusted()))
         case .vars:
             return QuerySchema.encode(QuerySchema.VarsResponse(
-                queriedAt: iso, vars: stateSnapshot().variables))
+                queriedAt: iso, vars: variableStore.snapshot().variables))
         case .loadedBindings:
             let m = matcherSnapshot()
             return QuerySchema.encode(QuerySchema.LoadedBindingsResponse(
@@ -285,7 +285,7 @@ nonisolated(unsafe) var sharedMeta = DaemonMeta()
 let metaLock = NSLock()
 
 /// Serial queue owning the query socket accept loop + per-connection
-/// I/O. `.userInitiated` to match `stateTimerQueue`; independent of the
+/// I/O. `.userInitiated` to match the state timer queue; independent of the
 /// tap thread (query reads only lock-snapshot the shared state, so the
 /// hot path is never blocked).
 let queryQueue = DispatchQueue(label: "chord.query", qos: .userInitiated)
