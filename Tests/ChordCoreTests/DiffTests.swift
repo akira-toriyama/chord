@@ -156,4 +156,74 @@ final class DiffTests: XCTestCase {
         XCTAssertEqual(d.actionAliasesChanged[0].oldBody, "echo old")
         XCTAssertEqual(d.actionAliasesChanged[0].newBody, "echo new")
     }
+
+    // MARK: - younger fields (chord 0.9.0+) must register as changes
+    //
+    // Regression for C2/cli#4: semanticallyEqual ignored passthrough /
+    // repeatStrategy / inputSource, so an edit touching ONLY one of them
+    // reported "no change" (the dry-run lied). Each must now surface as a
+    // changed binding.
+
+    func testPassthroughOnlyEditIsChanged() throws {
+        let base = """
+        [[bindings]]
+        name = "x"
+        input = "cmd - x"
+        action-shell = "echo hi"
+        """
+        let d = BindingsSchema.diff(old: try doc(base),
+                                    new: try doc(base + "\npassthrough = true"))
+        XCTAssertEqual(d.changedBindings.count, 1,
+                       "passthrough-only edit must surface as changed")
+        XCTAssertEqual(d.unchangedBindingCount, 0)
+    }
+
+    func testRepeatOnlyEditIsChanged() throws {
+        let base = """
+        [[bindings]]
+        name = "x"
+        input = "cmd - x"
+        action-shell = "echo hi"
+        """
+        let d = BindingsSchema.diff(old: try doc(base),
+                                    new: try doc(base + "\nrepeat = \"ignore\""))
+        XCTAssertEqual(d.changedBindings.count, 1,
+                       "repeat-only edit must surface as changed")
+    }
+
+    func testInputSourceOnlyEditIsChanged() throws {
+        let base = """
+        [[bindings]]
+        name = "x"
+        input = "cmd - x"
+        action-noop = true
+        """
+        let d = BindingsSchema.diff(
+            old: try doc(base),
+            new: try doc(base + "\ninput-source = [\"com.apple.keylayout.US\"]"))
+        XCTAssertEqual(d.changedBindings.count, 1,
+                       "input-source-only edit must surface as changed")
+    }
+
+    func testConditionOnlyEditIsChanged() throws {
+        let oldDoc = try doc("""
+        [[bindings]]
+        name = "g"
+        input = "cmd - z"
+        when-var = "a"
+        when-var-value = 1
+        action-noop = true
+        """)
+        let newDoc = try doc("""
+        [[bindings]]
+        name = "g"
+        input = "cmd - z"
+        when-var = "a"
+        when-var-value = 2
+        action-noop = true
+        """)
+        let d = BindingsSchema.diff(old: oldDoc, new: newDoc)
+        XCTAssertEqual(d.changedBindings.count, 1,
+                       "when-var value change must surface as changed")
+    }
 }
