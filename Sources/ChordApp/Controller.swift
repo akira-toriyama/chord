@@ -694,3 +694,47 @@ let pendingUpsLock = NSLock()
 // Touched by the HID callback (main run loop) and reset on reload.
 nonisolated(unsafe) private var vkeyTracker = VKeyEdgeTracker()
 private let vkeyLock = NSLock()
+
+#if DEBUG
+// MARK: - test seam
+
+public extension Controller {
+    /// Test-only entry point (ChordIntegrationTests). Wires the REAL
+    /// `handle()` consume/pass spine onto the injected `EventSource`,
+    /// driven by an explicit `Matcher`, WITHOUT the AppKit / AX / IPC /
+    /// config-watcher that `start()` brings up. Tests then `feed()`
+    /// synthetic events through the production code path and assert the
+    /// returned `EventOutcome` (and the shared state), instead of the
+    /// parallel `matcher.find()` reimplementation in `TestEventSourceTests`.
+    ///
+    /// `handle()` reads the **global** `sharedMatcher` (the tap thread's
+    /// lock-free snapshot), so this publishes the matcher rather than only
+    /// setting the instance field. The hot-path state (`sharedMatcher`,
+    /// `pendingUps`, the modifier baseline, the vkey latch, the variable
+    /// store) is module-global and shared across instances, so this resets
+    /// it first — each test starts from a clean slate regardless of order.
+    func startForTesting(matcher: Matcher) throws {
+        resetState()
+        self.matcher = matcher
+        publishMatcher()
+        let weakSelf = WeakWrap(self)
+        try source.start { event in
+            guard let me = weakSelf.value else { return .passthrough }
+            return me.handle(event)
+        }
+    }
+
+    /// Test-only read of the shared variable store, so a test can assert a
+    /// `setVariable` / on-up / modifier-only side effect took place through
+    /// the real spine without re-deriving it from a follow-up event.
+    func variableSnapshotForTesting() -> StateSnapshot { variableStore.snapshot() }
+
+    /// Test-only read of the pending-up table (the B1 pairing bookkeeping),
+    /// so a test can assert a consumed down registered exactly one pending
+    /// up and a passthrough binding registered none.
+    func pendingUpCountForTesting() -> Int {
+        pendingUpsLock.lock(); defer { pendingUpsLock.unlock() }
+        return pendingUps?.count ?? 0
+    }
+}
+#endif
