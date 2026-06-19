@@ -17,12 +17,44 @@ import Foundation
 
 public extension ChordConfigSchema {
 
-    /// Unknown-key warnings for every `arrayOfTables` section (and its
-    /// nested tables). Lenient: an unknown key is reported but never drops
-    /// the row — the warning rides `ParseResult.warnings`, and `--strict`
-    /// turns it into a hard exit 1 like every other warning.
+    /// Unknown-key warnings for the whole document: a typo'd top-level
+    /// SECTION header, plus an unknown key inside every `arrayOfTables`
+    /// section (and its nested tables). Lenient: an unknown key/section is
+    /// reported but never drops a sibling row — the warning rides
+    /// `ParseResult.warnings`, and `--strict` turns it into a hard exit 1
+    /// like every other warning.
     static func unknownKeyWarnings(root: [String: TOML.Value]) -> [ConfigWarning] {
         var out: [ConfigWarning] = []
+        // Top level: a key that isn't a known section name is a mistyped
+        // header (`[[bindigs]]`, `[optoins]`) — or, rarely, a stray
+        // top-level scalar (`foo = 1`). TOML can't distinguish a typo'd
+        // table from a real one, so it loads as something nothing reads and
+        // the rows it "contained" silently vanish — and `--validate
+        // --strict` passed, even though the editor JSON schema flags the
+        // same typo. Warn so the CLI is at least as strict. The label
+        // mirrors the syntax the user wrote (`[[x]]` / `[x]` / `x`); the
+        // source line is best-effort (only `[[x]]` rows carry one).
+        let knownSections = Set(sections.map(\.name))
+        let knownList = knownSections.sorted().joined(separator: ", ")
+        for (key, value) in root.sorted(by: { $0.key < $1.key })
+        where key != TOML.lineKey && !knownSections.contains(key) {
+            let line: Int?
+            let label: String
+            let noun: String
+            switch value {
+            case .arrayOfTables(let rows):
+                line = rows.first?.sourceLine; label = "[[\(key)]]"; noun = "section"
+            case .table(let t):
+                line = t.sourceLine; label = "[\(key)]"; noun = "section"
+            default:
+                line = nil; label = "'\(key)'"; noun = "key"
+            }
+            out.append(ConfigWarning(
+                kind: .unknownKey,
+                message: "\(label): unknown top-level \(noun) — ignored "
+                    + "(known: \(knownList))",
+                sourceLine: line))
+        }
         for section in sections {
             guard case .arrayOfTables(let shape) = section.kind,
                   case .arrayOfTables(let rows)? = root[section.name] else { continue }

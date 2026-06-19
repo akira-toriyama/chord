@@ -18,10 +18,11 @@ final class ModifierTransitionsTests: XCTestCase {
     private func transitions(_ bindings: [Binding],
                              prev: Modifiers, curr: Modifiers,
                              state: StateSnapshot = StateSnapshot(),
-                             bundleID: String? = nil)
+                             bundleID: String? = nil,
+                             excludeApps: [String] = [])
         -> [(binding: Binding, edge: ModifierEdge)]
     {
-        Matcher(bindings: bindings)
+        Matcher(bindings: bindings, excludeApps: excludeApps)
             .modifierTransitions(prev: prev, curr: curr,
                                  state: state, bundleID: bundleID)
     }
@@ -82,6 +83,30 @@ final class ModifierTransitionsTests: XCTestCase {
         XCTAssertEqual(
             transitions(b, prev: [], curr: [.lcmd],
                         bundleID: "com.apple.Safari").first?.edge,
+            .entered)
+    }
+
+    func testGlobalExcludeAppsSuppressesTransitions() {
+        // Regression for the exclude_apps bypass: a globally excluded app
+        // must fire NO modifier-only edges, exactly as `Matcher.find()`
+        // returns nil for it. Before the fix the extracted edge path
+        // ignored `excludeApps`, so a setVariable leader still fired in an
+        // app the user had globally disabled.
+        let b = [modBinding("leader", mods: [.cmd])]
+        XCTAssertTrue(
+            transitions(b, prev: [], curr: [.lcmd],
+                        bundleID: "com.apple.dt.Xcode",
+                        excludeApps: ["com.apple.dt.Xcode"]).isEmpty)
+        // A glob excludes too (same semantics as find()).
+        XCTAssertTrue(
+            transitions(b, prev: [], curr: [.lcmd],
+                        bundleID: "com.foo.bar",
+                        excludeApps: ["com.foo.*"]).isEmpty)
+        // A non-excluded app still gets its entry edge.
+        XCTAssertEqual(
+            transitions(b, prev: [], curr: [.lcmd],
+                        bundleID: "com.apple.Safari",
+                        excludeApps: ["com.apple.dt.Xcode"]).first?.edge,
             .entered)
     }
 

@@ -209,6 +209,67 @@ final class ConfigTests: XCTestCase {
         XCTAssertTrue(unknown.contains { $0.message.contains("[[remap]]") && $0.message.contains("'huh'") })
     }
 
+    /// A typo'd top-level SECTION header (`[[bindigs]]`, `[optoins]`) used
+    /// to parse as a brand-new section that nothing reads — the rows it
+    /// "contained" silently vanished and `--validate --strict` passed, even
+    /// though the editor JSON schema flags the same typo. Warn (.unknownKey)
+    /// so the CLI is at least as strict as the schema.
+    func testUnknownTopLevelSectionWarns() throws {
+        let source = """
+        [[bindigs]]
+        name = "oops"
+        input = "cmd - a"
+        action-noop = true
+
+        [optoins]
+        passthrough-unmatched = false
+        """
+        let r = try Config.parse(source)
+        // The mistyped binding section did NOT load any binding.
+        XCTAssertEqual(r.config.bindings.count, 0)
+        let sectionWarnings = r.warnings.filter {
+            $0.kind == .unknownKey && $0.message.contains("top-level section")
+        }
+        XCTAssertEqual(sectionWarnings.count, 2)
+        XCTAssertTrue(sectionWarnings.contains { $0.message.contains("[bindigs]") })
+        XCTAssertTrue(sectionWarnings.contains { $0.message.contains("[optoins]") })
+    }
+
+    /// Negative: a correctly-spelled config (every valid section present)
+    /// produces NO top-level-section warning — guards against the root
+    /// scan mis-flagging a legitimate section name.
+    func testKnownTopLevelSectionsDoNotWarn() throws {
+        let source = """
+        [options]
+        passthrough-unmatched = true
+        [action-aliases]
+        hi = "echo hi"
+        [input-aliases]
+        hyper = "cmd + opt + ctrl + shift"
+        [v-key-aliases]
+        vol = 161
+        [[bindings]]
+        input = "cmd - a"
+        action-noop = true
+        [[fallbacks]]
+        input = "*"
+        action-noop = true
+        [[sequence]]
+        prefix = "cmd - g"
+        timeout-ms = 800
+          [[sequence.bindings]]
+          input = "h"
+          action-noop = true
+        [[remap]]
+        modifiers = "cmd"
+        map = { h = "left" }
+        """
+        let r = try Config.parse(source)
+        XCTAssertFalse(r.warnings.contains {
+            $0.kind == .unknownKey && $0.message.contains("top-level section")
+        })
+    }
+
     /// `action-toggle-var-on-up` / `action-hold-var-on-up` are recognised-
     /// to-reject (rejected fields): the parser emits its SPECIFIC rejection,
     /// NOT a misleading "unknown key" — the descriptor's keySet includes them

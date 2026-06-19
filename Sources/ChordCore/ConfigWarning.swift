@@ -94,11 +94,14 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// #52-bounded: a `[[bindings]]` / `[[fallbacks]]` / `[[sequence]]`
         /// / `[[remap]]` row (or a nested `per-app` / `sequence.bindings`
         /// row) contains a key the descriptor doesn't recognise (a typo:
-        /// `actoin-shell`, `passthrouh`). The key is silently ignored at
-        /// runtime, so without this warning the typo'd field would look
-        /// like it just "didn't take". --strict turns it into exit 1. The
-        /// known-key inventory is the same `ChordConfigSchema` descriptor
-        /// that drives `--emit-schema`, so the two can't drift.
+        /// `actoin-shell`, `passthrouh`) — OR a top-level SECTION header is
+        /// itself mistyped (`[[bindigs]]`, `[optoins]`), so the rows it
+        /// "contains" load into a section nothing reads. Either way the key
+        /// / section is silently ignored at runtime, so without this warning
+        /// the typo would look like it just "didn't take". --strict turns it
+        /// into exit 1. The known inventory (section names + each section's
+        /// keys) is the same `ChordConfigSchema` descriptor that drives
+        /// `--emit-schema`, so the two can't drift.
         case unknownKey           = "unknown-key"
         /// Two or more user-named `[[bindings]]` rows share the same
         /// `name`. Both still load (chord doesn't enforce unique
