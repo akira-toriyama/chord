@@ -284,7 +284,7 @@ public final class Controller {
         // published Matcher already carries the new vkey bindings; this
         // only resets the press/release latch the HID callback reads).
         vkeyLock.lock()
-        lastVKeyDown = 0
+        vkeyTracker.reset()
         vkeyLock.unlock()
     }
 
@@ -356,35 +356,28 @@ public final class Controller {
     /// Firmware contract: `selector` is the pressed id `1...255`, or `0`
     /// on release. One report per edge, so a press is a `.down` of
     /// `.vkey(id)` and a release is the `.up` of the previously-held id
-    /// (the release report carries no id, hence the `lastVKeyDown` latch).
+    /// (the release report carries no id, hence the `VKeyEdgeTracker` latch).
     /// A same-id repeat is ignored; an `A → B` roll (a fresh id before the
     /// `0`) releases A then presses B.
     nonisolated private func handleVKey(selector: UInt8) {
         let bundle = FrontmostTracker.shared.bundleID
         let isrc = InputSourceTracker.shared.id
 
+        // Pure edge/latch math (advances the latch even if we're paused, so a
+        // paused release still clears the held id — no wedge). An A→B roll
+        // yields [.up(A), .down(B)] in that order; a 0 yields [.up(held)].
         vkeyLock.lock()
-        let prev = lastVKeyDown
-        if selector == prev {              // duplicate report / autorepeat
-            vkeyLock.unlock()
-            return
-        }
-        lastVKeyDown = selector            // track the wire even if paused
+        let edges = vkeyTracker.events(for: selector)
         vkeyLock.unlock()
 
-        // Release the previously-held vkey first (covers 0=release and the
-        // defensive A→B roll where no 0 was seen in between). `handle`
-        // pairs this against the pendingUp registered on its down.
-        if prev != 0 {
-            _ = handle(InputEvent(trigger: .vkey(prev), modifiers: [],
-                                  frontmostBundleID: bundle, kind: .up,
+        // Feed each edge through the SAME handle() path as the CGEventTap:
+        // a .up pairs against the pendingUp registered on its .down, and
+        // app/when-var/on-up/pause all apply for free.
+        for edge in edges {
+            _ = handle(InputEvent(trigger: .vkey(edge.id), modifiers: [],
+                                  frontmostBundleID: bundle, kind: edge.kind,
                                   inputSourceID: isrc))
         }
-        // 0 is release-only — nothing to press.
-        guard selector != 0 else { return }
-        _ = handle(InputEvent(trigger: .vkey(selector), modifiers: [],
-                              frontmostBundleID: bundle, kind: .down,
-                              inputSourceID: isrc))
     }
 
     /// Record a binding so its `.up` half can implicitly consume the
@@ -694,9 +687,10 @@ nonisolated(unsafe) var pendingUps: [Trigger: Binding]?
 let pendingUpsLock = NSLock()
 
 // vkey (vendor-HID) press/release edge latch. The release report carries
-// no id, so `lastVKeyDown` (0 = nothing held) remembers which `.vkey(id)`
-// to synthesise the `.up` for. Touched by the HID callback (main run loop)
-// and cleared on reload — same nonisolated(unsafe)+NSLock idiom as
-// sharedMatcher / pendingUps above.
-nonisolated(unsafe) private var lastVKeyDown: UInt8 = 0
+// no id, so the tracker remembers which `.vkey(id)` to synthesise the `.up`
+// for. Edge/latch math lives in the pure `VKeyEdgeTracker` (ChordCore,
+// unit-tested); this global just holds the instance behind the same
+// nonisolated(unsafe)+NSLock idiom as sharedMatcher / pendingUps above.
+// Touched by the HID callback (main run loop) and reset on reload.
+nonisolated(unsafe) private var vkeyTracker = VKeyEdgeTracker()
 private let vkeyLock = NSLock()
