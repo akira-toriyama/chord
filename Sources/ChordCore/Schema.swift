@@ -414,6 +414,9 @@ public enum BindingsSchema {
             && a.holdWhileTimeoutMs == b.holdWhileTimeoutMs
             && a.actionOnUp == b.actionOnUp
             && a.extraActions == b.extraActions
+            && a.passthrough == b.passthrough
+            && a.repeatStrategy == b.repeatStrategy
+            && a.inputSource == b.inputSource
     }
 
     // MARK: - encoding
