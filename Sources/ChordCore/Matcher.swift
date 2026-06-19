@@ -139,6 +139,15 @@ public struct Matcher: Sendable {
         prev: Modifiers, curr: Modifiers,
         state: StateSnapshot, bundleID: String?
     ) -> [(binding: Binding, edge: ModifierEdge)] {
+        // Global exclude-apps gate — mirror `find()`. A globally disabled
+        // app must fire no edges either; otherwise a modifier-only binding
+        // (a setVariable leader, a hold-while) still fires in an app the
+        // user excluded. `find()` honored `excludeApps`; this extracted
+        // edge path did not, so the exclusion silently leaked.
+        if let id = bundleID,
+           Matcher.matchesGlobs(id, patterns: excludeApps) {
+            return []
+        }
         var out: [(binding: Binding, edge: ModifierEdge)] = []
         for b in bindings where b.trigger == .modifiersOnly {
             if let apps = b.apps {
