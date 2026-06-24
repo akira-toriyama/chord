@@ -1,8 +1,39 @@
 # config.toml オーサリング補助 (Taplo/schema) 強化
 
 - Issue: Closes #138 (umbrella)。Sub: #144 A / #145 B / #146 S1 / #147 S2 / #148 E
-- Status: in-progress (A ✅ / B ✅ merged / 共有 schema エンジン program 着手 / E 残)
+- Status: in-progress (A ✅ / B ✅ merged / 次=S1 sill 共有コア / E 残)
 - Updated: 2026-06-24
+
+## 🔖 次セッション着手ガイド (cold-start 用)
+
+**着手対象: S1 (#146) — sill の decode-free 共有 schema コア。** 推奨は **設計先行**
+(公開 API を1枚出す → maintainer 合意 → 実装。品質最優先・手戻り最小)。
+
+S1 設計の出発点:
+- **移設元 (chord)**: [Sources/ChordCore/ConfigSchema/SchemaDescriptor.swift](../../Sources/ChordCore/ConfigSchema/SchemaDescriptor.swift)(型)+
+  [SchemaEmit.swift](../../Sources/ChordCore/ConfigSchema/SchemaEmit.swift)(lowering)。Phase B で
+  `enumDocs`/`initKeys`/`xChordConstraints`/cross-field `ExclusionRule` 実装済 = **一般化の素材**。
+- **移設先 (sill)**: `Sources/ConfigSchema/ConfigSchema.swift`(現状 `Spec<Root>` で decode+emit。
+  arrayOfTables emit 対応だが **flat fields のみ・enumDocs/exclusions/nested/x-taplo 無し**)。
+  → `Spec` とは別に **decode-free な新型群**(`SchemaField`/`ObjectShape`/`SchemaSection`/`ExclusionRule`)
+  + lowering を追加。S3 で既存 `Spec.jsonSchema()` を新コア経由に。
+- **設計要件**: descriptor はルールを純データ保持 = **emit + validate 両対応**(validator は S-validate)。
+  chord(自前 descriptor)と sill `Spec`(flat decode)の両方が emit を共有。
+- **S2 受け入れ条件**: chord 載せ替え後の `config.schema.json` が **byte-identical**
+  (`ConfigSchemaDriftTests` + `ConfigSchemaShapeTests` + `ConfigConstraintCoverageTests` + `taplo lint` で担保)。
+
+検証: `swift build` / `swift test`(Xcode でローカル可・386+ green)/ `npx --yes @taplo/cli@0.7.0 lint config.toml`。
+
+**cross-repo 作業の鉄則 (本セッションの教訓 — 共有資産化で多発する)**:
+- sibling repo は **fresh clone (SSH alias `ssh://github.com.akira-toriyama/akira-toriyama/<repo>.git`)** で作業。
+  ローカル checkout は maintainer の未 push 作業で origin から乖離していることがある(wand で 42 file 乖離・config.toml だけのつもりが巻き込み)。
+- **workflow ファイルの push は SSH 必須**(HTTPS token に `workflow` scope 無し → 拒否)。
+- `gh pr merge --admin` は harness が**ブロック**(branch protection bypass)。`gh pr update-branch` → 通常 merge。
+  perch は up-to-date 必須・squash merge。
+- `rm` はシェル alias → `command rm`。taplo は未インストール → `npx --yes @taplo/cli@0.7.0`。
+- **Project board #5**: PID `PVT_kwHOBYj5C84BZ-RS` / Status field `PVTSSF_lAHOBYj5C84BZ-RSzhU5HHw` /
+  options: Done `98236657` · In Progress `47fc9ee4` · Ready `85c0755f` · Backlog `6a999963` · Icebox `a5a58e45` · Inbox `cc6b1dd6`。
+- 投資調査の raw 出力は /tmp(ephemeral・消える)。要点は本 plan に集約済。再実行は workflow `chord-138-config-authoring-investigation`。
 
 ## ゴール
 
