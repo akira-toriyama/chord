@@ -18,7 +18,7 @@ jobs:
     # Bounded so a hung `swift build` can't burn 6 h of free macOS minutes.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # chord-specific: fail fast if the version strings drift between
       # ChordVersion.current and Info.plist before the expensive build.
