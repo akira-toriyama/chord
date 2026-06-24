@@ -98,6 +98,8 @@ AdapterTest / App) で、
 
 ## インストール
 
+macOS 13+ で動作します（最新 macOS 推奨）。
+
 ```sh
 brew install akira-toriyama/tap/chord
 
@@ -114,7 +116,7 @@ install 時は ad-hoc 署名にフォールバック → そのままだと TCC 
 許可が upgrade のたびに失われます。`chord daemon --resign` は ad-hoc 署名を持続的な
 `chord-dev` 識別子で上書きし、デーモンを再起動するワンステップコマンドです。
 
-ソースからビルドする場合 (macOS 13+ と Xcode CommandLineTools か Xcode 本体が必要):
+ソースからビルドする場合 (Xcode CommandLineTools か Xcode 本体が必要):
 
 ```sh
 git clone https://github.com/akira-toriyama/chord
