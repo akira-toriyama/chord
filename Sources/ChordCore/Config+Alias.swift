@@ -60,8 +60,7 @@ extension Config {
 
         // Bare `@name` (no parens): existing v1 path.
         if rest.isEmpty {
-            return resolveBareAlias(name: name, body: nil,
-                                    actionAliases: actionAliases)
+            return resolveBareAlias(name: name, actionAliases: actionAliases)
         }
         // `@name(...)` call form.
         if rest.hasPrefix("(") {
@@ -83,10 +82,11 @@ extension Config {
         return .body(raw, aliasName: nil)
     }
 
-    /// Bare `@name` resolution. `body` is unused (alias call form
-    /// passes its own substituted body through `resolveCallAlias`).
+    /// Bare `@name` resolution — looks the alias body up in
+    /// `actionAliases` (the `@name(args)` call form goes through
+    /// `resolveCallAlias` instead).
     private static func resolveBareAlias(
-        name: String, body: String?,
+        name: String,
         actionAliases: [String: String]
     ) -> AliasResolution {
         guard let body = actionAliases[name] else {

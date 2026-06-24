@@ -270,16 +270,14 @@ enum ChordApp {
     }
 
     /// `daemon --toggle` reads the last status line and flips paused ↔
-    /// resumed. The daemon writes "paused bindings=N" /
-    /// "resumed bindings=N" / "fired …" etc.; a line that starts
-    /// with "paused" (with optional leading timestamp/tab) is the
-    /// only signal of paused state, since `--resume` and `fired`
-    /// both overwrite it.
+    /// resumed. The daemon (`Control.writeStatus`) always prefixes an
+    /// ISO8601 timestamp + tab and the paused payload is
+    /// "paused bindings=N", so a `"\tpaused "` substring is the only
+    /// signal of paused state — `--resume` and `fired …` both overwrite
+    /// the line.
     private static func cmdToggle() -> SubcommandOutcome {
         let status = Control.readStatus() ?? ""
         let isPaused = status.contains("\tpaused ")
-                     || status.hasPrefix("paused ")
-                     || status.contains("\tpaused\n")
         return cmdControl(isPaused ? Control.resume : Control.pause,
                           label: isPaused ? "resumed" : "paused")
     }
