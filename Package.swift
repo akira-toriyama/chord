@@ -55,9 +55,10 @@ let package = Package(
         // `CLIKit`, the family's shared pure argv tokenizer (Phase 3 M4),
         // which ChordApp consumes to drive the yabai-style `chord <domain>
         // --<verb>` grammar (unknown-flag loud reject + did-you-mean +
-        // `-h`/`-V` carve-out). chord has no value-taking flags, so it
-        // doesn't hit the D0 hazard; CLIKit is for grammar consistency, not
-        // value tokenizing. Floor bumped to 0.11.0 (the release that removed
+        // `-h`/`-V` carve-out). chord has one value-taking flag
+        // (`query --recent-fires --limit N`), so it DOES exercise CLIKit's
+        // `.value` arity + the D0 verbatim-value path (a `-`-leading arg
+        // after `--limit` is a value, not a flag). Floor bumped to 0.11.0 (the release that removed
         // sill's in-tree `Toml`). Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
                  .upToNextMinor(from: "0.11.0")),
