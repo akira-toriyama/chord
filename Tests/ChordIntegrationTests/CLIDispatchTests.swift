@@ -73,9 +73,18 @@ private func querySocketExists() -> Bool {
 
     /// `daemon --show` (the read口, was `--status`) reports exit 3 when
     /// there is no status file.
+    ///
+    /// Start-clean precondition: a sibling suite that constructs a real
+    /// `Controller` (e.g. ControllerSpineTests) writes `/tmp/chord.status` via
+    /// `Control.writeStatus` on init and never removes it, so depending on
+    /// parallel test ORDER this test could otherwise read that leftover and see
+    /// exit 0. The `.disabled(if:)` guard already established no REAL daemon at
+    /// discovery, so any status file present now is test pollution — safe to
+    /// clear. Matches the suite-local "start clean regardless of order" policy.
     @Test(.disabled(if: daemonStatusFileExists(),
                     "host has /tmp/chord.status — would consume real status"))
     func showWithoutFileReportsExit3() {
+        try? FileManager.default.removeItem(atPath: Control.statusPath)
         let out = ChordApp.dispatch(["daemon", "--show"])
         #expect(out?.exitCode == 3)
         #expect(out?.stderr == "chord: no status file\n")
