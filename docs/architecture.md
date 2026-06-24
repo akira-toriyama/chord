@@ -13,7 +13,7 @@
 │ ─ EventTap           │ ─── implements ──────▶│  ─ EventSource (port)│
 │ ─ FrontmostTracker   │                       │  ─ Matcher           │
 │ ─ ActionDispatcher   │                       │  ─ Config + TOML     │
-│ ─ Permissions        │                       │  ─ KeyCodes / Models │
+│ ─ Permissions  (…)   │                       │  ─ KeyCodes / Models │
 │  (AppKit/CG/AX/IOKit)│                       │  (no AppKit / no CG) │
 └──────────────────────┘                       └──────────▲───────────┘
                                                           │
@@ -26,12 +26,18 @@
                                                └──────────────────────┘
 ```
 
+The `ChordAdapterMacOS` box lists a representative subset (the
+`(…)` after `Permissions`). The full module is seven files:
+`EventTap`, `FrontmostTracker`, `ActionDispatcher`, `Permissions`,
+`InputSourceTracker`, `SideMaskTable`, and `VKeyHIDSource`
+(chord 0.10.0+, the vendor-HID v-key reader).
+
 ## Layer rules
 
-`ChordCore` is pure. It can `import Foundation` and `CoreGraphics`
-for `CGFloat` / `CGPoint`, but it cannot `import AppKit`,
-`CoreGraphics` event types, `ApplicationServices`, `IOKit`, or
-anything else that would tie its code to macOS at runtime. Its
+`ChordCore` is pure. It imports only `Foundation` and the
+swift-toml-edit `Toml` product — no geometry types, no
+`CoreGraphics`, no `AppKit`, no `ApplicationServices`, no `IOKit`,
+nothing else that would tie its code to macOS at runtime. Its
 unit tests are the contract.
 
 `ChordAdapterMacOS` is the **only** module that touches OS-level

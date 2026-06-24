@@ -5,18 +5,23 @@ import Foundation
 /// Schema published at `docs/schema/chord.bindings.v3.json` is the
 /// canonical contract; every field in this file is mirrored there.
 ///
-/// v2 additions over v1:
-///   * action.kind = "set-variable" with `variable` + `value` fields
-///   * binding.condition (state-gate predicate)
+/// The schema jumped v1 → v3 within the live file — no separate v2
+/// file was ever published (the state-machine additions landed in
+/// the live schema before it was tagged). Fields added over the
+/// original v1 shape:
+///   * action.kind = "set-variable" / "toggle-variable" with
+///     `variable` + `value` fields
+///   * binding.condition (state-gate predicate, incl. the
+///     `kind: "all"` AND conjunction)
 ///   * binding.hold_while  (modifier-mask lifecycle for variables)
 ///   * binding.action_on_up (release action)
-///   * three new dropped[].kind values for the new fields' parse errors
+///   * additional dropped[].kind values for the new fields' parse errors
 ///
 /// Consumers still pinned to v1 will reject these documents under
 /// strict-schema validation (`additionalProperties: false` on the v1
-/// binding object). Either re-pin to v2 or vendor the v2 schema.
+/// binding object). Re-pin to v3 or vendor the v3 schema.
 ///
-/// Design choices (locked for v1):
+/// Design choices (locked for v3):
 ///
 /// * **Modifier side encoded per-category** (`modifier_sides:
 ///   {"ctrl": "right"}`), not as a flat array mixing `ctrl` and

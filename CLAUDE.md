@@ -273,28 +273,40 @@ Rules:
 
 ### State machine (v2 — Karabiner-style leader keys)
 
-- **The store is flat `[String: Int]`, owned by the Controller**.
-  Reads on the tap thread go through `stateSnapshot()` (a value-typed
-  copy of the dict under `stateLock`); the Matcher consumes the
-  snapshot via `Matcher.Event.state`. Writes happen in
-  `applyVariable(_:value:holdWhile:)`, also tap-thread, also under
-  `stateLock`. The lock window is the dict copy itself — never
-  wraps a callback. **Don't replace it with an actor** — the tap
-  thread cannot `await`.
-- **Action.setVariable is intercepted by the Controller**, not the
-  ActionDispatcher. State ownership belongs to the App layer; the
-  Adapter has no legitimate reason to know about the variable
-  store. The dispatcher's `case .setVariable` path is a debug-log
-  no-op safety net for tests that exercise it directly.
+- **The store is `ChordCore`'s `VariableStore`**
+  ([Sources/ChordCore/VariableStore.swift](Sources/ChordCore/VariableStore.swift)),
+  a `final class` wrapping a flat `[String: Entry]` behind its own
+  `NSLock` (`@unchecked Sendable`). It is **owned by ChordCore but
+  driven by the Controller** — a module-global
+  `let variableStore = VariableStore(scheduler: DispatchStateScheduler())`
+  in Controller.swift. (Extracted from the Controller's old
+  file-private globals so the concurrency-sensitive logic is
+  directly unit-testable.) Reads on the tap thread go through
+  `variableStore.snapshot() -> StateSnapshot` (a value-typed copy
+  of the dict taken under the lock); the Matcher consumes it via
+  `Matcher.Event.state`. Writes go through
+  `variableStore.set(name:value:holdWhile:timeoutMs:)`,
+  `toggle(name:)` (atomic 0↔1 flip in a single lock window), and
+  `extendTimer(name:)` (B-α reset-on-use). Every public method takes
+  the lock for its whole body; the lock window never wraps a
+  callback. **Don't replace it with an actor** — the tap thread
+  cannot `await`.
+- **Action.setVariable / Action.toggleVariable are intercepted by
+  the Controller**, not the ActionDispatcher. State ownership
+  belongs to the App layer (it drives the store); the Adapter has
+  no legitimate reason to know about the variable store. The
+  dispatcher's `case .setVariable` path is a debug-log no-op safety
+  net for tests that exercise it directly.
 - **An unset variable reads as 0**. `Condition.variable(_, equals: 0)`
   is the idiomatic "mode cleared" check. Writing 0 via
-  `applyVariable` removes the entry — the dict doesn't accumulate
-  zeroed keys.
+  `variableStore.set(...)` removes the entry — the dict doesn't
+  accumulate zeroed keys.
 - **`hold-while` is the lifecycle**. A binding's `action-set-var`
   with `hold-while = "cmd + opt"` ties the variable to that
   modifier mask: when the OS-side modifier state no longer
   satisfies the mask (via `Modifiers.isStillHeld(in:)`), the
-  Controller clears the entry on the next flagsChanged event.
+  Controller forwards the flagsChanged event to
+  `variableStore.clearStale(currentMods:)`, which clears the entry.
   Without `hold-while`, the variable persists until an explicit
   `action-set-value = 0` write.
 - **`isStillHeld(in:)` is permissive of extras**. Distinct from
@@ -303,17 +315,27 @@ Rules:
   hasn't done anything to indicate "leave the mode". Strict-side
   bits (`.lcmd`, `.rshift`, …) require the exact side; any-side
   bits (`.cmd`) accept either.
-- **Reload wipes everything** — state dict and pending-up table.
-  A reload may have dropped the binding that owned a variable,
-  leaving an entry no one can clear (silent leak). Same policy
-  as the config loader: reload = clean slate.
-- **State is intentionally narrow**: single-variable equality only
-  (no `a == 1 && b == 2`), no nested modes, no state-emitting
-  conditions (a binding can `set-variable` OR gate on
-  `when-var`, but the gate predicate cannot itself mutate state).
-  This matches the canon migration's actual leader-key use cases
-  and keeps the parser surface bounded. Anything richer belongs
-  in stroke or in Karabiner.
+- **Reload wipes everything** — `variableStore.reset()` (the state
+  dict and its timers) plus the pending-up table. A reload may have
+  dropped the binding that owned a variable, leaving an entry no one
+  can clear (silent leak). Same policy as the config loader: reload
+  = clean slate.
+- **State is intentionally narrow**: single-variable equality
+  (`Condition.variable`) OR an AND conjunction of equalities
+  (`Condition.conjunction`, built from `when-vars = { a = 1, b = 2 }`,
+  chord 0.9.0+) — still **no OR, no NOT, no nested modes**, and no
+  state-emitting conditions (a binding can `set-variable` /
+  `toggle-variable` OR gate on `when-var` / `when-vars`, but the
+  gate predicate cannot itself mutate state). This matches the
+  canon migration's actual leader-key use cases and keeps the
+  parser surface bounded. Anything richer belongs in stroke or in
+  Karabiner.
+- **`action-toggle-var` (`Action.toggleVariable`)** flips a variable
+  between 0 and 1 on each press (any non-zero collapses to 0). Like
+  `setVariable` it is intercepted by the Controller, not the
+  dispatcher; it goes through `variableStore.toggle(name:)` so the
+  read and write stay in one lock window. No hold-while / timeout
+  applies — the lifecycle is "until the next toggle".
 
 ### Variable lifecycle — `hold-while-timeout` (chord 0.4.0)
 
@@ -326,20 +348,24 @@ Rules:
   observing flagsChanged transitions of 1-2ms duration immediately
   after a `keyDown` on those setups.
 - **`hold-while-timeout`** is the inactivity-timer
-  lifecycle. The timer is scheduled from the tap thread via
-  `DispatchSource.makeTimerSource` on `stateTimerQueue` (a private
-  serial queue), and fires `Controller.timerFired(name:)` which
-  takes `stateLock` and removes the entry. B-α "reset-on-use":
-  every binding gated on the same variable extends the timer
-  before returning — sustained editing sessions don't time out.
+  lifecycle. `VariableStore` schedules timers through an injected
+  `StateScheduler` protocol; the production `DispatchStateScheduler`
+  uses a one-shot `DispatchSourceTimer` on a dedicated serial queue
+  labelled `"chord.state.timer"` (qos `.userInitiated`). On expiry the
+  store's private `timerFired(name:)` takes the lock and removes the
+  entry. (This replaced the old `stateTimerQueue` / `sharedTimers` /
+  `Controller.timerFired` / `cancelTimerLocked` Controller globals.)
+  B-α "reset-on-use": every binding gated on the same variable calls
+  `variableStore.extendTimer(name:)` before returning — sustained
+  editing sessions don't time out.
 - **Mutual exclusion**: a binding writing both `hold-while` and
   `hold-while-timeout` is dropped at parse time. They pick
   different lifecycles for the same variable.
-- **Cleanup paths cancel timers**: reload (`resetState`),
-  modifier release (`clearStaleVariables`), explicit clear
-  (`action-set-value = 0`) all cancel the timer via
-  `cancelTimerLocked` so a delayed fire doesn't mutate stale
-  state.
+- **Cleanup paths cancel timers**: reload (`VariableStore.reset()`),
+  modifier release (`clearStale(currentMods:)`), explicit clear
+  (`action-set-value = 0`, i.e. `set(...)` with value 0) all cancel
+  the timer (private `cancelTimerLocked`) so a delayed fire doesn't
+  mutate stale state.
 - **No global default**. Each `action-set-var` binding declares
   its own timeout. Vim's `timeoutlen` global is a known pain
   point — different leaders have different ergonomics
@@ -371,9 +397,9 @@ Rules:
 - **`EventKind.modifiersChanged` never reaches the matcher**.
   The Controller branches on `event.kind` before consulting the
   matcher and routes flagsChanged events directly to
-  `clearStaleVariables(currentMods:)`. The matcher only ever sees
-  `.down`. (Up events go through the pending-ups path, never the
-  matcher.)
+  `variableStore.clearStale(currentMods:)`. The matcher only ever
+  sees `.down`. (Up events go through the pending-ups path, never
+  the matcher.)
 
 ### Configuration
 
@@ -794,10 +820,11 @@ re-confirmation.
 - [Quartz Event Services (CGEventTap)](https://developer.apple.com/documentation/coregraphics/quartz_event_services)
   *(reviewed 2026-05-24)* — the API every binding flows through.
   `.cgSessionEventTap` location + `.defaultTap` option +
-  `eventMask` of `keyDown | flagsChanged | leftMouseDown |
-  rightMouseDown | otherMouseDown | scrollWheel`. Reach here when
-  changing the mask, the tap location, or the user-data sentinel
-  scheme.
+  `eventMask` of `keyDown | keyUp | flagsChanged | leftMouseDown |
+  leftMouseUp | rightMouseDown | rightMouseUp | otherMouseDown |
+  otherMouseUp | scrollWheel` (the up variants back the v2 paired
+  down/up consume). Reach here when changing the mask, the tap
+  location, or the user-data sentinel scheme.
 - [Carbon Events.h — Virtual Keycodes](https://developer.apple.com/documentation/coreservices/carbon_core/1564550-virtual_keycodes)
   *(reviewed 2026-05-24)* — the authoritative source for
   `kVK_F1…kVK_F20`. Apple does NOT define `kVK_F21…kVK_F24`; chord
@@ -854,11 +881,13 @@ re-confirmation.
 ### Formats / conventions
 
 - [TOML 1.0.0 spec](https://toml.io/en/v1.0.0)
-  *(reviewed 2026-05-24)* — what the hand-rolled `TOML.parse`
-  approximates. chord intentionally supports a strict subset (no
-  inline tables, no nested arrays-of-arrays, dotted-key style for
-  `[[bindings]]` rows). New `.toml` features must justify the
-  added parser surface.
+  *(reviewed 2026-05-24)* — the grammar chord's config implements.
+  TOML parsing is delegated to swift-toml-edit's `Toml` module
+  (full TOML 1.0); `Sources/ChordCore/TOML.swift` is a thin shim.
+  Inline tables ARE supported and chord relies on them (`when-vars
+  = { a = 1, b = 2 }`, `[[remap]] map = { … }`). The former
+  hand-rolled subset parser is retired; new `.toml` surface is
+  bounded by swift-toml-edit's support, not a local parser budget.
 - [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
   *(reviewed 2026-05-24)* — type / scope grammar
   `<type>(<scope>)<!>: <subject>`. `docs/commit-convention.md` is

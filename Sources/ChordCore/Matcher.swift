@@ -1,5 +1,13 @@
 import Foundation
 
+/// A modifier-only binding's mask transition (see [Matcher.modifierTransitions]).
+public enum ModifierEdge: Hashable, Sendable {
+    /// The binding's modifier mask just became satisfied (entry action).
+    case entered
+    /// The mask just stopped being satisfied (fire the binding's onUp).
+    case exited
+}
+
 /// Looks up the binding that fires for a given input event.
 ///
 /// Match order is the document order of `[[bindings]]` in
@@ -12,13 +20,6 @@ import Foundation
 ///     allowlist; one match is enough
 ///   • exclusion entries (`"!com.apple.dt.Xcode"`) win over any
 ///     allowlist hit when the bundle id matches
-public enum ModifierEdge: Hashable, Sendable {
-    /// The binding's modifier mask just became satisfied (entry action).
-    case entered
-    /// The mask just stopped being satisfied (fire the binding's onUp).
-    case exited
-}
-
 public struct Matcher: Sendable {
     public let bindings: [Binding]
     /// Document-ordered fallback bindings, consulted only after every

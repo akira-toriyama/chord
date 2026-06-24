@@ -461,7 +461,7 @@ enum ChordApp {
     }
 
     /// Plain-text rendering of the parse result. Same information
-    /// as `--list --json`, formatted for a human terminal.
+    /// as `config --show --json`, formatted for a human terminal.
     private static func printListText(_ res: Config.ParseResult,
                                       includeDropped: Bool) {
         if let p = res.sourcePath { print("source: \(p)") }

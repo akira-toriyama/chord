@@ -96,7 +96,7 @@ public enum Config {
             }
         }
 
-        // [actionAliases] — flat `name = "command"` lookup. Validation is
+        // [action-aliases] — flat `name = "command"` lookup. Validation is
         // minimal: only string values are accepted; anything else is
         // dropped with a warning.
         var actionAliases: [String: String] = [:]
@@ -108,7 +108,7 @@ public enum Config {
                 } else {
                     warnings.append(ConfigWarning(
                         kind: .actionAliasNonString,
-                        message: "[actionAliases] '\(key)': value must be a string — ignored",
+                        message: "[action-aliases] '\(key)': value must be a string — ignored",
                         bindingName: key))
                 }
             }

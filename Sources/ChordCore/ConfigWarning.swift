@@ -12,14 +12,14 @@ import Foundation
 ///   (`undefined-alias`, `unknown-input-token`, …) without having
 ///   to grep the message string. The raw values are part of the
 ///   schema's wire contract; renaming requires a schema major bump
-///   (e.g. `chord.bindings.v3` → `v3`). Adding new values is
+///   (e.g. `chord.bindings.v3` → `v4`). Adding new values is
 ///   forward-compatible if consumers branch defensively.
 /// * `message` — the human-readable line; `description` returns it
 ///   verbatim so existing callers (`print("warning: \(w)")`)
 ///   keep working byte-for-byte.
 /// * `sourceLine` — the 1-based config-file line, when known. Comes
 ///   from the `__line__` synthetic key the TOML parser injects on
-///   every `[[X]]` header (`TOML.lineKey`). For `[actionAliases]` entries
+///   every `[[X]]` header (`TOML.lineKey`). For `[action-aliases]` entries
 ///   and `[options]` table fields, lines are not tracked yet —
 ///   surfaces as `nil`.
 /// * `bindingName` — the row's `name` (or the synthetic `binding-N`
@@ -28,19 +28,19 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
 
     /// Stable identifiers exposed in the JSON schema. Renaming any
     /// value is a breaking change for consumers — bump the schema
-    /// major (`chord.bindings.v1` → `v2`) instead.
+    /// major (`chord.bindings.v3` → `v4`) instead.
     public enum Kind: String, Sendable, Codable, CaseIterable {
         case configNotFound       = "config-not-found"
         case missingInput         = "missing-input"
         case missingAction        = "missing-action"
         case unknownInputToken    = "unknown-input-token"
         case actionKeysParseError = "action-keys-parse-error"
-        /// `[action-actionAliases]` entry whose value isn't a string.
-        /// (was `aliasNonString` / `alias-non-string` in schema v2)
+        /// `[action-aliases]` entry whose value isn't a string.
+        /// (was `aliasNonString` / `alias-non-string` before the split)
         case actionAliasNonString = "action-alias-non-string"
         /// A binding's `action-shell` contains an `@name` reference
-        /// whose `name` is not in `[action-actionAliases]`.
-        /// (was `undefinedAlias` / `undefined-alias` in schema v2)
+        /// whose `name` is not in `[action-aliases]`.
+        /// (was `undefinedAlias` / `undefined-alias` before the split)
         case undefinedActionAlias = "undefined-action-alias"
         /// `[input-aliases]` entry whose value isn't a string.
         case inputAliasNonString  = "input-alias-non-string"

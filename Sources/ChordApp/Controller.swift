@@ -36,7 +36,7 @@ public final class Controller {
         FrontmostTracker.shared.start()
         InputSourceTracker.shared.start()
 
-        // Strong, Sendable capture for the synchronous tap handler.
+        // Weak, Sendable capture for the synchronous tap handler.
         let weakSelf = WeakWrap(self)
         try source.start { event in
             guard let me = weakSelf.value else { return .passthrough }
@@ -65,10 +65,10 @@ public final class Controller {
     // MARK: - hot path
 
     nonisolated private func handle(_ event: InputEvent) -> EventOutcome {
-        // The tap callback fires on its own run loop thread. We
-        // snapshot `matcher` once (assignment is atomic enough at
-        // value-type granularity in Swift) and act without
-        // bouncing to main — main bounces would deadlock the tap.
+        // The tap callback fires on its own run loop thread. We read
+        // the lock-published matcher snapshot via `matcherSnapshot()`
+        // (an NSLock guards the shared slot) and act without bouncing
+        // to main — main bounces would deadlock the tap.
         if isPaused() {
             emitWatch(event: event, outcome: "passthrough (paused)")
             return .passthrough
@@ -162,8 +162,10 @@ public final class Controller {
             b.action = extra
             ActionDispatcher.dispatch(b)
         }
-        // B-α reset-on-use: any binding gated on a variable extends
-        // that variable's inactivity timer. Runs AFTER the primary
+        // B-α reset-on-use: a binding gated on a SINGLE `.variable`
+        // condition extends that variable's inactivity timer. (Only the
+        // bare `.variable` shape is matched here — a `.conjunction`
+        // gate does not extend any timer.) Runs AFTER the primary
         // action so a setVariable + reset on the same binding still
         // ends in a fresh timer. (Self-gate is rare but possible.)
         if case .variable(let gated, _) = binding.condition {

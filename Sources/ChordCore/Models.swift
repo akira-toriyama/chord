@@ -439,9 +439,12 @@ public struct ChordConfig: Sendable {
     /// when ULTRA_LL fires on an undefined key"-style feedback.
     public var fallbacks: [Binding]
     /// Named shell-command snippets. A binding whose `action-shell`
-    /// is the single token `@name` resolves to the body string here.
-    /// Lookup is simple (no recursion, no argument passing — `@name
-    /// arg` syntax is reserved for a future expansion).
+    /// is `@name` resolves to the body string here. Bodies are
+    /// non-recursive (an alias body may not reference another alias).
+    /// Argument passing IS supported since chord 0.9.0: `@name(arg1,
+    /// "arg 2")` substitutes positional args into the body's `{{1}}`
+    /// / `{{2}}` … placeholders (see Config+Alias.swift); a body with
+    /// no placeholders keeps the pre-0.9.0 single-token `@name` form.
     public var actionAliases: [String: String]
     /// Named modifier-set aliases for `input = "…"` matching.
     /// Each entry is `name -> "mod1 + mod2 + …"`. A binding whose

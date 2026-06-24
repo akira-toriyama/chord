@@ -7,7 +7,7 @@ Global keyboard + mouse hotkey daemon for macOS.
 ```
 [ cmd + shift - mouse.side1 ] → "screenshot the selection"
 [ hyper - f24                ] → "open my secret terminal"
-[ ctrl - scroll.up           ] → "zoom in (only inside Code)"
+[ ctrl - scroll.up           ] → "zoom in (only inside VS Code)"
 ```
 
 Capabilities:
@@ -285,6 +285,7 @@ chord config --show              human-readable parsed config
 chord config --show --json       machine-readable (chord.bindings.v3)
 chord config --show --include-dropped   also list dropped bindings
 chord config --doctor     report Accessibility / config / daemon
+chord config --emit-schema   config.toml INPUT JSON Schema (Draft-07) for editor completion
 chord daemon --resign     re-sign Chord.app with chord-dev + restart
                           (run once after `brew install` / upgrade)
 chord daemon --watch      live per-event trace (subscribes via
