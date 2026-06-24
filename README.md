@@ -288,6 +288,8 @@ chord config --show --json       machine-readable (chord.bindings.v3)
 chord config --show --include-dropped   also list dropped bindings
 chord config --doctor     report Accessibility / config / daemon
 chord config --emit-schema   config.toml INPUT JSON Schema (Draft-07) for editor completion
+chord config --observe    stream pressed keycodes / mouse buttons / modifier sides
+                          live for discovery (nothing consumed; Ctrl-C to stop)
 chord daemon --resign     re-sign Chord.app with chord-dev + restart
                           (run once after `brew install` / upgrade)
 chord daemon --watch      live per-event trace (subscribes via
