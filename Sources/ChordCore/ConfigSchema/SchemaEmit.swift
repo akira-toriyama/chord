@@ -102,6 +102,12 @@ public extension ChordConfigSchema {
         }
         if !allOf.isEmpty { obj["allOf"] = allOf }
 
+        // taplo autocompletion pre-fill for a new table of this shape.
+        if !shape.initKeys.isEmpty { obj["x-taplo"] = ["initKeys": shape.initKeys] }
+        // Runtime-only rules the daemon enforces that Draft-07 can't express —
+        // editor hover discoverability only (not enforcement).
+        if !shape.xChordConstraints.isEmpty { obj["x-chord-constraints"] = shape.xChordConstraints }
+
         return obj
     }
 
@@ -134,7 +140,14 @@ public extension ChordConfigSchema {
         if let d = f.defaultInt { out["default"] = d }
         if let m = f.exclusiveMinimum { out["exclusiveMinimum"] = m }
         if !f.doc.isEmpty { out["description"] = f.doc }
-        if let ex = f.examples { out["examples"] = ex }
+        // Per-enum-value hover (taplo `x-taplo.docs.enumValues`, index-aligned
+        // to `enum`; a nil entry → JSON null skips that value). taplo does NOT
+        // surface JSON-Schema `examples` on hover, so examples were folded into
+        // `description` (markdown-rendered by taplo) instead of emitted here.
+        if let docs = f.enumDocs {
+            let enumValues: [Any] = docs.map { $0.map { $0 as Any } ?? NSNull() }
+            out["x-taplo"] = ["docs": ["enumValues": enumValues]]
+        }
         return out
     }
 

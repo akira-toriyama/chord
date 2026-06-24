@@ -31,12 +31,15 @@ public struct SchemaField: Sendable, Equatable {
     public var shape: Shape
     /// Finite value set → JSON `enum`. nil for free-form / DSL strings.
     public var enumDomain: [String]?
+    /// Per-enum-value hover docs, index-aligned to `enumDomain` (a nil entry
+    /// skips that value). Emitted as `x-taplo.docs.enumValues` — taplo's
+    /// per-value hover, which plain `description` cannot give.
+    public var enumDocs: [String?]?
     public var defaultBool: Bool?
     public var defaultInt: Int?
     /// `> n` knobs (timeout-ms, hold-while-timeout) → `exclusiveMinimum`.
     public var exclusiveMinimum: Int?
     public var doc: String
-    public var examples: [String]?
     /// A key the PARSER recognises but that is NOT schema-valid — it is
     /// detected only to reject it with a specific error (the
     /// `action-toggle-var-on-up` / `action-hold-var-on-up` forms, which
@@ -47,13 +50,13 @@ public struct SchemaField: Sendable, Equatable {
     public var rejected: Bool
 
     public init(_ key: String, _ shape: Shape, doc: String,
-                enumDomain: [String]? = nil, defaultBool: Bool? = nil,
-                defaultInt: Int? = nil, exclusiveMinimum: Int? = nil,
-                examples: [String]? = nil, rejected: Bool = false) {
+                enumDomain: [String]? = nil, enumDocs: [String?]? = nil,
+                defaultBool: Bool? = nil, defaultInt: Int? = nil,
+                exclusiveMinimum: Int? = nil, rejected: Bool = false) {
         self.key = key; self.shape = shape; self.doc = doc
-        self.enumDomain = enumDomain; self.defaultBool = defaultBool
-        self.defaultInt = defaultInt; self.exclusiveMinimum = exclusiveMinimum
-        self.examples = examples; self.rejected = rejected
+        self.enumDomain = enumDomain; self.enumDocs = enumDocs
+        self.defaultBool = defaultBool; self.defaultInt = defaultInt
+        self.exclusiveMinimum = exclusiveMinimum; self.rejected = rejected
     }
 }
 
@@ -82,12 +85,24 @@ public struct ObjectShape: Sendable {
     public var exclusions: [ExclusionRule]
     public var nested: [NestedTable]
     public var doc: String
+    /// Keys taplo pre-inserts when autocompleting a new table of this shape
+    /// (`x-taplo.initKeys`) — a curated starter set for array-of-tables items.
+    public var initKeys: [String]
+    /// Cross-cutting rules the daemon enforces at load that Draft-07 cannot
+    /// express (alias definedness, cross-row uniqueness, reserved names, …).
+    /// Emitted as the `x-chord-constraints` vendor array for editor hover.
+    /// DISCOVERABILITY only — `chord config --validate` / the daemon remain the
+    /// enforcement authority. Kept in lockstep with the relevant
+    /// ConfigWarning.Kind cases by ConfigConstraintCoverageTests.
+    public var xChordConstraints: [String]
 
     public init(fields: [SchemaField], required: [String] = [],
                 exclusions: [ExclusionRule] = [], nested: [NestedTable] = [],
-                doc: String = "") {
+                doc: String = "", initKeys: [String] = [],
+                xChordConstraints: [String] = []) {
         self.fields = fields; self.required = required
         self.exclusions = exclusions; self.nested = nested; self.doc = doc
+        self.initKeys = initKeys; self.xChordConstraints = xChordConstraints
     }
 
     /// Every key this object accepts (own fields + nested-table keys). Used by
@@ -137,11 +152,9 @@ public enum ChordConfigSchema {
     static func actionUnionFields() -> [SchemaField] {
         [
             SchemaField("action-shell", .string,
-                doc: "Shell command (run via /bin/sh -c). Supports @alias / @alias(a,b) refs from [action-aliases].",
-                examples: ["open -a Safari", "@focus_next"]),
+                doc: "Shell command (run via /bin/sh -c). Supports @alias / @alias(a,b) refs from [action-aliases]. e.g. `open -a Safari`, `@focus_next`."),
             SchemaField("action-keys", .stringOrStringArray,
-                doc: "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
-                examples: ["cmd - c", "[\"cmd - a\", \"cmd - c\"]"]),
+                doc: "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order. e.g. `\"cmd - c\"`, or `[\"cmd - a\", \"cmd - c\"]`."),
             SchemaField("action-noop", .constTrue,
                 doc: "Consume the event and do nothing (block a key). Only `true` is meaningful."),
             SchemaField("action-set-var", .string,
@@ -154,10 +167,14 @@ public enum ChordConfigSchema {
                 doc: "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer)."),
             SchemaField("action-mission-control", .string,
                 doc: "macOS Mission Control action.",
-                enumDomain: ["show-all-windows", "show-app-windows"]),
+                enumDomain: ["show-all-windows", "show-app-windows"],
+                enumDocs: ["Show every open window (Mission Control).",
+                           "Show all windows of the frontmost app (App Exposé)."]),
             SchemaField("action-screenshot", .string,
                 doc: "macOS screenshot action.",
-                enumDomain: ["selection", "screen"]),
+                enumDomain: ["selection", "screen"],
+                enumDocs: ["Capture a selected region (⌘⇧4).",
+                           "Capture the whole screen (⌘⇧3)."]),
             SchemaField("action-spotlight", .constTrue,
                 doc: "Open Spotlight (cmd-space default). Only `true` is meaningful."),
         ]
@@ -200,8 +217,7 @@ public enum ChordConfigSchema {
     static func lifecycleFields() -> [SchemaField] {
         [
             SchemaField("hold-while", .string,
-                doc: "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
-                examples: ["cmd + opt"]),
+                doc: "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout. e.g. `cmd + opt`."),
             SchemaField("hold-while-timeout", .integer,
                 doc: "Clear the set variable after this many ms of inactivity (>0).", exclusiveMinimum: 0),
         ]
@@ -211,15 +227,20 @@ public enum ChordConfigSchema {
     static func scopeFields() -> [SchemaField] {
         [
             SchemaField("apps", .stringArray,
-                doc: "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app.",
-                examples: ["[\"com.apple.Safari\"]", "[\"!com.apple.Terminal\"]"]),
+                doc: "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app. e.g. `[\"com.apple.Safari\"]`, or `[\"!com.apple.Terminal\"]` to exclude."),
             SchemaField("input-source", .stringOrStringArray,
                 doc: "Restrict to keyboard input-source id(s)."),
             SchemaField("passthrough", .boolean,
                 doc: "Let the original event reach the OS after firing.", defaultBool: false),
+            // enumDocs are index-aligned to RepeatStrategy.allCases
+            // (fire-each / ignore / passthrough) — ConfigSchemaShapeTests pins
+            // both the enum order and the enumDocs length.
             SchemaField("repeat", .string,
-                doc: "How key-repeat is handled.",
-                enumDomain: RepeatStrategy.allCases.map(\.rawValue), examples: ["fire-each"]),
+                doc: "How key-repeat (typematic auto-repeat) is handled.",
+                enumDomain: RepeatStrategy.allCases.map(\.rawValue),
+                enumDocs: ["Fire the action on every repeat tick (default).",
+                           "Fire once on key-down, swallow repeats (still consumed).",
+                           "Fire once on key-down, let repeats reach the OS (niche)."]),
         ]
     }
 
@@ -243,6 +264,47 @@ public enum ChordConfigSchema {
         SchemaField("name", .string, doc: "Display name; defaults to `binding-N`.")
     }
 
+    // MARK: Runtime-only constraints (x-chord-constraints)
+
+    /// A cross-cutting rule the daemon enforces at load that Draft-07 cannot
+    /// express — emitted as `x-chord-constraints` hover text. Each carries the
+    /// ConfigWarning.Kind(s) it documents so ConfigConstraintCoverageTests can
+    /// assert every binding-relevant runtime-only kind is surfaced (and the
+    /// rest are explicitly classified as not-surfaced).
+    public struct RuntimeConstraint: Sendable, Equatable {
+        public let kinds: [ConfigWarning.Kind]
+        public let text: String
+        public init(_ kinds: [ConfigWarning.Kind], _ text: String) {
+            self.kinds = kinds; self.text = text
+        }
+    }
+
+    /// The runtime-only rules surfaced in binding-like hovers. These STAY
+    /// runtime-only (they need a symbol table from another table, uniqueness on
+    /// a derived key, or case-folding — none expressible in Draft-07);
+    /// `chord config --validate` / the daemon remain the enforcement authority.
+    public static let runtimeConstraints: [RuntimeConstraint] = [
+        RuntimeConstraint([.undefinedActionAlias],
+            "`@name` in action-shell must be defined in [action-aliases]; an undefined reference drops the binding."),
+        RuntimeConstraint([.undefinedInputAlias],
+            "`$name` in input must be defined in [input-aliases]; an undefined reference drops the binding."),
+        RuntimeConstraint([.vkeyAliasInvalid],
+            "A bare v-key input must be defined in [v-key-aliases] (id 1–255) and must not shadow a built-in key or modifier."),
+        RuntimeConstraint([.inputAliasShadowsModifier],
+            "[input-aliases] names must not shadow built-in modifier tokens (cmd / ctrl / shift / opt / fn and L/R variants)."),
+        RuntimeConstraint([.duplicateBindingName],
+            "Each user-set `name` must be unique across [[bindings]] (auto `binding-N` names are exempt)."),
+        RuntimeConstraint([.actionSetParseError],
+            "`action-set-var` must not use a reserved `_seq_*` name (those are reserved for [[sequence]] state)."),
+        RuntimeConstraint([.sequenceParseError],
+            "A [[bindings]] trigger must not collide with a [[sequence]] prefix; a sequence `name` must not be `_seq_*`."),
+    ]
+
+    /// The hover strings for binding-like shapes (bindings / fallbacks /
+    /// sequence children). Derived from [runtimeConstraints] so the catalog is
+    /// the single source.
+    static func bindingConstraints() -> [String] { runtimeConstraints.map(\.text) }
+
     // MARK: Per-context shapes
 
     /// `[[bindings]]` — input required, no wildcard, per-app nesting allowed.
@@ -251,13 +313,14 @@ public enum ChordConfigSchema {
             fields: [
                 nameField(),
                 SchemaField("input", .string,
-                    doc: "Trigger: `[MODIFIERS -] KEY`. Supports $input-aliases, side-aware L/R, scroll.up/down.",
-                    examples: ["cmd + opt - f13", "ctrl - scroll.up", "$ULTRA - c"]),
+                    doc: "Trigger: `[MODIFIERS -] KEY`. Supports $input-aliases, side-aware L/R, scroll.up/down. e.g. `cmd + opt - f13`, `ctrl - scroll.up`, `$ULTRA - c`."),
             ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields() + scopeFields(),
             required: ["input"],
             exclusions: commonExclusions(),
             nested: [NestedTable(key: "per-app", item: perAppShape())],
-            doc: "A key/chord → action binding.")
+            doc: "A key/chord → action binding.",
+            initKeys: ["input", "action-keys"],
+            xChordConstraints: bindingConstraints())
     }
 
     /// `[[bindings.per-app]]` — bundle-id required, every field an optional
@@ -288,13 +351,13 @@ public enum ChordConfigSchema {
             fields: [
                 nameField(),
                 SchemaField("input", .string,
-                    doc: "Trigger; the wildcard `*` is allowed here (catch-all). Mutually exclusive with inputs.",
-                    examples: ["*", "cmd - a"]),
+                    doc: "Trigger; the wildcard `*` is allowed here (catch-all). Mutually exclusive with inputs. e.g. `*`, `cmd - a`."),
                 SchemaField("inputs", .stringArray,
                     doc: "Multiple triggers sharing one action. Mutually exclusive with input."),
             ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields() + scopeFields(),
             exclusions: [.oneOfRequired(["input", "inputs"])] + commonExclusions(),
-            doc: "A lower-priority binding tried only when no [[bindings]] row matched.")
+            doc: "A lower-priority binding tried only when no [[bindings]] row matched.",
+            xChordConstraints: bindingConstraints())
     }
 
     /// `[[sequence]]` — prefix + timeout-ms + nested bindings (leader key).
@@ -302,12 +365,13 @@ public enum ChordConfigSchema {
         ObjectShape(
             fields: [
                 SchemaField("name", .string, doc: "Sequence name; must not be a reserved `_seq_*` name."),
-                SchemaField("prefix", .string, doc: "Leader trigger (≥1 modifier).", examples: ["cmd - g"]),
+                SchemaField("prefix", .string, doc: "Leader trigger (≥1 modifier). e.g. `cmd - g`."),
                 SchemaField("timeout-ms", .integer, doc: "How long the prefix stays armed (ms, >0).", exclusiveMinimum: 0),
             ],
             required: ["prefix", "timeout-ms", "bindings"],
             nested: [NestedTable(key: "bindings", item: sequenceBindingShape(), required: true, nonEmpty: true)],
-            doc: "Leader-key sequence: arm a prefix, then its child bindings fire within the timeout.")
+            doc: "Leader-key sequence: arm a prefix, then its child bindings fire within the timeout.",
+            initKeys: ["prefix", "timeout-ms"])
     }
 
     /// `[[sequence.bindings]]` — child of a sequence; input primary-only.
@@ -319,7 +383,8 @@ public enum ChordConfigSchema {
             ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields() + scopeFields(),
             required: ["input"],
             exclusions: commonExclusions(),
-            doc: "A binding active only after its sequence prefix is armed.")
+            doc: "A binding active only after its sequence prefix is armed.",
+            xChordConstraints: bindingConstraints())
     }
 
     /// `[[remap]]` — modifiers + map of source→action-keys.
@@ -327,8 +392,8 @@ public enum ChordConfigSchema {
         ObjectShape(
             fields: [
                 SchemaField("name", .string, doc: "Remap group name."),
-                SchemaField("modifiers", .string, doc: "Modifier mask applied to every map entry (≥1 modifier).", examples: ["cmd + opt"]),
-                SchemaField("map", .stringMap, doc: "source-key → action-keys string. Non-empty.", examples: ["{ h = \"left\", l = \"right\" }"]),
+                SchemaField("modifiers", .string, doc: "Modifier mask applied to every map entry (≥1 modifier). e.g. `cmd + opt`."),
+                SchemaField("map", .stringMap, doc: "source-key → action-keys string. Non-empty. e.g. `{ h = \"left\", l = \"right\" }`."),
                 SchemaField("apps", .stringArray, doc: "Bundle-id globs this remap applies to."),
             ],
             required: ["modifiers", "map"],
