@@ -1,11 +1,11 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// T5 (issue #52) — single-source-ification invariants. Each test pins a
 /// refactor that replaced a duplicated literal / parallel list with one
 /// source, so a future drift becomes a test failure (and, for the
 /// enum-backed `kindString`, a compile error when an `Action` case is added).
-final class SingleSourceT5Tests: XCTestCase {
+@Suite struct SingleSourceT5Tests {
 
     private func parseBindings(_ source: String) throws -> [String: Any] {
         try parseToBindingsJSON(source)
@@ -13,106 +13,107 @@ final class SingleSourceT5Tests: XCTestCase {
 
     // MARK: item a — the modifier-token table is the single source
 
-    func testReservedModifierTokensDerivedFromTable() {
-        XCTAssertEqual(InputParser.reservedModifierTokens,
+    @Test func reservedModifierTokensDerivedFromTable() {
+        #expect(InputParser.reservedModifierTokens ==
                        Set(InputParser.modifierTokenMasks.keys))
         // Vocabulary is locked: a drift in either side would change this.
-        XCTAssertEqual(InputParser.reservedModifierTokens.count, 30)
+        #expect(InputParser.reservedModifierTokens.count == 30)
     }
 
-    func testReservedTokensAllParseToTheirMask() throws {
+    @Test func reservedTokensAllParseToTheirMask() throws {
         // Representative spellings, incl. the `hyper` composite and a
         // strict-side token, resolve to the table's mask.
-        XCTAssertEqual(try InputParser.parseModifiersOnly("cmd"), .cmd)
-        XCTAssertEqual(try InputParser.parseModifiersOnly("⌘"), .cmd)
-        XCTAssertEqual(try InputParser.parseModifiersOnly("command"), .cmd)
-        XCTAssertEqual(try InputParser.parseModifiersOnly("rctrl"), .rctrl)
-        XCTAssertEqual(try InputParser.parseModifiersOnly("hyper"), .hyper)
+        #expect(try InputParser.parseModifiersOnly("cmd") == .cmd)
+        #expect(try InputParser.parseModifiersOnly("⌘") == .cmd)
+        #expect(try InputParser.parseModifiersOnly("command") == .cmd)
+        #expect(try InputParser.parseModifiersOnly("rctrl") == .rctrl)
+        #expect(try InputParser.parseModifiersOnly("hyper") == .hyper)
         // Every reserved token must parse — proves the table and the
         // parser lookup share one source (none reserved-but-unparseable),
         // and that the union matches the table value.
         for (tok, mask) in InputParser.modifierTokenMasks {
-            XCTAssertEqual(try InputParser.parseModifiersOnly(tok), mask,
+            #expect(try InputParser.parseModifiersOnly(tok) == mask,
                            "token '\(tok)' parsed to the wrong mask")
         }
     }
 
     // MARK: item b — Action.kindString is the single discriminator
 
-    func testActionKindStrings() {
-        XCTAssertEqual(Action.keys([], 0).kindString, "keys")
-        XCTAssertEqual(Action.shell("x").kindString, "shell")
-        XCTAssertEqual(Action.noop.kindString, "noop")
-        XCTAssertEqual(Action.setVariable(name: "v", value: 1).kindString,
+    @Test func actionKindStrings() {
+        #expect(Action.keys([], 0).kindString == "keys")
+        #expect(Action.shell("x").kindString == "shell")
+        #expect(Action.noop.kindString == "noop")
+        #expect(Action.setVariable(name: "v", value: 1).kindString ==
                        "set-variable")
-        XCTAssertEqual(Action.toggleVariable(name: "v").kindString,
+        #expect(Action.toggleVariable(name: "v").kindString ==
                        "toggle-variable")
     }
 
-    func testWireSchemaKindIsSourcedFromKindString() throws {
+    @Test func wireSchemaKindIsSourcedFromKindString() throws {
         let json = try parseBindings("""
         [[bindings]]
         name = "x"
         input = "f13"
         action-noop = true
         """)
-        let bindings = try XCTUnwrap(json["bindings"] as? [[String: Any]])
-        let action = try XCTUnwrap(bindings.first?["action"] as? [String: Any])
-        XCTAssertEqual(action["kind"] as? String, Action.noop.kindString)
+        let bindings = try #require(json["bindings"] as? [[String: Any]])
+        let action = try #require(bindings.first?["action"] as? [String: Any])
+        #expect(action["kind"] as? String == Action.noop.kindString)
     }
 
     // MARK: item c — Modifiers.sideCategories is the single side table
 
-    func testSideCategoriesOrderAndContents() {
+    @Test func sideCategoriesOrderAndContents() {
         let c = Modifiers.sideCategories
-        XCTAssertEqual(c.count, 4)
-        XCTAssertEqual(c[0].any, .cmd);   XCTAssertEqual(c[0].left, .lcmd);   XCTAssertEqual(c[0].right, .rcmd)
-        XCTAssertEqual(c[1].any, .opt);   XCTAssertEqual(c[1].left, .lopt);   XCTAssertEqual(c[1].right, .ropt)
-        XCTAssertEqual(c[2].any, .ctrl);  XCTAssertEqual(c[2].left, .lctrl);  XCTAssertEqual(c[2].right, .rctrl)
-        XCTAssertEqual(c[3].any, .shift); XCTAssertEqual(c[3].left, .lshift); XCTAssertEqual(c[3].right, .rshift)
+        #expect(c.count == 4)
+        #expect(c[0].any == .cmd);   #expect(c[0].left == .lcmd);   #expect(c[0].right == .rcmd)
+        #expect(c[1].any == .opt);   #expect(c[1].left == .lopt);   #expect(c[1].right == .ropt)
+        #expect(c[2].any == .ctrl);  #expect(c[2].left == .lctrl);  #expect(c[2].right == .rctrl)
+        #expect(c[3].any == .shift); #expect(c[3].left == .lshift); #expect(c[3].right == .rshift)
     }
 
-    func testModifierSidesResolutionUnchanged() {
+    @Test func modifierSidesResolutionUnchanged() {
         let sides = BindingsSchema.modifierSides([.cmd, .rctrl])
-        XCTAssertEqual(sides.cmd, "any")
-        XCTAssertEqual(sides.ctrl, "right")
-        XCTAssertEqual(sides.opt, "absent")
-        XCTAssertEqual(sides.shift, "absent")
-        XCTAssertEqual(BindingsSchema.modifierSides([.lcmd, .rcmd]).cmd, "both")
-        XCTAssertEqual(BindingsSchema.modifierSides([.lshift]).shift, "left")
+        #expect(sides.cmd == "any")
+        #expect(sides.ctrl == "right")
+        #expect(sides.opt == "absent")
+        #expect(sides.shift == "absent")
+        #expect(BindingsSchema.modifierSides([.lcmd, .rcmd]).cmd == "both")
+        #expect(BindingsSchema.modifierSides([.lshift]).shift == "left")
     }
 
-    func testMatchesAndIsStillHeldSemanticsPreserved() {
+    @Test func matchesAndIsStillHeldSemanticsPreserved() {
         let rctrl: Modifiers = [.rctrl]
         let cmd: Modifiers = [.cmd]
         // strict-right ctrl matches right-only, not left-only.
-        XCTAssertTrue(rctrl.matches(event: [.rctrl]))
-        XCTAssertFalse(rctrl.matches(event: [.lctrl]))
+        #expect(rctrl.matches(event: [.rctrl]))
+        #expect(!rctrl.matches(event: [.lctrl]))
         // any-side cmd matches either physical side.
-        XCTAssertTrue(cmd.matches(event: [.lcmd]))
-        XCTAssertTrue(cmd.matches(event: [.rcmd]))
+        #expect(cmd.matches(event: [.lcmd]))
+        #expect(cmd.matches(event: [.rcmd]))
         // isStillHeld is permissive: an extra modifier does not clear it,
         // but losing the held side does.
-        XCTAssertTrue(cmd.isStillHeld(in: [.lcmd, .lshift]))
-        XCTAssertFalse(cmd.isStillHeld(in: []))
+        #expect(cmd.isStillHeld(in: [.lcmd, .lshift]))
+        #expect(!cmd.isStillHeld(in: []))
     }
 
     // MARK: item d — InputParser.vkeyWildcardNames is the single source
 
-    func testVkeyWildcardNames() throws {
-        XCTAssertEqual(InputParser.vkeyWildcardNames, ["v-key", "vkey"])
+    @Test func vkeyWildcardNames() throws {
+        #expect(InputParser.vkeyWildcardNames == ["v-key", "vkey"])
         // The bare wildcard is rejected outside [[fallbacks]] (allowWildcard).
-        XCTAssertThrowsError(try InputParser.parse("v-key"))
-        XCTAssertThrowsError(try InputParser.parse("vkey"))
+        #expect(throws: (any Error).self) { try InputParser.parse("v-key") }
+        #expect(throws: (any Error).self) { try InputParser.parse("vkey") }
         let p = try InputParser.parse("vkey", allowWildcard: true)
         guard case .anyVKey = p.trigger else {
-            return XCTFail("expected the any-vkey wildcard trigger")
+            Issue.record("expected the any-vkey wildcard trigger")
+            return
         }
     }
 
     // MARK: item e — Dictionary.sourceLine threads the synthetic line key
 
-    func testSourceLineThreadedThroughDroppedWarning() throws {
+    @Test func sourceLineThreadedThroughDroppedWarning() throws {
         // The 2nd binding (header on line 6) is missing `input`, so it is
         // dropped; its dropped[] entry must carry that source line — proving
         // the shared `row.sourceLine` accessor reads `__line__` correctly.
@@ -126,24 +127,24 @@ final class SingleSourceT5Tests: XCTestCase {
         name = "bad"
         action-noop = true
         """)
-        let dropped = try XCTUnwrap(json["dropped"] as? [[String: Any]])
-        let bad = try XCTUnwrap(dropped.first { ($0["name"] as? String) == "bad" })
+        let dropped = try #require(json["dropped"] as? [[String: Any]])
+        let bad = try #require(dropped.first { ($0["name"] as? String) == "bad" })
         // The accessor threaded a real `__line__` through to the warning.
-        let line = try XCTUnwrap(bad["source_line"] as? Int)
-        XCTAssertGreaterThan(line, 0)
+        let line = try #require(bad["source_line"] as? Int)
+        #expect(line > 0)
     }
 
     // MARK: item f — WireAction defaulted-nil init
 
-    func testWireActionDefaultedInit() {
+    @Test func wireActionDefaultedInit() {
         let w = BindingsSchema.WireAction(kind: "noop")
-        XCTAssertEqual(w.kind, "noop")
-        XCTAssertNil(w.raw)
-        XCTAssertNil(w.modifiers)
-        XCTAssertNil(w.key)
-        XCTAssertNil(w.command)
-        XCTAssertNil(w.alias)
-        XCTAssertNil(w.variable)
-        XCTAssertNil(w.value)
+        #expect(w.kind == "noop")
+        #expect(w.raw == nil)
+        #expect(w.modifiers == nil)
+        #expect(w.key == nil)
+        #expect(w.command == nil)
+        #expect(w.alias == nil)
+        #expect(w.variable == nil)
+        #expect(w.value == nil)
     }
 }

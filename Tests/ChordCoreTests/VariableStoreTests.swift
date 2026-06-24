@@ -1,4 +1,5 @@
-import XCTest
+import Foundation  // NSLock — XCTest used to re-export this transitively
+import Testing
 @testable import ChordCore
 
 /// T7a — direct unit coverage for `VariableStore`, the concurrency-
@@ -6,7 +7,11 @@ import XCTest
 /// (virtual-clock) [StateScheduler] lets the inactivity-timeout paths
 /// be driven deterministically — they were previously unreachable by
 /// the integration test, which wiped the store by hand.
-final class VariableStoreTests: XCTestCase {
+///
+/// Each test builds its own `VariableStore` via `makeStore()`, so there
+/// is no shared/global state between tests — the suite is safe to run
+/// in parallel (no `.serialized` needed).
+@Suite struct VariableStoreTests {
 
     /// Records scheduled fires and runs them on demand instead of after
     /// a wall-clock delay. Thread-safe (the store calls back into it).
@@ -57,111 +62,111 @@ final class VariableStoreTests: XCTestCase {
 
     // MARK: - set / snapshot
 
-    func testSetThenSnapshotReflectsValue() {
+    @Test func setThenSnapshotReflectsValue() {
         let (store, _) = makeStore()
         store.set(name: "wm", value: 3, holdWhile: nil, timeoutMs: nil)
-        XCTAssertEqual(store.snapshot().value("wm"), 3)
+        #expect(store.snapshot().value("wm") == 3)
     }
 
-    func testSetZeroClearsEntry() {
+    @Test func setZeroClearsEntry() {
         let (store, _) = makeStore()
         store.set(name: "wm", value: 1, holdWhile: nil, timeoutMs: nil)
         store.set(name: "wm", value: 0, holdWhile: nil, timeoutMs: nil)
         // value 0 removes the key entirely (matcher reads unset == 0).
-        XCTAssertEqual(store.snapshot().value("wm"), 0)
-        XCTAssertTrue(store.snapshot().variables.isEmpty)
+        #expect(store.snapshot().value("wm") == 0)
+        #expect(store.snapshot().variables.isEmpty)
     }
 
     // MARK: - toggle (single-window atomicity)
 
-    func testToggleFlipsAndReturnsOldNew() {
+    @Test func toggleFlipsAndReturnsOldNew() {
         let (store, _) = makeStore()
-        XCTAssertEqual(store.toggle(name: "t").old, 0)
-        XCTAssertEqual(store.snapshot().value("t"), 1)
+        #expect(store.toggle(name: "t").old == 0)
+        #expect(store.snapshot().value("t") == 1)
         let second = store.toggle(name: "t")
-        XCTAssertEqual(second.old, 1)
-        XCTAssertEqual(second.new, 0)
-        XCTAssertEqual(store.snapshot().value("t"), 0)
+        #expect(second.old == 1)
+        #expect(second.new == 0)
+        #expect(store.snapshot().value("t") == 0)
     }
 
-    func testToggleCollapsesAnyNonZeroToZero() {
+    @Test func toggleCollapsesAnyNonZeroToZero() {
         let (store, _) = makeStore()
         store.set(name: "t", value: 5, holdWhile: nil, timeoutMs: nil)
         let r = store.toggle(name: "t")
-        XCTAssertEqual(r.old, 5)
-        XCTAssertEqual(r.new, 0)
-        XCTAssertEqual(store.snapshot().value("t"), 0)
+        #expect(r.old == 5)
+        #expect(r.new == 0)
+        #expect(store.snapshot().value("t") == 0)
     }
 
     // MARK: - hold-while clearStale
 
-    func testClearStaleRemovesReleasedHoldWhileOnly() {
+    @Test func clearStaleRemovesReleasedHoldWhileOnly() {
         let (store, _) = makeStore()
         store.set(name: "held", value: 1, holdWhile: [.cmd], timeoutMs: nil)
         store.set(name: "plain", value: 1, holdWhile: nil, timeoutMs: nil)
         // cmd released entirely → "held" clears; "plain" (no hold-while) stays.
         let cleared = store.clearStale(currentMods: [])
-        XCTAssertEqual(cleared, ["held"])
-        XCTAssertEqual(store.snapshot().value("held"), 0)
-        XCTAssertEqual(store.snapshot().value("plain"), 1)
+        #expect(cleared == ["held"])
+        #expect(store.snapshot().value("held") == 0)
+        #expect(store.snapshot().value("plain") == 1)
     }
 
-    func testClearStaleKeepsStillHeldEntry() {
+    @Test func clearStaleKeepsStillHeldEntry() {
         let (store, _) = makeStore()
         store.set(name: "held", value: 1, holdWhile: [.cmd], timeoutMs: nil)
         // any-side cmd is still satisfied by the left cmd → kept.
         let cleared = store.clearStale(currentMods: [.lcmd])
-        XCTAssertTrue(cleared.isEmpty)
-        XCTAssertEqual(store.snapshot().value("held"), 1)
+        #expect(cleared.isEmpty)
+        #expect(store.snapshot().value("held") == 1)
     }
 
     // MARK: - inactivity timeout
 
-    func testTimeoutFiresAndClearsEntry() {
+    @Test func timeoutFiresAndClearsEntry() {
         let (store, sched) = makeStore()
         store.set(name: "j", value: 1, holdWhile: nil, timeoutMs: 800)
-        XCTAssertEqual(sched.pendingCount, 1)
-        XCTAssertEqual(store.snapshot().value("j"), 1)
+        #expect(sched.pendingCount == 1)
+        #expect(store.snapshot().value("j") == 1)
         sched.fireAll()  // deadline elapses
-        XCTAssertEqual(store.snapshot().value("j"), 0, "timeout clears the variable")
+        #expect(store.snapshot().value("j") == 0, "timeout clears the variable")
     }
 
-    func testExtendTimerReschedules() {
+    @Test func extendTimerReschedules() {
         let (store, sched) = makeStore()
         store.set(name: "j", value: 1, holdWhile: nil, timeoutMs: 800)
         store.extendTimer(name: "j")
         // The old timer is cancelled and a fresh one scheduled — exactly
         // one pending, two total scheduled, one cancelled.
-        XCTAssertEqual(sched.scheduleCount, 2)
-        XCTAssertEqual(sched.cancelCount, 1)
-        XCTAssertEqual(sched.pendingCount, 1)
-        XCTAssertEqual(store.snapshot().value("j"), 1)
+        #expect(sched.scheduleCount == 2)
+        #expect(sched.cancelCount == 1)
+        #expect(sched.pendingCount == 1)
+        #expect(store.snapshot().value("j") == 1)
     }
 
-    func testExtendTimerNoOpWhenNoTimer() {
+    @Test func extendTimerNoOpWhenNoTimer() {
         let (store, sched) = makeStore()
         store.set(name: "x", value: 1, holdWhile: nil, timeoutMs: nil)
         store.extendTimer(name: "x")       // no timer attached
         store.extendTimer(name: "absent")  // unset variable
-        XCTAssertEqual(sched.scheduleCount, 0)
+        #expect(sched.scheduleCount == 0)
     }
 
-    func testSetZeroCancelsPendingTimer() {
+    @Test func setZeroCancelsPendingTimer() {
         let (store, sched) = makeStore()
         store.set(name: "j", value: 1, holdWhile: nil, timeoutMs: 800)
         store.set(name: "j", value: 0, holdWhile: nil, timeoutMs: nil)
-        XCTAssertEqual(sched.cancelCount, 1)
-        XCTAssertEqual(sched.pendingCount, 0)
+        #expect(sched.cancelCount == 1)
+        #expect(sched.pendingCount == 0)
     }
 
     // MARK: - reset
 
-    func testResetWipesStateAndCancelsTimers() {
+    @Test func resetWipesStateAndCancelsTimers() {
         let (store, sched) = makeStore()
         store.set(name: "a", value: 1, holdWhile: nil, timeoutMs: 500)
         store.set(name: "b", value: 2, holdWhile: nil, timeoutMs: nil)
         store.reset()
-        XCTAssertTrue(store.snapshot().variables.isEmpty)
-        XCTAssertEqual(sched.pendingCount, 0, "reset cancels pending timers")
+        #expect(store.snapshot().variables.isEmpty)
+        #expect(sched.pendingCount == 0, "reset cancels pending timers")
     }
 }

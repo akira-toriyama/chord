@@ -1,25 +1,25 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// chord 0.9.0+: per-binding `repeat = fire-each | ignore | passthrough`
 /// controls how the binding reacts to macOS typematic autorepeat
 /// events. Default `.fireEach` preserves pre-0.9.0 behaviour
 /// (every repeat invokes the action).
-final class AutorepeatTests: XCTestCase {
+@Suite struct AutorepeatTests {
 
     // MARK: - Parse
 
-    func testRepeatDefaultsToFireEach() throws {
+    @Test func repeatDefaultsToFireEach() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "plain"
         input = "cmd - x"
         action-shell = "echo"
         """)
-        XCTAssertEqual(res.config.bindings[0].repeatStrategy, .fireEach)
+        #expect(res.config.bindings[0].repeatStrategy == .fireEach)
     }
 
-    func testParseAllThreeStrategies() throws {
+    @Test func parseAllThreeStrategies() throws {
         let cases: [(String, RepeatStrategy)] = [
             ("fire-each", .fireEach),
             ("ignore", .ignore),
@@ -33,12 +33,12 @@ final class AutorepeatTests: XCTestCase {
             action-shell = "echo"
             repeat = "\(raw)"
             """)
-            XCTAssertEqual(res.config.bindings[0].repeatStrategy, expected,
-                           "repeat=\"\(raw)\" should parse to \(expected)")
+            #expect(res.config.bindings[0].repeatStrategy == expected,
+                    "repeat=\"\(raw)\" should parse to \(expected)")
         }
     }
 
-    func testInvalidRepeatStrategyDropsBinding() throws {
+    @Test func invalidRepeatStrategyDropsBinding() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "bad"
@@ -46,42 +46,42 @@ final class AutorepeatTests: XCTestCase {
         action-shell = "echo"
         repeat = "yolo"
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.message.contains("yolo")
         })
     }
 
     // MARK: - Event flow / autorepeat flag
 
-    func testInputEventCarriesIsRepeat() {
+    @Test func inputEventCarriesIsRepeat() {
         // Constructor exposes the new field with default false.
         let plain = InputEvent(trigger: .key(0x00), modifiers: [],
                                frontmostBundleID: nil)
-        XCTAssertFalse(plain.isRepeat)
+        #expect(!plain.isRepeat)
 
         let rep = InputEvent(trigger: .key(0x00), modifiers: [],
                              frontmostBundleID: nil,
                              kind: .down,
                              isSynthetic: false,
                              isRepeat: true)
-        XCTAssertTrue(rep.isRepeat)
+        #expect(rep.isRepeat)
     }
 
     // MARK: - Schema round-trip
 
-    func testSchemaOmitsRepeatWhenDefault() throws {
+    @Test func schemaOmitsRepeatWhenDefault() throws {
         let b = try firstBinding("""
         [[bindings]]
         name = "plain"
         input = "cmd - x"
         action-shell = "echo"
         """)
-        XCTAssertNil(b["repeat"],
-                     "default fire-each is omitted from JSON")
+        #expect(b["repeat"] == nil,
+                "default fire-each is omitted from JSON")
     }
 
-    func testSchemaEmitsRepeatWhenSet() throws {
+    @Test func schemaEmitsRepeatWhenSet() throws {
         let b = try firstBinding("""
         [[bindings]]
         name = "noisy"
@@ -89,6 +89,6 @@ final class AutorepeatTests: XCTestCase {
         action-shell = "echo"
         repeat = "ignore"
         """)
-        XCTAssertEqual(b["repeat"] as? String, "ignore")
+        #expect(b["repeat"] as? String == "ignore")
     }
 }

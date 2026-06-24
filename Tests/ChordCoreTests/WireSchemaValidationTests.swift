@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import ChordCore
 
 /// Deterministic lockstep guard for the `chord config --show / --validate
@@ -24,7 +25,7 @@ import XCTest
 /// Value formats and numeric bounds are intentionally NOT enforced — this
 /// is a key/shape conformance guard, matching the ledger's "全キー/kind を
 /// 照合" scope. `ConfigSchemaDriftTests` is the on-disk-read precedent.
-final class WireSchemaValidationTests: XCTestCase {
+@Suite struct WireSchemaValidationTests {
 
     /// A single config whose emitted document touches every wire shape the
     /// published schema must describe. Kept to one feature per binding so
@@ -61,7 +62,7 @@ final class WireSchemaValidationTests: XCTestCase {
 
     // MARK: - the lockstep test
 
-    func testEmittedWireDocumentConformsToPublishedSchema() throws {
+    @Test func emittedWireDocumentConformsToPublishedSchema() throws {
         // 1. Emit through the real wire path (parse → makeDocument →
         //    encodeJSON → JSONSerialization), the same chain every other
         //    wire-shape test uses.
@@ -78,7 +79,7 @@ final class WireSchemaValidationTests: XCTestCase {
         do {
             try validator.validate(node: doc, schema: schema, path: "$")
         } catch let v as StructuralSchemaValidator.Violation {
-            XCTFail("""
+            Issue.record("""
             Emitted wire JSON violates docs/schema/chord.bindings.v3.json — \
             the emitter shipped a field the published schema does not \
             describe (the #45/#46/#47 drift class). \
@@ -94,44 +95,44 @@ final class WireSchemaValidationTests: XCTestCase {
     /// producing the feature), which would otherwise let the conformance
     /// check pass without testing anything.
     private func assertCoversYoungerFeatures(_ doc: [String: Any]) throws {
-        let bindings = try XCTUnwrap(doc["bindings"] as? [[String: Any]],
-                                     "no bindings[] in emitted document")
+        let bindings = try #require(doc["bindings"] as? [[String: Any]],
+                                    "no bindings[] in emitted document")
         let byName = Dictionary(
             uniqueKeysWithValues: bindings.compactMap { b -> (String, [String: Any])? in
                 (b["name"] as? String).map { ($0, b) }
             })
 
         // passthrough + repeat + input_source on one binding object.
-        let shell = try XCTUnwrap(byName["wire-shell-passthrough"],
-                                  "passthrough binding was dropped")
-        XCTAssertEqual(shell["passthrough"] as? Bool, true)
-        XCTAssertEqual(shell["repeat"] as? String, "ignore")
-        XCTAssertEqual(shell["input_source"] as? [String],
-                       ["com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"])
+        let shell = try #require(byName["wire-shell-passthrough"],
+                                 "passthrough binding was dropped")
+        #expect(shell["passthrough"] as? Bool == true)
+        #expect(shell["repeat"] as? String == "ignore")
+        #expect(shell["input_source"] as? [String] ==
+                ["com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"])
 
         // action kind "toggle-variable".
-        let toggle = try XCTUnwrap(byName["wire-toggle"],
-                                   "toggle binding was dropped")
-        let toggleAction = try XCTUnwrap(toggle["action"] as? [String: Any])
-        XCTAssertEqual(toggleAction["kind"] as? String, "toggle-variable")
+        let toggle = try #require(byName["wire-toggle"],
+                                  "toggle binding was dropped")
+        let toggleAction = try #require(toggle["action"] as? [String: Any])
+        #expect(toggleAction["kind"] as? String == "toggle-variable")
 
         // condition kind "all" with two nested conditions.
-        let gate = try XCTUnwrap(byName["wire-multigate"],
-                                 "multi-gate binding was dropped")
-        let cond = try XCTUnwrap(gate["condition"] as? [String: Any])
-        XCTAssertEqual(cond["kind"] as? String, "all")
-        XCTAssertEqual((cond["conditions"] as? [[String: Any]])?.count, 2)
+        let gate = try #require(byName["wire-multigate"],
+                                "multi-gate binding was dropped")
+        let cond = try #require(gate["condition"] as? [String: Any])
+        #expect(cond["kind"] as? String == "all")
+        #expect((cond["conditions"] as? [[String: Any]])?.count == 2)
 
         // trigger kind "vkey".
-        let vkey = try XCTUnwrap(byName["wire-vkey"], "vkey binding was dropped")
-        let trigger = try XCTUnwrap(
+        let vkey = try #require(byName["wire-vkey"], "vkey binding was dropped")
+        let trigger = try #require(
             (vkey["input"] as? [String: Any])?["trigger"] as? [String: Any])
-        XCTAssertEqual(trigger["kind"] as? String, "vkey")
+        #expect(trigger["kind"] as? String == "vkey")
 
         // The whole config must parse clean — a stray warning would add a
         // dropped[] row and muddy the conformance walk.
-        XCTAssertEqual((doc["dropped"] as? [Any])?.count, 0,
-                       "kitchen-sink config produced unexpected warnings")
+        #expect((doc["dropped"] as? [Any])?.count == 0,
+                "kitchen-sink config produced unexpected warnings")
     }
 
     // MARK: - schema loading
@@ -145,7 +146,7 @@ final class WireSchemaValidationTests: XCTestCase {
             .deletingLastPathComponent()   // <repo root>
             .appendingPathComponent("docs/schema/chord.bindings.v3.json")
         let data = try Data(contentsOf: url)
-        return try XCTUnwrap(
+        return try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any],
             "docs/schema/chord.bindings.v3.json is not a JSON object")
     }

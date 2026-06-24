@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// `[[sequence]]` is **syntactic sugar over v2 state-var**.
@@ -6,11 +6,11 @@ import XCTest
 /// behaviour is covered by the existing v2 state-var tests
 /// ([StateTests](StateTests.swift)). These tests pin the
 /// **expansion contract**: shape, ordering, validation, error paths.
-final class SequenceTests: XCTestCase {
+@Suite struct SequenceTests {
 
     // MARK: - TOML nested array-of-tables
 
-    func testNestedArrayOfTablesPreservesParentRows() throws {
+    @Test func nestedArrayOfTablesPreservesParentRows() throws {
         // Bug regression: the previous TOML.swift assumed `[[a.b]]`
         // navigated through a `.table` parent and lost data when the
         // parent was already an `.arrayOfTables` (`[[a]]`).
@@ -25,15 +25,15 @@ final class SequenceTests: XCTestCase {
           input = "l"
         """)
         let rows = v["sequence"]?.asArrayOfTables ?? []
-        XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0]["name"]?.asString, "outer")
+        #expect(rows.count == 1)
+        #expect(rows[0]["name"]?.asString == "outer")
         let children = rows[0]["bindings"]?.asArrayOfTables ?? []
-        XCTAssertEqual(children.count, 2)
-        XCTAssertEqual(children[0]["input"]?.asString, "k")
-        XCTAssertEqual(children[1]["input"]?.asString, "l")
+        #expect(children.count == 2)
+        #expect(children[0]["input"]?.asString == "k")
+        #expect(children[1]["input"]?.asString == "l")
     }
 
-    func testMultipleSequencesEachKeepTheirChildren() throws {
+    @Test func multipleSequencesEachKeepTheirChildren() throws {
         let v = try TOML.parse("""
         [[sequence]]
         name = "first"
@@ -48,14 +48,14 @@ final class SequenceTests: XCTestCase {
           input = "c"
         """)
         let rows = v["sequence"]?.asArrayOfTables ?? []
-        XCTAssertEqual(rows.count, 2)
-        XCTAssertEqual(rows[0]["bindings"]?.asArrayOfTables?.count, 1)
-        XCTAssertEqual(rows[1]["bindings"]?.asArrayOfTables?.count, 2)
+        #expect(rows.count == 2)
+        #expect(rows[0]["bindings"]?.asArrayOfTables?.count == 1)
+        #expect(rows[1]["bindings"]?.asArrayOfTables?.count == 2)
     }
 
     // MARK: - Basic expansion
 
-    func testSequenceExpandsToPrefixPlusChildren() throws {
+    @Test func sequenceExpandsToPrefixPlusChildren() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "j-layer"
@@ -70,46 +70,46 @@ final class SequenceTests: XCTestCase {
           input = "l"
           action-keys = "backspace"
         """)
-        XCTAssertEqual(res.config.bindings.count, 3,
-                       "1 sequence with 2 children → 3 expanded bindings")
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.config.bindings.count == 3,
+                "1 sequence with 2 children → 3 expanded bindings")
+        #expect(res.droppedBindings == 0)
 
         // Prefix binding (position 0).
         let prefix = res.config.bindings[0]
-        XCTAssertEqual(prefix.name, "j-layer [enter]")
+        #expect(prefix.name == "j-layer [enter]")
         if case .setVariable(let n, let v) = prefix.action {
-            XCTAssertEqual(n, "_seq_j-layer")
-            XCTAssertEqual(v, 1)
+            #expect(n == "_seq_j-layer")
+            #expect(v == 1)
         } else {
-            XCTFail("expected setVariable, got \(prefix.action)")
+            Issue.record("expected setVariable, got \(prefix.action)")
         }
-        XCTAssertEqual(prefix.holdWhileTimeoutMs, 1500)
-        XCTAssertNil(prefix.holdWhile,
-                     "sequence prefix uses timeout, not modifier-bound hold")
-        XCTAssertNil(prefix.condition,
-                     "prefix is unconditional — entering the sequence")
+        #expect(prefix.holdWhileTimeoutMs == 1500)
+        #expect(prefix.holdWhile == nil,
+                "sequence prefix uses timeout, not modifier-bound hold")
+        #expect(prefix.condition == nil,
+                "prefix is unconditional — entering the sequence")
 
         // First child (position 1).
         let c1 = res.config.bindings[1]
-        XCTAssertEqual(c1.name, "j-layer.1")
-        XCTAssertEqual(c1.condition,
-                       .variable(name: "_seq_j-layer", equals: 1))
+        #expect(c1.name == "j-layer.1")
+        #expect(c1.condition ==
+                .variable(name: "_seq_j-layer", equals: 1))
         if case .keys(_, let kc) = c1.action {
-            XCTAssertEqual(kc, 0x24, "return = 0x24")
+            #expect(kc == 0x24, "return = 0x24")
         } else {
-            XCTFail("expected keys action, got \(c1.action)")
+            Issue.record("expected keys action, got \(c1.action)")
         }
-        XCTAssertEqual(c1.modifiers, [.cmd, .opt],
-                       "child inherits prefix modset")
+        #expect(c1.modifiers == [.cmd, .opt],
+                "child inherits prefix modset")
 
         // Second child (position 2).
         let c2 = res.config.bindings[2]
-        XCTAssertEqual(c2.name, "j-layer.2")
-        XCTAssertEqual(c2.condition,
-                       .variable(name: "_seq_j-layer", equals: 1))
+        #expect(c2.name == "j-layer.2")
+        #expect(c2.condition ==
+                .variable(name: "_seq_j-layer", equals: 1))
     }
 
-    func testChildInputUsesPrefixModsetVerbatim() throws {
+    @Test func childInputUsesPrefixModsetVerbatim() throws {
         // Modset string is preserved as-written (no canonicalisation),
         // so the alias form stays the alias form for downstream
         // schema / config --show output.
@@ -126,15 +126,15 @@ final class SequenceTests: XCTestCase {
           input = "k"
           action-keys = "return"
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.bindings.count, 2)
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings.count == 2)
         // Child input should round-trip through the synthesized
         // "$ULTRA_LL - k" string.
-        XCTAssertEqual(res.config.bindings[1].inputRaw, "$ULTRA_LL - k")
-        XCTAssertEqual(res.config.bindings[1].modifiers, [.rctrl, .ropt, .rshift])
+        #expect(res.config.bindings[1].inputRaw == "$ULTRA_LL - k")
+        #expect(res.config.bindings[1].modifiers == [.rctrl, .ropt, .rshift])
     }
 
-    func testChildInheritsActionShellAndApps() throws {
+    @Test func childInheritsActionShellAndApps() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "x"
@@ -146,19 +146,19 @@ final class SequenceTests: XCTestCase {
           action-shell = "echo hi"
           apps = ["com.apple.Safari"]
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         let child = res.config.bindings[1]
         if case .shell(let body) = child.action {
-            XCTAssertEqual(body, "echo hi")
+            #expect(body == "echo hi")
         } else {
-            XCTFail("expected shell action, got \(child.action)")
+            Issue.record("expected shell action, got \(child.action)")
         }
-        XCTAssertEqual(child.apps, ["com.apple.Safari"])
+        #expect(child.apps == ["com.apple.Safari"])
     }
 
     // MARK: - Ordering vs regular [[bindings]]
 
-    func testSequencesAppearBeforeRegularBindings() throws {
+    @Test func sequencesAppearBeforeRegularBindings() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "regular-1"
@@ -179,18 +179,18 @@ final class SequenceTests: XCTestCase {
         input = "f14"
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 4,
-                       "2 regular + 2 sequence-expanded")
+        #expect(res.config.bindings.count == 4,
+                "2 regular + 2 sequence-expanded")
         // Sequence-expanded come first (so prefix wins on collision).
-        XCTAssertEqual(res.config.bindings[0].name, "leader [enter]")
-        XCTAssertEqual(res.config.bindings[1].name, "leader.1")
-        XCTAssertEqual(res.config.bindings[2].name, "regular-1")
-        XCTAssertEqual(res.config.bindings[3].name, "regular-2")
+        #expect(res.config.bindings[0].name == "leader [enter]")
+        #expect(res.config.bindings[1].name == "leader.1")
+        #expect(res.config.bindings[2].name == "regular-1")
+        #expect(res.config.bindings[3].name == "regular-2")
     }
 
     // MARK: - Prefix collision detection
 
-    func testPrefixCollisionDropsRegularBinding() throws {
+    @Test func prefixCollisionDropsRegularBinding() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "leader"
@@ -206,15 +206,15 @@ final class SequenceTests: XCTestCase {
         input = "cmd + opt - j"
         action-keys = "j"
         """)
-        XCTAssertEqual(res.droppedBindings, 1,
-                       "regular binding dropped due to prefix collision")
-        XCTAssertEqual(res.config.bindings.count, 2,
-                       "only the 2 expanded sequence bindings remain")
-        XCTAssertTrue(res.warnings.contains { $0.kind == .sequenceParseError },
-                      "collision should emit sequenceParseError")
+        #expect(res.droppedBindings == 1,
+                "regular binding dropped due to prefix collision")
+        #expect(res.config.bindings.count == 2,
+                "only the 2 expanded sequence bindings remain")
+        #expect(res.warnings.contains { $0.kind == .sequenceParseError },
+                "collision should emit sequenceParseError")
     }
 
-    func testRegularBindingWithDifferentModsDoesNotCollide() throws {
+    @Test func regularBindingWithDifferentModsDoesNotCollide() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "leader"
@@ -230,14 +230,14 @@ final class SequenceTests: XCTestCase {
         input = "cmd - j"
         action-noop = true
         """)
-        XCTAssertEqual(res.droppedBindings, 0,
-                       "cmd-j and cmd+opt-j are distinct")
-        XCTAssertEqual(res.config.bindings.count, 3)
+        #expect(res.droppedBindings == 0,
+                "cmd-j and cmd+opt-j are distinct")
+        #expect(res.config.bindings.count == 3)
     }
 
     // MARK: - Validation: missing / malformed fields
 
-    func testMissingPrefixDropsSequence() throws {
+    @Test func missingPrefixDropsSequence() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "broken"
@@ -247,12 +247,12 @@ final class SequenceTests: XCTestCase {
           input = "k"
           action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertGreaterThanOrEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .sequenceParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.droppedBindings >= 1)
+        #expect(res.warnings.contains { $0.kind == .sequenceParseError })
     }
 
-    func testMissingTimeoutMsDropsSequence() throws {
+    @Test func missingTimeoutMsDropsSequence() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "broken"
@@ -262,11 +262,11 @@ final class SequenceTests: XCTestCase {
           input = "k"
           action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .sequenceParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .sequenceParseError })
     }
 
-    func testZeroTimeoutMsDropsSequence() throws {
+    @Test func zeroTimeoutMsDropsSequence() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "broken"
@@ -277,11 +277,11 @@ final class SequenceTests: XCTestCase {
           input = "k"
           action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .sequenceParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .sequenceParseError })
     }
 
-    func testPrefixWithoutModifierDropsSequence() throws {
+    @Test func prefixWithoutModifierDropsSequence() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "broken"
@@ -292,22 +292,22 @@ final class SequenceTests: XCTestCase {
           input = "k"
           action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .sequenceParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .sequenceParseError })
     }
 
-    func testEmptyChildrenDropsSequence() throws {
+    @Test func emptyChildrenDropsSequence() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "broken"
         prefix = "cmd - j"
         timeout-ms = 500
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .sequenceParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .sequenceParseError })
     }
 
-    func testChildMissingInputIsDroppedButSiblingsSurvive() throws {
+    @Test func childMissingInputIsDroppedButSiblingsSurvive() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "j-layer"
@@ -322,14 +322,14 @@ final class SequenceTests: XCTestCase {
           action-keys = "backspace"
         """)
         // 1 prefix + 1 valid child = 2 bindings, 1 dropped.
-        XCTAssertEqual(res.config.bindings.count, 2)
-        XCTAssertEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .missingInput })
+        #expect(res.config.bindings.count == 2)
+        #expect(res.droppedBindings == 1)
+        #expect(res.warnings.contains { $0.kind == .missingInput })
     }
 
     // MARK: - Validation: name / nesting
 
-    func testDuplicateSequenceNameDropsSecond() throws {
+    @Test func duplicateSequenceNameDropsSecond() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "leader"
@@ -348,15 +348,15 @@ final class SequenceTests: XCTestCase {
           action-noop = true
         """)
         // First sequence → 2 bindings. Second sequence dropped entirely.
-        XCTAssertEqual(res.config.bindings.count, 2)
-        XCTAssertGreaterThanOrEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 2)
+        #expect(res.droppedBindings >= 1)
+        #expect(res.warnings.contains {
             $0.kind == .sequenceParseError &&
             $0.message.contains("duplicate")
         })
     }
 
-    func testNestedSequenceIsRejected() throws {
+    @Test func nestedSequenceIsRejected() throws {
         // Nested [[sequence.sequence]] would parse with the new
         // nested-AoT TOML support but is explicitly out of scope.
         let res = try Config.parse("""
@@ -370,14 +370,14 @@ final class SequenceTests: XCTestCase {
           prefix = "cmd - x"
           timeout-ms = 200
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .sequenceParseError &&
             $0.message.contains("nested")
         })
     }
 
-    func testSequenceNameUnderscorePrefixIsRejected() throws {
+    @Test func sequenceNameUnderscorePrefixIsRejected() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "_seq_internal"
@@ -387,8 +387,8 @@ final class SequenceTests: XCTestCase {
           input = "k"
           action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .sequenceParseError &&
             $0.message.contains("'_seq_'")
         })
@@ -396,22 +396,22 @@ final class SequenceTests: XCTestCase {
 
     // MARK: - Reserved variable namespace (`_seq_*`)
 
-    func testUserBindingCannotWriteToReservedVarNamespace() throws {
+    @Test func userBindingCannotWriteToReservedVarNamespace() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "intruder"
         input = "cmd - x"
         action-set-var = "_seq_intruder"
         """)
-        XCTAssertEqual(res.config.bindings.count, 0,
-                       "user-defined _seq_* var must be rejected")
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0,
+                "user-defined _seq_* var must be rejected")
+        #expect(res.warnings.contains {
             $0.kind == .actionSetParseError &&
             $0.message.contains("_seq_")
         })
     }
 
-    func testUserBindingCanWriteToNonReservedVar() throws {
+    @Test func userBindingCanWriteToNonReservedVar() throws {
         // Regression guard: only the `_seq_` prefix is reserved.
         let res = try Config.parse("""
         [[bindings]]
@@ -419,12 +419,12 @@ final class SequenceTests: XCTestCase {
         input = "cmd - x"
         action-set-var = "my-var"
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
+        #expect(res.config.bindings.count == 1)
     }
 
     // MARK: - Matcher behavior (end-to-end through Matcher)
 
-    func testPrefixFiresWithoutAnyVariable() throws {
+    @Test func prefixFiresWithoutAnyVariable() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "j-layer"
@@ -441,11 +441,11 @@ final class SequenceTests: XCTestCase {
                                   modifiers: [.lcmd, .lopt],
                                   bundleID: nil,
                                   state: StateSnapshot()))
-        XCTAssertNotNil(prefix)
-        XCTAssertEqual(prefix?.name, "j-layer [enter]")
+        #expect(prefix != nil)
+        #expect(prefix?.name == "j-layer [enter]")
     }
 
-    func testChildFiresOnlyWhenSequenceVarIsSet() throws {
+    @Test func childFiresOnlyWhenSequenceVarIsSet() throws {
         let res = try Config.parse("""
         [[sequence]]
         name = "j-layer"
@@ -461,19 +461,19 @@ final class SequenceTests: XCTestCase {
                                modifiers: [.lcmd, .lopt],
                                bundleID: nil,
                                state: StateSnapshot()))
-        XCTAssertNil(off, "child should not fire when var is unset")
+        #expect(off == nil, "child should not fire when var is unset")
 
         // Same key with _seq_j-layer = 1 → fires.
         let on = m.find(.init(trigger: .key(0x28),
                               modifiers: [.lcmd, .lopt],
                               bundleID: nil,
                               state: StateSnapshot(variables: ["_seq_j-layer": 1])))
-        XCTAssertEqual(on?.name, "j-layer.1")
+        #expect(on?.name == "j-layer.1")
     }
 
     // MARK: - Schema round-trip (sequence is invisible to consumers)
 
-    func testSchemaShowsOnlyExpandedBindings() throws {
+    @Test func schemaShowsOnlyExpandedBindings() throws {
         let json = try parseToBindingsJSON("""
         [[sequence]]
         name = "leader"
@@ -483,18 +483,18 @@ final class SequenceTests: XCTestCase {
           input = "k"
           action-keys = "return"
         """)
-        let bindings = try XCTUnwrap(json["bindings"] as? [[String: Any]])
-        XCTAssertEqual(bindings.count, 2,
-                       "JSON shows the 2 expanded bindings, no sequence-specific shape")
+        let bindings = try #require(json["bindings"] as? [[String: Any]])
+        #expect(bindings.count == 2,
+                "JSON shows the 2 expanded bindings, no sequence-specific shape")
         // Prefix is set-variable + hold_while_timeout.
         let prefix = bindings[0]
-        let action = try XCTUnwrap(prefix["action"] as? [String: Any])
-        XCTAssertEqual(action["kind"] as? String, "set-variable")
-        XCTAssertEqual(action["variable"] as? String, "_seq_leader")
-        XCTAssertEqual(prefix["hold_while_timeout"] as? Int, 1500)
+        let action = try #require(prefix["action"] as? [String: Any])
+        #expect(action["kind"] as? String == "set-variable")
+        #expect(action["variable"] as? String == "_seq_leader")
+        #expect(prefix["hold_while_timeout"] as? Int == 1500)
         // Child carries a condition referencing the same variable.
         let child = bindings[1]
-        let cond = try XCTUnwrap(child["condition"] as? [String: Any])
-        XCTAssertEqual(cond["variable"] as? String, "_seq_leader")
+        let cond = try #require(child["condition"] as? [String: Any])
+        #expect(cond["variable"] as? String == "_seq_leader")
     }
 }

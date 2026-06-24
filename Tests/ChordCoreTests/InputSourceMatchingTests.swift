@@ -1,14 +1,14 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// chord 0.9.0+: `input-source = "..."` gates a binding on the macOS
 /// current keyboard input source id. Glob semantics mirror `apps`
 /// (allow / `!`-deny / `*` wildcard).
-final class InputSourceMatchingTests: XCTestCase {
+@Suite struct InputSourceMatchingTests {
 
     // MARK: - Parse
 
-    func testInputSourceArrayParses() throws {
+    @Test func inputSourceArrayParses() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "us-only"
@@ -16,12 +16,12 @@ final class InputSourceMatchingTests: XCTestCase {
         action-noop = true
         input-source = ["com.apple.keylayout.US"]
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.bindings[0].inputSource,
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings[0].inputSource ==
                        ["com.apple.keylayout.US"])
     }
 
-    func testInputSourceStringIsSugarForOneArray() throws {
+    @Test func inputSourceStringIsSugarForOneArray() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "single"
@@ -29,12 +29,12 @@ final class InputSourceMatchingTests: XCTestCase {
         action-noop = true
         input-source = "com.apple.keylayout.US"
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.bindings[0].inputSource,
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings[0].inputSource ==
                        ["com.apple.keylayout.US"])
     }
 
-    func testEmptyOrWildcardCollapsesToNil() throws {
+    @Test func emptyOrWildcardCollapsesToNil() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "anywhere"
@@ -42,12 +42,12 @@ final class InputSourceMatchingTests: XCTestCase {
         action-noop = true
         input-source = ["*"]
         """)
-        XCTAssertNil(res.config.bindings[0].inputSource)
+        #expect(res.config.bindings[0].inputSource == nil)
     }
 
     // MARK: - Matcher semantics (allow / deny / glob)
 
-    func testAllowlistMatchesExactID() {
+    @Test func allowlistMatchesExactID() {
         let b = Binding(name: "t", trigger: .key(0x07),
                         modifiers: [.cmd], apps: nil, action: .noop,
                         inputSource: ["com.apple.keylayout.US"])
@@ -57,17 +57,17 @@ final class InputSourceMatchingTests: XCTestCase {
                                modifiers: [.lcmd],
                                bundleID: nil,
                                inputSourceID: "com.apple.keylayout.US"))
-        XCTAssertNotNil(hit)
+        #expect(hit != nil)
         // Different source → miss.
         let miss = m.find(.init(trigger: .key(0x07),
                                 modifiers: [.lcmd],
                                 bundleID: nil,
                                 inputSourceID:
                                     "com.apple.inputmethod.Kotoeri.Japanese"))
-        XCTAssertNil(miss)
+        #expect(miss == nil)
     }
 
-    func testDenyPrefixExcludes() {
+    @Test func denyPrefixExcludes() {
         let b = Binding(name: "t", trigger: .key(0x07),
                         modifiers: [.cmd], apps: nil, action: .noop,
                         inputSource: ["!com.apple.inputmethod.Kotoeri.*"])
@@ -78,17 +78,17 @@ final class InputSourceMatchingTests: XCTestCase {
                                  modifiers: [.lcmd],
                                  bundleID: nil,
                                  inputSourceID: "com.apple.keylayout.US"))
-        XCTAssertNotNil(usHit)
+        #expect(usHit != nil)
         // Japanese IME → excluded.
         let jaMiss = m.find(.init(trigger: .key(0x07),
                                   modifiers: [.lcmd],
                                   bundleID: nil,
                                   inputSourceID:
                                       "com.apple.inputmethod.Kotoeri.Japanese"))
-        XCTAssertNil(jaMiss)
+        #expect(jaMiss == nil)
     }
 
-    func testGlobWildcardWorks() {
+    @Test func globWildcardWorks() {
         let b = Binding(name: "t", trigger: .key(0x07),
                         modifiers: [.cmd], apps: nil, action: .noop,
                         inputSource: ["com.apple.inputmethod.Kotoeri.*"])
@@ -98,10 +98,10 @@ final class InputSourceMatchingTests: XCTestCase {
                                bundleID: nil,
                                inputSourceID:
                                    "com.apple.inputmethod.Kotoeri.Japanese"))
-        XCTAssertNotNil(hit)
+        #expect(hit != nil)
     }
 
-    func testUnknownInputSourceDropsAllowOnlyBinding() {
+    @Test func unknownInputSourceDropsAllowOnlyBinding() {
         // When `inputSource` is set and the event has no source id
         // (tracker pre-start), the allowlist check fails closed.
         let b = Binding(name: "t", trigger: .key(0x07),
@@ -112,10 +112,10 @@ final class InputSourceMatchingTests: XCTestCase {
                                 modifiers: [.lcmd],
                                 bundleID: nil,
                                 inputSourceID: nil))
-        XCTAssertNil(miss)
+        #expect(miss == nil)
     }
 
-    func testBindingWithoutInputSourceIgnoresEvent() {
+    @Test func bindingWithoutInputSourceIgnoresEvent() {
         // Regression: a binding without `input-source` still fires
         // regardless of the event's source id.
         let b = Binding(name: "t", trigger: .key(0x07),
@@ -126,12 +126,12 @@ final class InputSourceMatchingTests: XCTestCase {
                                bundleID: nil,
                                inputSourceID:
                                    "com.apple.inputmethod.Kotoeri.Japanese"))
-        XCTAssertNotNil(hit)
+        #expect(hit != nil)
     }
 
     // MARK: - Schema
 
-    func testSchemaEmitsInputSource() throws {
+    @Test func schemaEmitsInputSource() throws {
         let b = try firstBinding("""
         [[bindings]]
         name = "us"
@@ -139,18 +139,18 @@ final class InputSourceMatchingTests: XCTestCase {
         action-noop = true
         input-source = ["com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"]
         """)
-        let src = try XCTUnwrap(b["input_source"] as? [String])
-        XCTAssertEqual(src, ["com.apple.keylayout.US",
+        let src = try #require(b["input_source"] as? [String])
+        #expect(src == ["com.apple.keylayout.US",
                              "!com.apple.inputmethod.Kotoeri.*"])
     }
 
-    func testSchemaOmitsInputSourceWhenAbsent() throws {
+    @Test func schemaOmitsInputSourceWhenAbsent() throws {
         let b = try firstBinding("""
         [[bindings]]
         name = "plain"
         input = "cmd - x"
         action-noop = true
         """)
-        XCTAssertNil(b["input_source"])
+        #expect(b["input_source"] == nil)
     }
 }

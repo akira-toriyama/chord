@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import ChordCore
 
 /// The committed repo-root `config.schema.json` (the config.toml INPUT schema,
@@ -8,7 +9,7 @@ import XCTest
 ///
 /// Regenerate: `chord config --emit-schema > config.schema.json`.
 /// NOTE: this is NOT docs/schema/chord.bindings.v3.json (the parse OUTPUT).
-final class ConfigSchemaDriftTests: XCTestCase {
+@Suite struct ConfigSchemaDriftTests {
     private func repoRoot() -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // Tests/ChordCoreTests
@@ -16,20 +17,19 @@ final class ConfigSchemaDriftTests: XCTestCase {
             .deletingLastPathComponent()   // <repo root>
     }
 
-    func testCommittedSchemaMatchesEmitted() throws {
+    @Test func committedSchemaMatchesEmitted() throws {
         let url = repoRoot().appendingPathComponent("config.schema.json")
         let committed = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertEqual(
-            committed, ChordConfigSchema.jsonSchema,
-            "config.schema.json is stale — run "
-              + "`chord config --emit-schema > config.schema.json` and commit.")
+        #expect(
+            committed == ChordConfigSchema.jsonSchema,
+            "config.schema.json is stale — run `chord config --emit-schema > config.schema.json` and commit.")
     }
 
     /// The emitted schema is always well-formed JSON (drift guard compares
     /// strings; this catches a serializer regression that yields `{}`).
-    func testEmittedSchemaIsValidJSON() throws {
+    @Test func emittedSchemaIsValidJSON() throws {
         let data = Data(ChordConfigSchema.jsonSchema.utf8)
         let obj = try JSONSerialization.jsonObject(with: data)
-        XCTAssertTrue(obj is [String: Any])
+        #expect(obj is [String: Any])
     }
 }

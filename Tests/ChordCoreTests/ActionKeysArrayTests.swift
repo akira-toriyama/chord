@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// chord 0.9.0+: `action-keys` accepts a string OR an array of
@@ -6,70 +6,70 @@ import XCTest
 /// the rest land on `Binding.extraDownActions` and fire in order on
 /// the same key-down (same path the v0.4.0 `action-shell + action-keys`
 /// multi-action uses).
-final class ActionKeysArrayTests: XCTestCase {
+@Suite struct ActionKeysArrayTests {
 
     // MARK: - Single-string form (regression)
 
-    func testSingleStringActionKeysUnchanged() throws {
+    @Test func singleStringActionKeysUnchanged() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "single"
         input = "cmd - x"
         action-keys = "cmd - c"
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         if case .keys(_, let kc) = b.action {
-            XCTAssertEqual(kc, 0x08)   // 'c'
-        } else { XCTFail("expected .keys primary") }
-        XCTAssertTrue(b.extraDownActions.isEmpty)
-        XCTAssertEqual(b.actionRaw, "cmd - c")
+            #expect(kc == 0x08)   // 'c'
+        } else { Issue.record("expected .keys primary") }
+        #expect(b.extraDownActions.isEmpty)
+        #expect(b.actionRaw == "cmd - c")
     }
 
     // MARK: - Array form
 
-    func testArrayFormBuildsPrimaryPlusExtras() throws {
+    @Test func arrayFormBuildsPrimaryPlusExtras() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "copy-switch-paste"
         input = "cmd - p"
         action-keys = ["cmd - c", "cmd - tab", "cmd - v"]
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         // Primary = first element ('c').
         if case .keys(_, let kc) = b.action {
-            XCTAssertEqual(kc, 0x08)
-        } else { XCTFail("expected .keys primary") }
+            #expect(kc == 0x08)
+        } else { Issue.record("expected .keys primary") }
         // Extras = rest of array.
-        XCTAssertEqual(b.extraDownActions.count, 2)
+        #expect(b.extraDownActions.count == 2)
         if case .keys(_, let kc) = b.extraDownActions[0] {
-            XCTAssertEqual(kc, 0x30)    // 'tab'
-        } else { XCTFail("extras[0] should be .keys") }
+            #expect(kc == 0x30)    // 'tab'
+        } else { Issue.record("extras[0] should be .keys") }
         if case .keys(_, let kc) = b.extraDownActions[1] {
-            XCTAssertEqual(kc, 0x09)    // 'v'
-        } else { XCTFail("extras[1] should be .keys") }
+            #expect(kc == 0x09)    // 'v'
+        } else { Issue.record("extras[1] should be .keys") }
     }
 
-    func testSingleElementArrayBehavesLikeString() throws {
+    @Test func singleElementArrayBehavesLikeString() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "single-array"
         input = "cmd - x"
         action-keys = ["cmd - c"]
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         if case .keys(_, let kc) = b.action {
-            XCTAssertEqual(kc, 0x08)
-        } else { XCTFail("expected .keys") }
-        XCTAssertTrue(b.extraDownActions.isEmpty,
-                      "1-element array → primary only, no extras")
+            #expect(kc == 0x08)
+        } else { Issue.record("expected .keys") }
+        #expect(b.extraDownActions.isEmpty,
+                "1-element array → primary only, no extras")
     }
 
     // MARK: - Combined with action-shell (v0.4.0 multi-action extended)
 
-    func testShellPlusKeysArrayLayersAsExtras() throws {
+    @Test func shellPlusKeysArrayLayersAsExtras() throws {
         // action-shell is primary, every array element is an extra.
         let res = try Config.parse("""
         [[bindings]]
@@ -78,13 +78,13 @@ final class ActionKeysArrayTests: XCTestCase {
         action-shell = "echo hi"
         action-keys = ["cmd - c", "cmd - v"]
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
-        if case .shell = b.action {} else { XCTFail("expected .shell primary") }
-        XCTAssertEqual(b.extraDownActions.count, 2)
+        if case .shell = b.action {} else { Issue.record("expected .shell primary") }
+        #expect(b.extraDownActions.count == 2)
     }
 
-    func testShellPlusKeysStringStillWorks() throws {
+    @Test func shellPlusKeysStringStillWorks() throws {
         // Regression for v0.4.0 single-string multi-action form.
         let res = try Config.parse("""
         [[bindings]]
@@ -93,51 +93,51 @@ final class ActionKeysArrayTests: XCTestCase {
         action-shell = "echo hi"
         action-keys = "cmd - c"
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
-        if case .shell = b.action {} else { XCTFail("expected .shell") }
-        XCTAssertEqual(b.extraDownActions.count, 1)
+        if case .shell = b.action {} else { Issue.record("expected .shell") }
+        #expect(b.extraDownActions.count == 1)
     }
 
     // MARK: - Validation
 
-    func testEmptyArrayRejected() throws {
+    @Test func emptyArrayRejected() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "empty"
         input = "cmd - x"
         action-keys = []
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .actionKeysParseError &&
             $0.message.contains("at least one")
         })
     }
 
-    func testNonStringElementRejected() throws {
+    @Test func nonStringElementRejected() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "bad-element"
         input = "cmd - x"
         action-keys = ["cmd - c", 42]
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .actionKeysParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .actionKeysParseError })
     }
 
-    func testUnparseableElementRejected() throws {
+    @Test func unparseableElementRejected() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "bad-token"
         input = "cmd - x"
         action-keys = ["cmd - c", "not-a-key"]
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .actionKeysParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .actionKeysParseError })
     }
 
-    func testOnUpArrayRejected() throws {
+    @Test func onUpArrayRejected() throws {
         // Binding.onUpAction is a single Action; on-up array would
         // silently drop extras. Reject at parse to keep the user
         // honest.
@@ -148,14 +148,14 @@ final class ActionKeysArrayTests: XCTestCase {
         action-shell = "echo down"
         action-keys-on-up = ["cmd - c", "cmd - v"]
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .actionKeysParseError &&
             $0.message.contains("on-up")
         })
     }
 
-    func testOnUpSingleStringStillWorks() throws {
+    @Test func onUpSingleStringStillWorks() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "onup-single"
@@ -163,15 +163,15 @@ final class ActionKeysArrayTests: XCTestCase {
         action-shell = "echo down"
         action-keys-on-up = "cmd - c"
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         if case .keys = res.config.bindings[0].onUpAction {} else {
-            XCTFail("expected .keys onUp")
+            Issue.record("expected .keys onUp")
         }
     }
 
     // MARK: - Schema round-trip
 
-    func testSchemaEmitsExtraActionsForKeysArray() throws {
+    @Test func schemaEmitsExtraActionsForKeysArray() throws {
         let b = try firstBinding("""
         [[bindings]]
         name = "seq"
@@ -179,11 +179,11 @@ final class ActionKeysArrayTests: XCTestCase {
         action-keys = ["cmd - c", "cmd - v"]
         """)
         // Primary is keys.
-        let action = try XCTUnwrap(b["action"] as? [String: Any])
-        XCTAssertEqual(action["kind"] as? String, "keys")
+        let action = try #require(b["action"] as? [String: Any])
+        #expect(action["kind"] as? String == "keys")
         // Extra actions emitted.
-        let extras = try XCTUnwrap(b["extra_actions"] as? [[String: Any]])
-        XCTAssertEqual(extras.count, 1)
-        XCTAssertEqual(extras[0]["kind"] as? String, "keys")
+        let extras = try #require(b["extra_actions"] as? [[String: Any]])
+        #expect(extras.count == 1)
+        #expect(extras[0]["kind"] as? String == "keys")
     }
 }

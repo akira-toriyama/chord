@@ -1,27 +1,27 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// chord 0.8.0+: `[[remap]]` is a 1-to-1 `modifiers + key → action-keys`
 /// table form. Each map entry expands to a single `.keys` binding at
 /// parse time. Pure sugar — Matcher / Controller see only the
 /// expanded bindings.
-final class RemapTableTests: XCTestCase {
+@Suite struct RemapTableTests {
 
     // MARK: - TOML inline-table value parsing (parser dependency)
 
-    func testInlineTableParsesAsTableValue() throws {
+    @Test func inlineTableParsesAsTableValue() throws {
         let v = try TOML.parse("""
         [[remap]]
         map = { b = "left", f = "right" }
         """)
         let rows = v["remap"]?.asArrayOfTables ?? []
-        XCTAssertEqual(rows.count, 1)
+        #expect(rows.count == 1)
         let map = rows[0]["map"]?.asTable
-        XCTAssertEqual(map?["b"]?.asString, "left")
-        XCTAssertEqual(map?["f"]?.asString, "right")
+        #expect(map?["b"]?.asString == "left")
+        #expect(map?["f"]?.asString == "right")
     }
 
-    func testInlineTableHandlesQuotedKeys() throws {
+    @Test func inlineTableHandlesQuotedKeys() throws {
         // Inline-table keys may be quoted — needed when the key is
         // a dotted bundle ID (used by per-app #12).
         let v = try TOML.parse("""
@@ -29,26 +29,26 @@ final class RemapTableTests: XCTestCase {
         map = { "b" = "left", 'f' = "right" }
         """)
         let map = v["remap"]?.asArrayOfTables?[0]["map"]?.asTable
-        XCTAssertEqual(map?["b"]?.asString, "left")
-        XCTAssertEqual(map?["f"]?.asString, "right")
+        #expect(map?["b"]?.asString == "left")
+        #expect(map?["f"]?.asString == "right")
     }
 
     // MARK: - Basic expansion
 
-    func testRemapExpandsToOneBindingPerMapEntry() throws {
+    @Test func remapExpandsToOneBindingPerMapEntry() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "emacs-readline"
         modifiers = "ctrl"
         map = { b = "left", f = "right", p = "up", n = "down" }
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.bindings.count, 4,
-                       "4 map entries → 4 expanded bindings")
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings.count == 4,
+                "4 map entries → 4 expanded bindings")
 
         // Deterministic ordering: sorted by map key.
         let names = res.config.bindings.map(\.name)
-        XCTAssertEqual(names, [
+        #expect(names == [
             "emacs-readline.b",
             "emacs-readline.f",
             "emacs-readline.n",
@@ -59,14 +59,14 @@ final class RemapTableTests: XCTestCase {
         let byName = Dictionary(uniqueKeysWithValues:
             res.config.bindings.map { ($0.name, $0) })
         if case .keys(let mods, let kc) = byName["emacs-readline.b"]?.action {
-            XCTAssertEqual(mods, [])
-            XCTAssertEqual(kc, 0x7B)   // arrow_left
-        } else { XCTFail("expected .keys") }
-        XCTAssertEqual(byName["emacs-readline.b"]?.modifiers, [.ctrl])
-        XCTAssertEqual(byName["emacs-readline.b"]?.inputRaw, "ctrl - b")
+            #expect(mods == [])
+            #expect(kc == 0x7B)   // arrow_left
+        } else { Issue.record("expected .keys") }
+        #expect(byName["emacs-readline.b"]?.modifiers == [.ctrl])
+        #expect(byName["emacs-readline.b"]?.inputRaw == "ctrl - b")
     }
 
-    func testRemapResolvesInputAlias() throws {
+    @Test func remapResolvesInputAlias() throws {
         // `modifiers = "$ULTRA_LL"` should resolve via [input-aliases].
         let res = try Config.parse("""
         [input-aliases]
@@ -77,13 +77,13 @@ final class RemapTableTests: XCTestCase {
         modifiers = "$ULTRA_LL"
         map = { b = "left" }
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.bindings.count, 1)
-        XCTAssertEqual(res.config.bindings[0].modifiers,
-                       [.rctrl, .ropt, .rshift])
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings.count == 1)
+        #expect(res.config.bindings[0].modifiers ==
+                [.rctrl, .ropt, .rshift])
     }
 
-    func testRemapInheritsApps() throws {
+    @Test func remapInheritsApps() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "term-only"
@@ -91,15 +91,15 @@ final class RemapTableTests: XCTestCase {
         map = { b = "left", f = "right" }
         apps = ["com.apple.Terminal"]
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         for b in res.config.bindings {
-            XCTAssertEqual(b.apps, ["com.apple.Terminal"])
+            #expect(b.apps == ["com.apple.Terminal"])
         }
     }
 
     // MARK: - Ordering vs regular [[bindings]]
 
-    func testRegularBindingWinsOverRemapEntryOnCollision() throws {
+    @Test func regularBindingWinsOverRemapEntryOnCollision() throws {
         // Regular `[[bindings]]` appear BEFORE remap expansions, so
         // first-match-wins lets a specific binding override a remap
         // entry without dropping it.
@@ -114,9 +114,9 @@ final class RemapTableTests: XCTestCase {
         modifiers = "ctrl"
         map = { b = "left", f = "right" }
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         // Order: regular ctrl-b (override), remap.b, remap.f.
-        XCTAssertEqual(res.config.bindings.map(\.name), [
+        #expect(res.config.bindings.map(\.name) == [
             "specific ctrl-b",
             "emacs.b",
             "emacs.f",
@@ -126,77 +126,77 @@ final class RemapTableTests: XCTestCase {
         let hit = m.find(.init(trigger: .key(0x0B),    // 'b'
                                modifiers: [.lctrl],
                                bundleID: nil))
-        XCTAssertEqual(hit?.name, "specific ctrl-b")
+        #expect(hit?.name == "specific ctrl-b")
     }
 
     // MARK: - Validation: error paths
 
-    func testMissingModifiersDropsRemap() throws {
+    @Test func missingModifiersDropsRemap() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "broken"
         map = { b = "left" }
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .remapParseError &&
             $0.message.contains("missing 'modifiers'")
         })
     }
 
-    func testEmptyModifiersDropsRemap() throws {
+    @Test func emptyModifiersDropsRemap() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "broken"
         modifiers = ""
         map = { b = "left" }
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .remapParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .remapParseError })
     }
 
-    func testMissingMapDropsRemap() throws {
+    @Test func missingMapDropsRemap() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "broken"
         modifiers = "ctrl"
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .remapParseError &&
             $0.message.contains("missing 'map'")
         })
     }
 
-    func testNonTableMapDropsRemap() throws {
+    @Test func nonTableMapDropsRemap() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "broken"
         modifiers = "ctrl"
         map = "not a table"
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .remapParseError &&
             $0.message.contains("inline table")
         })
     }
 
-    func testEmptyMapDropsRemap() throws {
+    @Test func emptyMapDropsRemap() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "broken"
         modifiers = "ctrl"
         map = {}
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .remapParseError &&
             $0.message.contains("at least one entry")
         })
     }
 
-    func testNonStringMapValueOnlyDropsThatEntry() throws {
+    @Test func nonStringMapValueOnlyDropsThatEntry() throws {
         // Other map entries should still expand normally.
         let res = try Config.parse("""
         [[remap]]
@@ -204,25 +204,25 @@ final class RemapTableTests: XCTestCase {
         modifiers = "ctrl"
         map = { b = "left", f = 42 }
         """)
-        XCTAssertEqual(res.config.bindings.count, 1,
-                       "the string entry expands; the int entry drops")
-        XCTAssertEqual(res.droppedBindings, 1)
-        XCTAssertEqual(res.config.bindings[0].name, "partial.b")
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 1,
+                "the string entry expands; the int entry drops")
+        #expect(res.droppedBindings == 1)
+        #expect(res.config.bindings[0].name == "partial.b")
+        #expect(res.warnings.contains {
             $0.kind == .remapParseError &&
             $0.message.contains("map['f']")
         })
     }
 
-    func testUndefinedInputAliasInModifiersDropsRemap() throws {
+    @Test func undefinedInputAliasInModifiersDropsRemap() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "broken"
         modifiers = "$NOPE"
         map = { b = "left" }
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .remapParseError &&
             $0.message.contains("$NOPE")
         })
@@ -230,7 +230,7 @@ final class RemapTableTests: XCTestCase {
 
     // MARK: - End-to-end via Matcher
 
-    func testExpandedRemapMatchesAtMatcher() throws {
+    @Test func expandedRemapMatchesAtMatcher() throws {
         let res = try Config.parse("""
         [[remap]]
         name = "emacs"
@@ -241,14 +241,14 @@ final class RemapTableTests: XCTestCase {
         let b = m.find(.init(trigger: .key(0x0B),      // 'b'
                              modifiers: [.lctrl],
                              bundleID: nil))
-        XCTAssertEqual(b?.name, "emacs.b")
+        #expect(b?.name == "emacs.b")
         if case .keys(_, let kc) = b?.action {
-            XCTAssertEqual(kc, 0x7B)  // arrow_left
-        } else { XCTFail("expected .keys") }
+            #expect(kc == 0x7B)  // arrow_left
+        } else { Issue.record("expected .keys") }
 
         let h = m.find(.init(trigger: .key(0x04),      // 'h'
                              modifiers: [.lctrl],
                              bundleID: nil))
-        XCTAssertEqual(h?.name, "emacs.h")
+        #expect(h?.name == "emacs.h")
     }
 }

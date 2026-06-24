@@ -1,8 +1,8 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
-final class ConfigTests: XCTestCase {
-    func testParsesAllActionShapes() throws {
+@Suite struct ConfigTests {
+    @Test func parsesAllActionShapes() throws {
         let source = """
         [options]
         passthrough-unmatched = true
@@ -24,25 +24,25 @@ final class ConfigTests: XCTestCase {
         action-noop = true
         """
         let r = try Config.parse(source)
-        XCTAssertEqual(r.config.bindings.count, 3)
-        XCTAssertEqual(r.droppedBindings, 0)
-        XCTAssertEqual(r.config.options.excludeApps,
+        #expect(r.config.bindings.count == 3)
+        #expect(r.droppedBindings == 0)
+        #expect(r.config.options.excludeApps ==
                        ["com.apple.dt.Xcode"])
 
         switch r.config.bindings[0].action {
-        case .shell(let s): XCTAssertEqual(s, "open -a Terminal")
-        default: XCTFail("expected shell action")
+        case .shell(let s): #expect(s == "open -a Terminal")
+        default: Issue.record("expected shell action")
         }
         switch r.config.bindings[1].action {
         case .keys(let mods, let code):
-            XCTAssertEqual(mods, [.cmd, .shift])
-            XCTAssertEqual(code, 0x15)
-        default: XCTFail("expected keys action")
+            #expect(mods == [.cmd, .shift])
+            #expect(code == 0x15)
+        default: Issue.record("expected keys action")
         }
-        XCTAssertEqual(r.config.bindings[2].action, .noop)
+        #expect(r.config.bindings[2].action == .noop)
     }
 
-    func testBadBindingDoesNotBreakOthers() throws {
+    @Test func badBindingDoesNotBreakOthers() throws {
         let source = """
         [[bindings]]
         name = "bad"
@@ -55,12 +55,12 @@ final class ConfigTests: XCTestCase {
         action-shell = "true"
         """
         let r = try Config.parse(source)
-        XCTAssertEqual(r.droppedBindings, 1)
-        XCTAssertEqual(r.config.bindings.count, 1)
-        XCTAssertEqual(r.config.bindings[0].name, "good")
+        #expect(r.droppedBindings == 1)
+        #expect(r.config.bindings.count == 1)
+        #expect(r.config.bindings[0].name == "good")
     }
 
-    func testShellPlusKeysCombineOnDown() throws {
+    @Test func shellPlusKeysCombineOnDown() throws {
         let source = """
         [[bindings]]
         name = "facet then nav"
@@ -69,26 +69,26 @@ final class ConfigTests: XCTestCase {
         action-keys = "ctrl - right"
         """
         let r = try Config.parse(source)
-        XCTAssertEqual(r.droppedBindings, 0)
-        XCTAssertEqual(r.config.bindings.count, 1)
+        #expect(r.droppedBindings == 0)
+        #expect(r.config.bindings.count == 1)
         let b = r.config.bindings[0]
         // Shell becomes the primary (it fires first on down)…
         switch b.action {
         case .shell(let s):
-            XCTAssertEqual(s, "facet --view=tree --loading=2000")
-        default: XCTFail("expected shell primary action")
+            #expect(s == "facet --view=tree --loading=2000")
+        default: Issue.record("expected shell primary action")
         }
         // …and the keys land in extraDownActions (posted right after).
-        XCTAssertEqual(b.extraDownActions.count, 1)
+        #expect(b.extraDownActions.count == 1)
         switch b.extraDownActions.first {
         case .keys(let mods, let code):
-            XCTAssertEqual(mods, [.ctrl])
-            XCTAssertEqual(code, 0x7C)
-        default: XCTFail("expected a chained keys action")
+            #expect(mods == [.ctrl])
+            #expect(code == 0x7C)
+        default: Issue.record("expected a chained keys action")
         }
     }
 
-    func testShellPlusBadKeysDropsBinding() throws {
+    @Test func shellPlusBadKeysDropsBinding() throws {
         let source = """
         [[bindings]]
         name = "broken combo"
@@ -97,11 +97,11 @@ final class ConfigTests: XCTestCase {
         action-keys = "no-such-key"
         """
         let r = try Config.parse(source)
-        XCTAssertEqual(r.droppedBindings, 1)
-        XCTAssertEqual(r.config.bindings.count, 0)
+        #expect(r.droppedBindings == 1)
+        #expect(r.config.bindings.count == 0)
     }
 
-    func testExtraActionsSurfaceInWireSchema() throws {
+    @Test func extraActionsSurfaceInWireSchema() throws {
         let source = """
         [[bindings]]
         name = "facet then nav"
@@ -112,9 +112,9 @@ final class ConfigTests: XCTestCase {
         let r = try Config.parse(source)
         let doc = BindingsSchema.makeDocument(from: r)
         let extra = doc.bindings[0].extraActions
-        XCTAssertEqual(extra?.count, 1)
-        XCTAssertEqual(extra?.first?.kind, "keys")
-        XCTAssertEqual(extra?.first?.key?.keycode, 0x7C)
+        #expect(extra?.count == 1)
+        #expect(extra?.first?.kind == "keys")
+        #expect(extra?.first?.key?.keycode == 0x7C)
     }
 
     // MARK: - silent-drop fixes (analysis report items 2A / 2B)
@@ -124,7 +124,7 @@ final class ConfigTests: XCTestCase {
     /// (`passthroughUnmatched`) or an invented key looked exactly
     /// like "it worked but had no effect". Warn on every unknown
     /// key so `config --validate --strict` catches it in CI.
-    func testUnknownOptionKeyWarns() throws {
+    @Test func unknownOptionKeyWarns() throws {
         let source = """
         [options]
         passthrough-unmatched = true
@@ -132,19 +132,19 @@ final class ConfigTests: XCTestCase {
         bogus-option = "what"
         """
         let r = try Config.parse(source)
-        XCTAssertEqual(r.config.options.passthroughUnmatched, true,
+        #expect(r.config.options.passthroughUnmatched == true,
                        "the kebab-case key still wins")
         let kinds = r.warnings.map(\.kind)
-        XCTAssertEqual(kinds.filter { $0 == .unknownOptionKey }.count, 2)
+        #expect(kinds.filter { $0 == .unknownOptionKey }.count == 2)
         // The kebab-case key is NOT flagged as unknown.
-        XCTAssertFalse(r.warnings.contains { w in
+        #expect(!r.warnings.contains { w in
             w.kind == .unknownOptionKey && w.message.contains("'passthrough-unmatched'")
         })
         // The two known-bad keys ARE flagged.
-        XCTAssertTrue(r.warnings.contains { w in
+        #expect(r.warnings.contains { w in
             w.kind == .unknownOptionKey && w.message.contains("'passthroughUnmatched'")
         })
-        XCTAssertTrue(r.warnings.contains { w in
+        #expect(r.warnings.contains { w in
             w.kind == .unknownOptionKey && w.message.contains("'bogus-option'")
         })
     }
@@ -153,7 +153,7 @@ final class ConfigTests: XCTestCase {
 
     /// A typo on an OPTIONAL binding key warns (.unknownKey) but the binding
     /// still loads — the unknown key is lenient, like [options].
-    func testUnknownBindingKeyWarns() throws {
+    @Test func unknownBindingKeyWarns() throws {
         let source = """
         [[bindings]]
         name = "typo"
@@ -162,17 +162,17 @@ final class ConfigTests: XCTestCase {
         passthrouh = true
         """
         let r = try Config.parse(source)
-        XCTAssertEqual(r.config.bindings.count, 1, "binding still loads")
-        XCTAssertEqual(r.droppedBindings, 0)
-        XCTAssertEqual(r.warnings.filter { $0.kind == .unknownKey }.count, 1)
-        XCTAssertTrue(r.warnings.contains {
+        #expect(r.config.bindings.count == 1, "binding still loads")
+        #expect(r.droppedBindings == 0)
+        #expect(r.warnings.filter { $0.kind == .unknownKey }.count == 1)
+        #expect(r.warnings.contains {
             $0.kind == .unknownKey && $0.message.contains("'passthrouh'")
         })
     }
 
     /// Unknown keys are caught in every closed shape, including the nested
     /// per-app / sequence.bindings rows, each labelled with its section.
-    func testUnknownKeyAcrossNestedShapes() throws {
+    @Test func unknownKeyAcrossNestedShapes() throws {
         let source = """
         [[bindings]]
         input = "cmd - a"
@@ -202,11 +202,11 @@ final class ConfigTests: XCTestCase {
         """
         let r = try Config.parse(source)
         let unknown = r.warnings.filter { $0.kind == .unknownKey }
-        XCTAssertEqual(unknown.count, 4)
-        XCTAssertTrue(unknown.contains { $0.message.contains("[[bindings.per-app]]") && $0.message.contains("'appz'") })
-        XCTAssertTrue(unknown.contains { $0.message.contains("[[fallbacks]]") && $0.message.contains("'nope'") })
-        XCTAssertTrue(unknown.contains { $0.message.contains("[[sequence.bindings]]") && $0.message.contains("'wat'") })
-        XCTAssertTrue(unknown.contains { $0.message.contains("[[remap]]") && $0.message.contains("'huh'") })
+        #expect(unknown.count == 4)
+        #expect(unknown.contains { $0.message.contains("[[bindings.per-app]]") && $0.message.contains("'appz'") })
+        #expect(unknown.contains { $0.message.contains("[[fallbacks]]") && $0.message.contains("'nope'") })
+        #expect(unknown.contains { $0.message.contains("[[sequence.bindings]]") && $0.message.contains("'wat'") })
+        #expect(unknown.contains { $0.message.contains("[[remap]]") && $0.message.contains("'huh'") })
     }
 
     /// A typo'd top-level SECTION header (`[[bindigs]]`, `[optoins]`) used
@@ -214,7 +214,7 @@ final class ConfigTests: XCTestCase {
     /// "contained" silently vanished and `--validate --strict` passed, even
     /// though the editor JSON schema flags the same typo. Warn (.unknownKey)
     /// so the CLI is at least as strict as the schema.
-    func testUnknownTopLevelSectionWarns() throws {
+    @Test func unknownTopLevelSectionWarns() throws {
         let source = """
         [[bindigs]]
         name = "oops"
@@ -226,19 +226,19 @@ final class ConfigTests: XCTestCase {
         """
         let r = try Config.parse(source)
         // The mistyped binding section did NOT load any binding.
-        XCTAssertEqual(r.config.bindings.count, 0)
+        #expect(r.config.bindings.count == 0)
         let sectionWarnings = r.warnings.filter {
             $0.kind == .unknownKey && $0.message.contains("top-level section")
         }
-        XCTAssertEqual(sectionWarnings.count, 2)
-        XCTAssertTrue(sectionWarnings.contains { $0.message.contains("[bindigs]") })
-        XCTAssertTrue(sectionWarnings.contains { $0.message.contains("[optoins]") })
+        #expect(sectionWarnings.count == 2)
+        #expect(sectionWarnings.contains { $0.message.contains("[bindigs]") })
+        #expect(sectionWarnings.contains { $0.message.contains("[optoins]") })
     }
 
     /// Negative: a correctly-spelled config (every valid section present)
     /// produces NO top-level-section warning — guards against the root
     /// scan mis-flagging a legitimate section name.
-    func testKnownTopLevelSectionsDoNotWarn() throws {
+    @Test func knownTopLevelSectionsDoNotWarn() throws {
         let source = """
         [options]
         passthrough-unmatched = true
@@ -265,7 +265,7 @@ final class ConfigTests: XCTestCase {
         map = { h = "left" }
         """
         let r = try Config.parse(source)
-        XCTAssertFalse(r.warnings.contains {
+        #expect(!r.warnings.contains {
             $0.kind == .unknownKey && $0.message.contains("top-level section")
         })
     }
@@ -274,7 +274,7 @@ final class ConfigTests: XCTestCase {
     /// to-reject (rejected fields): the parser emits its SPECIFIC rejection,
     /// NOT a misleading "unknown key" — the descriptor's keySet includes them
     /// so the #52 check stays quiet.
-    func testRejectedOnUpKeysNotReportedAsUnknown() throws {
+    @Test func rejectedOnUpKeysNotReportedAsUnknown() throws {
         let source = """
         [[bindings]]
         name = "toggle-onup"
@@ -283,16 +283,16 @@ final class ConfigTests: XCTestCase {
         action-toggle-var-on-up = "x"
         """
         let r = try Config.parse(source)
-        XCTAssertFalse(r.warnings.contains { $0.kind == .unknownKey },
+        #expect(!r.warnings.contains { $0.kind == .unknownKey },
                        "a recognised-to-reject key must not be flagged as unknown")
         // The binding is dropped via the specific rejection instead.
-        XCTAssertEqual(r.config.bindings.count, 0)
+        #expect(r.config.bindings.count == 0)
     }
 
     /// The false-positive guard: a binding exercising a broad spread of known
     /// keys (the descriptor's keySet) must produce ZERO .unknownKey warnings.
     /// Catches a descriptor that drops a key the parser actually consumes.
-    func testKnownBindingKeysProduceNoUnknownWarning() throws {
+    @Test func knownBindingKeysProduceNoUnknownWarning() throws {
         let source = """
         [[bindings]]
         name = "full"
@@ -318,7 +318,7 @@ final class ConfigTests: XCTestCase {
         """
         let r = try Config.parse(source)
         let unknown = r.warnings.filter { $0.kind == .unknownKey }
-        XCTAssertTrue(unknown.isEmpty,
+        #expect(unknown.isEmpty,
                       "known keys must not be flagged: \(unknown.map { $0.message })")
     }
 
@@ -328,7 +328,7 @@ final class ConfigTests: XCTestCase {
     /// action-mission-control / action-screenshot / action-spotlight were
     /// silently dropped from a per-app override (dropping the whole binding
     /// when the base had no action of its own).
-    func testPerAppLayersDescriptorActions() throws {
+    @Test func perAppLayersDescriptorActions() throws {
         let source = """
         [[bindings]]
         name = "base"
@@ -338,10 +338,11 @@ final class ConfigTests: XCTestCase {
           action-toggle-var = "termlayer"
         """
         let r = try Config.parse(source)
-        XCTAssertFalse(r.warnings.contains { $0.kind == .unknownKey })
-        XCTAssertEqual(r.config.bindings.count, 1, "the per-app binding loads, not dropped")
+        #expect(!r.warnings.contains { $0.kind == .unknownKey })
+        #expect(r.config.bindings.count == 1, "the per-app binding loads, not dropped")
         guard case .toggleVariable = r.config.bindings.first?.action else {
-            return XCTFail("per-app action-toggle-var must layer onto the base binding")
+            Issue.record("per-app action-toggle-var must layer onto the base binding")
+            return
         }
     }
 
@@ -351,7 +352,7 @@ final class ConfigTests: XCTestCase {
     /// `daemon --reload --dry-run` name-keyed diff can't tell them apart.
     /// Surface the ambiguity as a warning so it doesn't silently
     /// degrade the introspection tooling.
-    func testDuplicateBindingNameWarns() throws {
+    @Test func duplicateBindingNameWarns() throws {
         let source = """
         [[bindings]]
         name = "twin"
@@ -364,17 +365,17 @@ final class ConfigTests: XCTestCase {
         action-noop = true
         """
         let r = try Config.parse(source)
-        XCTAssertEqual(r.config.bindings.count, 2,
+        #expect(r.config.bindings.count == 2,
                        "both still load — uniqueness is not enforced")
         let dups = r.warnings.filter { $0.kind == .duplicateBindingName }
-        XCTAssertEqual(dups.count, 1)
-        XCTAssertEqual(dups.first?.bindingName, "twin")
+        #expect(dups.count == 1)
+        #expect(dups.first?.bindingName == "twin")
     }
 
     /// Synthetic `binding-N` names from makeBinding's index fallback
     /// (rows with no explicit `name`) are exempt — they're unique by
     /// construction, and warning on them would produce false positives.
-    func testSyntheticBindingNamesExemptFromDuplicateCheck() throws {
+    @Test func syntheticBindingNamesExemptFromDuplicateCheck() throws {
         let source = """
         [[bindings]]
         input = "f13"
@@ -389,7 +390,7 @@ final class ConfigTests: XCTestCase {
         action-noop = true
         """
         let r = try Config.parse(source)
-        XCTAssertEqual(r.config.bindings.count, 3)
-        XCTAssertFalse(r.warnings.contains { $0.kind == .duplicateBindingName })
+        #expect(r.config.bindings.count == 3)
+        #expect(!r.warnings.contains { $0.kind == .duplicateBindingName })
     }
 }

@@ -1,15 +1,15 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// chord 0.8.0+: `[[fallbacks]]` accepts `inputs = ["a", "b", ...]`
 /// to collapse N modset feedback rows into one block. Each element
 /// becomes a fully-formed fallback with the original action / apps
 /// shared verbatim.
-final class FallbacksInputsArrayTests: XCTestCase {
+@Suite struct FallbacksInputsArrayTests {
 
     // MARK: - Basic expansion
 
-    func testInputsArrayExpandsToOneFallbackPerEntry() throws {
+    @Test func inputsArrayExpandsToOneFallbackPerEntry() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL   = "rctrl + ralt + rshift"
@@ -20,29 +20,29 @@ final class FallbacksInputsArrayTests: XCTestCase {
         inputs = ["$ULTRA_LL - *", "$MIRACLE_LM - *"]
         action-shell = "afplay undefined.wav"
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.fallbacks.count, 2,
-                       "2-entry inputs[] → 2 fallback bindings")
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.fallbacks.count == 2,
+                "2-entry inputs[] → 2 fallback bindings")
         // Each carries the same action.
         for fb in res.config.fallbacks {
             if case .shell(let body) = fb.action {
-                XCTAssertEqual(body, "afplay undefined.wav")
+                #expect(body == "afplay undefined.wav")
             } else {
-                XCTFail("expected shell action, got \(fb.action)")
+                Issue.record("expected shell action, got \(fb.action)")
             }
         }
         // Names disambiguated by the original input string.
         let names = res.config.fallbacks.map(\.name)
-        XCTAssertEqual(names, [
+        #expect(names == [
             "undefined feedback — $ULTRA_LL - *",
             "undefined feedback — $MIRACLE_LM - *",
         ])
         // inputRaw round-trips (used by config --show --json + warnings).
-        XCTAssertEqual(res.config.fallbacks[0].inputRaw, "$ULTRA_LL - *")
-        XCTAssertEqual(res.config.fallbacks[1].inputRaw, "$MIRACLE_LM - *")
+        #expect(res.config.fallbacks[0].inputRaw == "$ULTRA_LL - *")
+        #expect(res.config.fallbacks[1].inputRaw == "$MIRACLE_LM - *")
     }
 
-    func testInputsArrayPreservesAppsAndActionAlias() throws {
+    @Test func inputsArrayPreservesAppsAndActionAlias() throws {
         let res = try Config.parse("""
         [action-aliases]
         beep = "afplay beep.wav"
@@ -53,21 +53,21 @@ final class FallbacksInputsArrayTests: XCTestCase {
         action-shell = "@beep"
         apps = ["com.apple.Terminal"]
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.fallbacks.count, 2)
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.fallbacks.count == 2)
         for fb in res.config.fallbacks {
-            XCTAssertEqual(fb.apps, ["com.apple.Terminal"])
-            XCTAssertEqual(fb.aliasName, "beep",
-                           "@alias resolved per expanded row")
+            #expect(fb.apps == ["com.apple.Terminal"])
+            #expect(fb.aliasName == "beep",
+                    "@alias resolved per expanded row")
             if case .shell(let body) = fb.action {
-                XCTAssertEqual(body, "afplay beep.wav")
+                #expect(body == "afplay beep.wav")
             } else {
-                XCTFail("expected shell, got \(fb.action)")
+                Issue.record("expected shell, got \(fb.action)")
             }
         }
     }
 
-    func testSingleInputStillWorks() throws {
+    @Test func singleInputStillWorks() throws {
         // Regression: classic single `input = "..."` path is unchanged.
         let res = try Config.parse("""
         [[fallbacks]]
@@ -75,16 +75,16 @@ final class FallbacksInputsArrayTests: XCTestCase {
         input = "cmd - *"
         action-shell = "echo lone"
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.fallbacks.count, 1)
-        XCTAssertEqual(res.config.fallbacks[0].name, "lone fallback")
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.fallbacks.count == 1)
+        #expect(res.config.fallbacks[0].name == "lone fallback")
         // No " — <input>" suffix when the row used single input.
-        XCTAssertFalse(res.config.fallbacks[0].name.contains(" — "))
+        #expect(!res.config.fallbacks[0].name.contains(" — "))
     }
 
     // MARK: - Validation: error paths
 
-    func testInputAndInputsAreMutuallyExclusive() throws {
+    @Test func inputAndInputsAreMutuallyExclusive() throws {
         let res = try Config.parse("""
         [[fallbacks]]
         name = "conflict"
@@ -92,30 +92,30 @@ final class FallbacksInputsArrayTests: XCTestCase {
         inputs = ["opt - *"]
         action-shell = "echo nope"
         """)
-        XCTAssertEqual(res.config.fallbacks.count, 0)
-        XCTAssertGreaterThanOrEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.fallbacks.count == 0)
+        #expect(res.droppedBindings >= 1)
+        #expect(res.warnings.contains {
             $0.kind == .missingInput &&
             $0.message.contains("mutually exclusive")
         })
     }
 
-    func testEmptyInputsArrayIsRejected() throws {
+    @Test func emptyInputsArrayIsRejected() throws {
         let res = try Config.parse("""
         [[fallbacks]]
         name = "empty"
         inputs = []
         action-shell = "echo nope"
         """)
-        XCTAssertEqual(res.config.fallbacks.count, 0)
-        XCTAssertGreaterThanOrEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.fallbacks.count == 0)
+        #expect(res.droppedBindings >= 1)
+        #expect(res.warnings.contains {
             $0.kind == .missingInput &&
             $0.message.contains("at least one")
         })
     }
 
-    func testNonArrayInputsIsRejected() throws {
+    @Test func nonArrayInputsIsRejected() throws {
         // `inputs = "cmd - *"` (string, not array) should error.
         let res = try Config.parse("""
         [[fallbacks]]
@@ -123,15 +123,15 @@ final class FallbacksInputsArrayTests: XCTestCase {
         inputs = "cmd - *"
         action-shell = "echo nope"
         """)
-        XCTAssertEqual(res.config.fallbacks.count, 0)
-        XCTAssertGreaterThanOrEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.fallbacks.count == 0)
+        #expect(res.droppedBindings >= 1)
+        #expect(res.warnings.contains {
             $0.kind == .missingInput &&
             $0.message.contains("must be an array")
         })
     }
 
-    func testNonStringElementInInputsIsRejected() throws {
+    @Test func nonStringElementInInputsIsRejected() throws {
         // `inputs = ["cmd - *", 42]` — one element is an int.
         let res = try Config.parse("""
         [[fallbacks]]
@@ -139,9 +139,9 @@ final class FallbacksInputsArrayTests: XCTestCase {
         inputs = ["cmd - *", 42]
         action-shell = "echo nope"
         """)
-        XCTAssertEqual(res.config.fallbacks.count, 0)
-        XCTAssertGreaterThanOrEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.fallbacks.count == 0)
+        #expect(res.droppedBindings >= 1)
+        #expect(res.warnings.contains {
             $0.kind == .missingInput &&
             $0.message.contains("every inputs[] element must be a string")
         })
@@ -149,7 +149,7 @@ final class FallbacksInputsArrayTests: XCTestCase {
 
     // MARK: - Expanded fallbacks fire as normal fallbacks
 
-    func testExpandedFallbacksMatchAtMatcherLevel() throws {
+    @Test func expandedFallbacksMatchAtMatcherLevel() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = "rctrl + ralt + rshift"
@@ -166,18 +166,18 @@ final class FallbacksInputsArrayTests: XCTestCase {
         let hitUltra = m.find(.init(trigger: .key(0x00),
                                     modifiers: [.rctrl, .ropt, .rshift],
                                     bundleID: nil))
-        XCTAssertNotNil(hitUltra)
+        #expect(hitUltra != nil)
 
         // MEGA_RM + any → fb.
         let hitMega = m.find(.init(trigger: .key(0x00),
                                    modifiers: [.rctrl, .rcmd, .ropt],
                                    bundleID: nil))
-        XCTAssertNotNil(hitMega)
+        #expect(hitMega != nil)
 
         // Plain cmd + any → no fb (modset not covered).
         let miss = m.find(.init(trigger: .key(0x00),
                                 modifiers: [.lcmd],
                                 bundleID: nil))
-        XCTAssertNil(miss)
+        #expect(miss == nil)
     }
 }

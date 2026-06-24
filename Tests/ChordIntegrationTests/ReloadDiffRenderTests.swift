@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import ChordApp
 @testable import ChordCore
 
@@ -8,7 +8,7 @@ import XCTest
 /// detected but the renderer dropped (a misleading empty / reasonless
 /// diff). The renderers return strings, so these are pure data-in /
 /// data-out assertions (no stdout capture).
-final class ReloadDiffRenderTests: XCTestCase {
+@Suite struct ReloadDiffRenderTests {
 
     private func doc(_ s: String) throws -> BindingsSchema.Document {
         BindingsSchema.makeDocument(from: try Config.parse(s))
@@ -21,7 +21,7 @@ final class ReloadDiffRenderTests: XCTestCase {
 
     // MARK: - cli#1: [input-aliases] bucket
 
-    func testInputAliasesOnlyEditRendersNonEmpty() throws {
+    @Test func inputAliasesOnlyEditRendersNonEmpty() throws {
         // The headline bug: an [input-aliases]-only edit flipped isClean
         // to false but printed nothing → "all-zero empty diff" lie.
         let out = try render(
@@ -33,15 +33,15 @@ final class ReloadDiffRenderTests: XCTestCase {
             [input-aliases]
             ULTRA = "rctrl + ralt + rshift"
             """)
-        XCTAssertFalse(out.contains("no changes"),
-                       "input-aliases-only edit rendered as clean")
-        XCTAssertTrue(out.contains("input-aliases:"),
-                      "missing input-aliases bucket header")
-        XCTAssertTrue(out.contains("~ $ULTRA"), "missing aliased name")
-        XCTAssertTrue(out.contains("rctrl + ralt + rshift"), "missing new body")
+        #expect(!out.contains("no changes"),
+                "input-aliases-only edit rendered as clean")
+        #expect(out.contains("input-aliases:"),
+                "missing input-aliases bucket header")
+        #expect(out.contains("~ $ULTRA"), "missing aliased name")
+        #expect(out.contains("rctrl + ralt + rshift"), "missing new body")
     }
 
-    func testInputAliasesAddAndRemoveRender() throws {
+    @Test func inputAliasesAddAndRemoveRender() throws {
         let out = try render(
             old: """
             [input-aliases]
@@ -51,35 +51,35 @@ final class ReloadDiffRenderTests: XCTestCase {
             [input-aliases]
             FRESH = "rshift"
             """)
-        XCTAssertTrue(out.contains("+ $FRESH → rshift"), out)
-        XCTAssertTrue(out.contains("- $GONE → ralt"), out)
+        #expect(out.contains("+ $FRESH → rshift"), "\(out)")
+        #expect(out.contains("- $GONE → ralt"), "\(out)")
     }
 
     // MARK: - cli#2: describe() surfaces set/toggle-variable name(=value)
 
-    func testDescribeSetVariableShowsNameAndValue() throws {
-        let action = try XCTUnwrap(try doc("""
+    @Test func describeSetVariableShowsNameAndValue() throws {
+        let action = try #require(try doc("""
         [[bindings]]
         name = "leader"
         input = "cmd - j"
         action-set-var = "wm"
         """).bindings.first).action
-        XCTAssertEqual(ChordApp.describe(action), "set-variable wm=1")
+        #expect(ChordApp.describe(action) == "set-variable wm=1")
     }
 
-    func testDescribeToggleVariableShowsName() throws {
-        let action = try XCTUnwrap(try doc("""
+    @Test func describeToggleVariableShowsName() throws {
+        let action = try #require(try doc("""
         [[bindings]]
         name = "t"
         input = "cmd - k"
         action-toggle-var = "wm"
         """).bindings.first).action
-        XCTAssertEqual(ChordApp.describe(action), "toggle-variable wm")
+        #expect(ChordApp.describe(action) == "toggle-variable wm")
     }
 
     // MARK: - cli#3: changed binding shows WHAT changed
 
-    func testConditionChangeIsRendered() throws {
+    @Test func conditionChangeIsRendered() throws {
         let base = """
         [[bindings]]
         name = "g"
@@ -89,11 +89,11 @@ final class ReloadDiffRenderTests: XCTestCase {
         """
         let out = try render(old: base + "\nwhen-var-value = 1",
                              new: base + "\nwhen-var-value = 2")
-        XCTAssertTrue(out.contains("when:"), out)
-        XCTAssertTrue(out.contains("a==1 → a==2"), out)
+        #expect(out.contains("when:"), "\(out)")
+        #expect(out.contains("a==1 → a==2"), "\(out)")
     }
 
-    func testHoldWhileChangeIsRendered() throws {
+    @Test func holdWhileChangeIsRendered() throws {
         let base = """
         [[bindings]]
         name = "h"
@@ -102,10 +102,10 @@ final class ReloadDiffRenderTests: XCTestCase {
         """
         let out = try render(old: base + "\nhold-while = \"cmd\"",
                              new: base + "\nhold-while = \"cmd + opt\"")
-        XCTAssertTrue(out.contains("hold-while: cmd → cmd + opt"), out)
+        #expect(out.contains("hold-while: cmd → cmd + opt"), "\(out)")
     }
 
-    func testOnUpChangeIsRendered() throws {
+    @Test func onUpChangeIsRendered() throws {
         let base = """
         [[bindings]]
         name = "u"
@@ -114,11 +114,11 @@ final class ReloadDiffRenderTests: XCTestCase {
         """
         let out = try render(old: base + "\naction-shell-on-up = \"echo up1\"",
                              new: base + "\naction-shell-on-up = \"echo up2\"")
-        XCTAssertTrue(out.contains("on-up:"), out)
-        XCTAssertTrue(out.contains("shell echo up1 → shell echo up2"), out)
+        #expect(out.contains("on-up:"), "\(out)")
+        #expect(out.contains("shell echo up1 → shell echo up2"), "\(out)")
     }
 
-    func testPassthroughChangeIsRendered() throws {
+    @Test func passthroughChangeIsRendered() throws {
         // End-to-end: detection (semanticallyEqual) + rendering together.
         let base = """
         [[bindings]]
@@ -127,14 +127,14 @@ final class ReloadDiffRenderTests: XCTestCase {
         action-shell = "echo hi"
         """
         let out = try render(old: base, new: base + "\npassthrough = true")
-        XCTAssertFalse(out.contains("no changes"),
-                       "passthrough-only edit rendered as clean")
-        XCTAssertTrue(out.contains("passthrough: false → true"), out)
+        #expect(!out.contains("no changes"),
+                "passthrough-only edit rendered as clean")
+        #expect(out.contains("passthrough: false → true"), "\(out)")
     }
 
     // MARK: - regression: a truly identical config still says "no changes"
 
-    func testIdenticalConfigSaysNoChanges() throws {
+    @Test func identicalConfigSaysNoChanges() throws {
         let src = """
         [[bindings]]
         name = "x"
@@ -142,6 +142,6 @@ final class ReloadDiffRenderTests: XCTestCase {
         action-shell = "echo hi"
         """
         let out = try render(old: src, new: src)
-        XCTAssertTrue(out.contains("no changes"), out)
+        #expect(out.contains("no changes"), "\(out)")
     }
 }
