@@ -5,8 +5,9 @@ import CLIKit
 import Foundation
 
 /// `@main enum ChordApp` (not a top-level `main.swift`) — keeps
-/// `@testable import ChordApp` working from XCTest once tests of
-/// the CLI land. Same trap stroke / facet / ws-tabs documented.
+/// `@testable import ChordApp` working for the Swift Testing target
+/// (CLIDispatchTests' CLI coverage). Same trap stroke / facet /
+/// ws-tabs documented.
 @main
 enum ChordApp {
     @MainActor

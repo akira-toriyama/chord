@@ -22,7 +22,7 @@
                                                ┌──────────┴───────────┐
                                                │ ChordAdapterTest      │
                                                │ ─ TestEventSource     │
-                                               │ (XCTest only)         │
+                                               │ (tests only)          │
                                                └──────────────────────┘
 ```
 

@@ -37,20 +37,20 @@ v-key binding is configured; see `VKeyHIDSource` /
 
 ```sh
 swift build                  # compile (CommandLineTools works)
-swift test                   # tests — needs Xcode (XCTest); fails on CLT
+swift test                   # tests — needs Xcode (Swift Testing); fails on CLT
 .build/debug/chord --help    # smoke test
 .build/debug/chord config --validate
 ```
 
-Same XCTest constraint as stroke / facet — CommandLineTools alone
-can't run tests; let CI cover them. `swift build` is the bar
-locally.
+Same test-toolchain constraint as stroke / facet — CommandLineTools
+alone can't run tests (it ships neither XCTest nor Swift Testing);
+full Xcode or CI covers them. `swift build` is the bar locally.
 
 `@main enum ChordApp` lives in
 [Sources/ChordApp/Main.swift](Sources/ChordApp/Main.swift) (NOT
-top-level code in a `main.swift`) so XCTest's executable-target
-`@testable import` keeps working once test coverage of the CLI
-lands. **Don't reintroduce a `main.swift` file** — same trap as
+top-level code in a `main.swift`) so the test target's
+`@testable import` keeps working — it backs CLIDispatchTests' Swift
+Testing coverage of the CLI. **Don't reintroduce a `main.swift` file** — same trap as
 stroke / facet / ws-tabs.
 
 ## Source-of-truth references
