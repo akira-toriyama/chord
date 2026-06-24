@@ -76,6 +76,36 @@ import Testing
         #expect(!ChordConfigSchema.perAppShape().keySet.contains("per-app"))
     }
 
+    /// #138-B: enum fields carry `x-taplo.docs.enumValues` index-aligned to
+    /// `enum` (taplo per-value hover). A length mismatch silently drops the tail
+    /// value's doc, so pin it for the `repeat` field.
+    @Test func enumDocsAlignWithEnum() throws {
+        let item = try bindingItem(try emitted())
+        let props = try #require(item["properties"] as? [String: Any])
+        let repeatField = try #require(props["repeat"] as? [String: Any])
+        let enumVals = try #require(repeatField["enum"] as? [String])
+        let xtaplo = try #require(repeatField["x-taplo"] as? [String: Any])
+        let docs = try #require(xtaplo["docs"] as? [String: Any])
+        let enumDocs = try #require(docs["enumValues"] as? [Any])
+        #expect(enumDocs.count == enumVals.count,
+                "x-taplo.docs.enumValues must be index-aligned to enum (\(enumDocs.count) vs \(enumVals.count))")
+    }
+
+    /// #138-B: array-of-tables items carry `x-taplo.initKeys` (autocomplete
+    /// pre-fill) and binding-like items carry `x-chord-constraints` (runtime-only
+    /// rule hover). Both are additive vendor keys, so they must NOT enter the
+    /// parser keySet (#52) — verified by the byte-drift guard + this presence check.
+    @Test func bindingCarriesInitKeysAndConstraints() throws {
+        let item = try bindingItem(try emitted())
+        let xtaplo = try #require(item["x-taplo"] as? [String: Any])
+        #expect(xtaplo["initKeys"] as? [String] == ["input", "action-keys"])
+        let constraints = try #require(item["x-chord-constraints"] as? [String])
+        #expect(constraints.count == ChordConfigSchema.runtimeConstraints.count)
+        // keySet must be unaffected by presentation-only additions.
+        #expect(!ChordConfigSchema.bindingShape().keySet.contains("x-taplo"))
+        #expect(!ChordConfigSchema.bindingShape().keySet.contains("x-chord-constraints"))
+    }
+
     /// #52-bounded: `rejected` fields (action-toggle-var-on-up /
     /// action-hold-var-on-up) live in the keySet (so the parser's
     /// unknown-key check recognises them and doesn't mis-report a typo),

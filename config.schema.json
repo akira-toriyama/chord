@@ -137,11 +137,7 @@
             "type" : "string"
           },
           "action-keys" : {
-            "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
-            "examples" : [
-              "cmd - c",
-              "[\"cmd - a\", \"cmd - c\"]"
-            ],
+            "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order. e.g. `\"cmd - c\"`, or `[\"cmd - a\", \"cmd - c\"]`.",
             "oneOf" : [
               {
                 "type" : "string"
@@ -164,7 +160,15 @@
               "show-all-windows",
               "show-app-windows"
             ],
-            "type" : "string"
+            "type" : "string",
+            "x-taplo" : {
+              "docs" : {
+                "enumValues" : [
+                  "Show every open window (Mission Control).",
+                  "Show all windows of the frontmost app (App Exposé)."
+                ]
+              }
+            }
           },
           "action-noop" : {
             "const" : true,
@@ -180,7 +184,15 @@
               "selection",
               "screen"
             ],
-            "type" : "string"
+            "type" : "string",
+            "x-taplo" : {
+              "docs" : {
+                "enumValues" : [
+                  "Capture a selected region (⌘⇧4).",
+                  "Capture the whole screen (⌘⇧3)."
+                ]
+              }
+            }
           },
           "action-set-value" : {
             "default" : 1,
@@ -201,11 +213,7 @@
             "type" : "string"
           },
           "action-shell" : {
-            "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases].",
-            "examples" : [
-              "open -a Safari",
-              "@focus_next"
-            ],
+            "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases]. e.g. `open -a Safari`, `@focus_next`.",
             "type" : "string"
           },
           "action-shell-on-up" : {
@@ -221,21 +229,14 @@
             "type" : "string"
           },
           "apps" : {
-            "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app.",
-            "examples" : [
-              "[\"com.apple.Safari\"]",
-              "[\"!com.apple.Terminal\"]"
-            ],
+            "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app. e.g. `[\"com.apple.Safari\"]`, or `[\"!com.apple.Terminal\"]` to exclude.",
             "items" : {
               "type" : "string"
             },
             "type" : "array"
           },
           "hold-while" : {
-            "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
-            "examples" : [
-              "cmd + opt"
-            ],
+            "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout. e.g. `cmd + opt`.",
             "type" : "string"
           },
           "hold-while-timeout" : {
@@ -244,12 +245,7 @@
             "type" : "integer"
           },
           "input" : {
-            "description" : "Trigger: `[MODIFIERS -] KEY`. Supports $input-aliases, side-aware L\/R, scroll.up\/down.",
-            "examples" : [
-              "cmd + opt - f13",
-              "ctrl - scroll.up",
-              "$ULTRA - c"
-            ],
+            "description" : "Trigger: `[MODIFIERS -] KEY`. Supports $input-aliases, side-aware L\/R, scroll.up\/down. e.g. `cmd + opt - f13`, `ctrl - scroll.up`, `$ULTRA - c`.",
             "type" : "string"
           },
           "input-source" : {
@@ -338,11 +334,7 @@
                   "type" : "string"
                 },
                 "action-keys" : {
-                  "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
-                  "examples" : [
-                    "cmd - c",
-                    "[\"cmd - a\", \"cmd - c\"]"
-                  ],
+                  "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order. e.g. `\"cmd - c\"`, or `[\"cmd - a\", \"cmd - c\"]`.",
                   "oneOf" : [
                     {
                       "type" : "string"
@@ -365,7 +357,15 @@
                     "show-all-windows",
                     "show-app-windows"
                   ],
-                  "type" : "string"
+                  "type" : "string",
+                  "x-taplo" : {
+                    "docs" : {
+                      "enumValues" : [
+                        "Show every open window (Mission Control).",
+                        "Show all windows of the frontmost app (App Exposé)."
+                      ]
+                    }
+                  }
                 },
                 "action-noop" : {
                   "const" : true,
@@ -381,7 +381,15 @@
                     "selection",
                     "screen"
                   ],
-                  "type" : "string"
+                  "type" : "string",
+                  "x-taplo" : {
+                    "docs" : {
+                      "enumValues" : [
+                        "Capture a selected region (⌘⇧4).",
+                        "Capture the whole screen (⌘⇧3)."
+                      ]
+                    }
+                  }
                 },
                 "action-set-value" : {
                   "default" : 1,
@@ -402,11 +410,7 @@
                   "type" : "string"
                 },
                 "action-shell" : {
-                  "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases].",
-                  "examples" : [
-                    "open -a Safari",
-                    "@focus_next"
-                  ],
+                  "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases]. e.g. `open -a Safari`, `@focus_next`.",
                   "type" : "string"
                 },
                 "action-shell-on-up" : {
@@ -426,10 +430,7 @@
                   "type" : "string"
                 },
                 "hold-while" : {
-                  "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
-                  "examples" : [
-                    "cmd + opt"
-                  ],
+                  "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout. e.g. `cmd + opt`.",
                   "type" : "string"
                 },
                 "hold-while-timeout" : {
@@ -461,16 +462,22 @@
                   "type" : "boolean"
                 },
                 "repeat" : {
-                  "description" : "How key-repeat is handled.",
+                  "description" : "How key-repeat (typematic auto-repeat) is handled.",
                   "enum" : [
                     "fire-each",
                     "ignore",
                     "passthrough"
                   ],
-                  "examples" : [
-                    "fire-each"
-                  ],
-                  "type" : "string"
+                  "type" : "string",
+                  "x-taplo" : {
+                    "docs" : {
+                      "enumValues" : [
+                        "Fire the action on every repeat tick (default).",
+                        "Fire once on key-down, swallow repeats (still consumed).",
+                        "Fire once on key-down, let repeats reach the OS (niche)."
+                      ]
+                    }
+                  }
                 },
                 "when-var" : {
                   "description" : "Only fire when this state variable equals when-var-value.",
@@ -498,16 +505,22 @@
             "type" : "array"
           },
           "repeat" : {
-            "description" : "How key-repeat is handled.",
+            "description" : "How key-repeat (typematic auto-repeat) is handled.",
             "enum" : [
               "fire-each",
               "ignore",
               "passthrough"
             ],
-            "examples" : [
-              "fire-each"
-            ],
-            "type" : "string"
+            "type" : "string",
+            "x-taplo" : {
+              "docs" : {
+                "enumValues" : [
+                  "Fire the action on every repeat tick (default).",
+                  "Fire once on key-down, swallow repeats (still consumed).",
+                  "Fire once on key-down, let repeats reach the OS (niche)."
+                ]
+              }
+            }
           },
           "when-var" : {
             "description" : "Only fire when this state variable equals when-var-value.",
@@ -530,7 +543,22 @@
         "required" : [
           "input"
         ],
-        "type" : "object"
+        "type" : "object",
+        "x-chord-constraints" : [
+          "`@name` in action-shell must be defined in [action-aliases]; an undefined reference drops the binding.",
+          "`$name` in input must be defined in [input-aliases]; an undefined reference drops the binding.",
+          "A bare v-key input must be defined in [v-key-aliases] (id 1–255) and must not shadow a built-in key or modifier.",
+          "[input-aliases] names must not shadow built-in modifier tokens (cmd \/ ctrl \/ shift \/ opt \/ fn and L\/R variants).",
+          "Each user-set `name` must be unique across [[bindings]] (auto `binding-N` names are exempt).",
+          "`action-set-var` must not use a reserved `_seq_*` name (those are reserved for [[sequence]] state).",
+          "A [[bindings]] trigger must not collide with a [[sequence]] prefix; a sequence `name` must not be `_seq_*`."
+        ],
+        "x-taplo" : {
+          "initKeys" : [
+            "input",
+            "action-keys"
+          ]
+        }
       },
       "type" : "array"
     },
@@ -674,11 +702,7 @@
             "type" : "string"
           },
           "action-keys" : {
-            "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
-            "examples" : [
-              "cmd - c",
-              "[\"cmd - a\", \"cmd - c\"]"
-            ],
+            "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order. e.g. `\"cmd - c\"`, or `[\"cmd - a\", \"cmd - c\"]`.",
             "oneOf" : [
               {
                 "type" : "string"
@@ -701,7 +725,15 @@
               "show-all-windows",
               "show-app-windows"
             ],
-            "type" : "string"
+            "type" : "string",
+            "x-taplo" : {
+              "docs" : {
+                "enumValues" : [
+                  "Show every open window (Mission Control).",
+                  "Show all windows of the frontmost app (App Exposé)."
+                ]
+              }
+            }
           },
           "action-noop" : {
             "const" : true,
@@ -717,7 +749,15 @@
               "selection",
               "screen"
             ],
-            "type" : "string"
+            "type" : "string",
+            "x-taplo" : {
+              "docs" : {
+                "enumValues" : [
+                  "Capture a selected region (⌘⇧4).",
+                  "Capture the whole screen (⌘⇧3)."
+                ]
+              }
+            }
           },
           "action-set-value" : {
             "default" : 1,
@@ -738,11 +778,7 @@
             "type" : "string"
           },
           "action-shell" : {
-            "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases].",
-            "examples" : [
-              "open -a Safari",
-              "@focus_next"
-            ],
+            "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases]. e.g. `open -a Safari`, `@focus_next`.",
             "type" : "string"
           },
           "action-shell-on-up" : {
@@ -758,21 +794,14 @@
             "type" : "string"
           },
           "apps" : {
-            "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app.",
-            "examples" : [
-              "[\"com.apple.Safari\"]",
-              "[\"!com.apple.Terminal\"]"
-            ],
+            "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app. e.g. `[\"com.apple.Safari\"]`, or `[\"!com.apple.Terminal\"]` to exclude.",
             "items" : {
               "type" : "string"
             },
             "type" : "array"
           },
           "hold-while" : {
-            "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
-            "examples" : [
-              "cmd + opt"
-            ],
+            "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout. e.g. `cmd + opt`.",
             "type" : "string"
           },
           "hold-while-timeout" : {
@@ -781,11 +810,7 @@
             "type" : "integer"
           },
           "input" : {
-            "description" : "Trigger; the wildcard `*` is allowed here (catch-all). Mutually exclusive with inputs.",
-            "examples" : [
-              "*",
-              "cmd - a"
-            ],
+            "description" : "Trigger; the wildcard `*` is allowed here (catch-all). Mutually exclusive with inputs. e.g. `*`, `cmd - a`.",
             "type" : "string"
           },
           "input-source" : {
@@ -819,16 +844,22 @@
             "type" : "boolean"
           },
           "repeat" : {
-            "description" : "How key-repeat is handled.",
+            "description" : "How key-repeat (typematic auto-repeat) is handled.",
             "enum" : [
               "fire-each",
               "ignore",
               "passthrough"
             ],
-            "examples" : [
-              "fire-each"
-            ],
-            "type" : "string"
+            "type" : "string",
+            "x-taplo" : {
+              "docs" : {
+                "enumValues" : [
+                  "Fire the action on every repeat tick (default).",
+                  "Fire once on key-down, swallow repeats (still consumed).",
+                  "Fire once on key-down, let repeats reach the OS (niche)."
+                ]
+              }
+            }
           },
           "when-var" : {
             "description" : "Only fire when this state variable equals when-var-value.",
@@ -848,7 +879,16 @@
             "type" : "object"
           }
         },
-        "type" : "object"
+        "type" : "object",
+        "x-chord-constraints" : [
+          "`@name` in action-shell must be defined in [action-aliases]; an undefined reference drops the binding.",
+          "`$name` in input must be defined in [input-aliases]; an undefined reference drops the binding.",
+          "A bare v-key input must be defined in [v-key-aliases] (id 1–255) and must not shadow a built-in key or modifier.",
+          "[input-aliases] names must not shadow built-in modifier tokens (cmd \/ ctrl \/ shift \/ opt \/ fn and L\/R variants).",
+          "Each user-set `name` must be unique across [[bindings]] (auto `binding-N` names are exempt).",
+          "`action-set-var` must not use a reserved `_seq_*` name (those are reserved for [[sequence]] state).",
+          "A [[bindings]] trigger must not collide with a [[sequence]] prefix; a sequence `name` must not be `_seq_*`."
+        ]
       },
       "type" : "array"
     },
@@ -901,17 +941,11 @@
             "additionalProperties" : {
               "type" : "string"
             },
-            "description" : "source-key → action-keys string. Non-empty.",
-            "examples" : [
-              "{ h = \"left\", l = \"right\" }"
-            ],
+            "description" : "source-key → action-keys string. Non-empty. e.g. `{ h = \"left\", l = \"right\" }`.",
             "type" : "object"
           },
           "modifiers" : {
-            "description" : "Modifier mask applied to every map entry (≥1 modifier).",
-            "examples" : [
-              "cmd + opt"
-            ],
+            "description" : "Modifier mask applied to every map entry (≥1 modifier). e.g. `cmd + opt`.",
             "type" : "string"
           },
           "name" : {
@@ -1058,11 +1092,7 @@
                   "type" : "string"
                 },
                 "action-keys" : {
-                  "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order.",
-                  "examples" : [
-                    "cmd - c",
-                    "[\"cmd - a\", \"cmd - c\"]"
-                  ],
+                  "description" : "Keystroke(s) to synthesise. A single string, or an array whose first element is primary and the rest fire in order. e.g. `\"cmd - c\"`, or `[\"cmd - a\", \"cmd - c\"]`.",
                   "oneOf" : [
                     {
                       "type" : "string"
@@ -1085,7 +1115,15 @@
                     "show-all-windows",
                     "show-app-windows"
                   ],
-                  "type" : "string"
+                  "type" : "string",
+                  "x-taplo" : {
+                    "docs" : {
+                      "enumValues" : [
+                        "Show every open window (Mission Control).",
+                        "Show all windows of the frontmost app (App Exposé)."
+                      ]
+                    }
+                  }
                 },
                 "action-noop" : {
                   "const" : true,
@@ -1101,7 +1139,15 @@
                     "selection",
                     "screen"
                   ],
-                  "type" : "string"
+                  "type" : "string",
+                  "x-taplo" : {
+                    "docs" : {
+                      "enumValues" : [
+                        "Capture a selected region (⌘⇧4).",
+                        "Capture the whole screen (⌘⇧3)."
+                      ]
+                    }
+                  }
                 },
                 "action-set-value" : {
                   "default" : 1,
@@ -1122,11 +1168,7 @@
                   "type" : "string"
                 },
                 "action-shell" : {
-                  "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases].",
-                  "examples" : [
-                    "open -a Safari",
-                    "@focus_next"
-                  ],
+                  "description" : "Shell command (run via \/bin\/sh -c). Supports @alias \/ @alias(a,b) refs from [action-aliases]. e.g. `open -a Safari`, `@focus_next`.",
                   "type" : "string"
                 },
                 "action-shell-on-up" : {
@@ -1142,21 +1184,14 @@
                   "type" : "string"
                 },
                 "apps" : {
-                  "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app.",
-                  "examples" : [
-                    "[\"com.apple.Safari\"]",
-                    "[\"!com.apple.Terminal\"]"
-                  ],
+                  "description" : "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app. e.g. `[\"com.apple.Safari\"]`, or `[\"!com.apple.Terminal\"]` to exclude.",
                   "items" : {
                     "type" : "string"
                   },
                   "type" : "array"
                 },
                 "hold-while" : {
-                  "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout.",
-                  "examples" : [
-                    "cmd + opt"
-                  ],
+                  "description" : "Keep the set variable at 1 while these modifiers are held (≥1 modifier). Mutually exclusive with hold-while-timeout. e.g. `cmd + opt`.",
                   "type" : "string"
                 },
                 "hold-while-timeout" : {
@@ -1192,16 +1227,22 @@
                   "type" : "boolean"
                 },
                 "repeat" : {
-                  "description" : "How key-repeat is handled.",
+                  "description" : "How key-repeat (typematic auto-repeat) is handled.",
                   "enum" : [
                     "fire-each",
                     "ignore",
                     "passthrough"
                   ],
-                  "examples" : [
-                    "fire-each"
-                  ],
-                  "type" : "string"
+                  "type" : "string",
+                  "x-taplo" : {
+                    "docs" : {
+                      "enumValues" : [
+                        "Fire the action on every repeat tick (default).",
+                        "Fire once on key-down, swallow repeats (still consumed).",
+                        "Fire once on key-down, let repeats reach the OS (niche)."
+                      ]
+                    }
+                  }
                 },
                 "when-var" : {
                   "description" : "Only fire when this state variable equals when-var-value.",
@@ -1224,7 +1265,16 @@
               "required" : [
                 "input"
               ],
-              "type" : "object"
+              "type" : "object",
+              "x-chord-constraints" : [
+                "`@name` in action-shell must be defined in [action-aliases]; an undefined reference drops the binding.",
+                "`$name` in input must be defined in [input-aliases]; an undefined reference drops the binding.",
+                "A bare v-key input must be defined in [v-key-aliases] (id 1–255) and must not shadow a built-in key or modifier.",
+                "[input-aliases] names must not shadow built-in modifier tokens (cmd \/ ctrl \/ shift \/ opt \/ fn and L\/R variants).",
+                "Each user-set `name` must be unique across [[bindings]] (auto `binding-N` names are exempt).",
+                "`action-set-var` must not use a reserved `_seq_*` name (those are reserved for [[sequence]] state).",
+                "A [[bindings]] trigger must not collide with a [[sequence]] prefix; a sequence `name` must not be `_seq_*`."
+              ]
             },
             "minItems" : 1,
             "type" : "array"
@@ -1234,10 +1284,7 @@
             "type" : "string"
           },
           "prefix" : {
-            "description" : "Leader trigger (≥1 modifier).",
-            "examples" : [
-              "cmd - g"
-            ],
+            "description" : "Leader trigger (≥1 modifier). e.g. `cmd - g`.",
             "type" : "string"
           },
           "timeout-ms" : {
@@ -1251,7 +1298,13 @@
           "timeout-ms",
           "bindings"
         ],
-        "type" : "object"
+        "type" : "object",
+        "x-taplo" : {
+          "initKeys" : [
+            "prefix",
+            "timeout-ms"
+          ]
+        }
       },
       "type" : "array"
     },
