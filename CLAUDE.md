@@ -924,6 +924,50 @@ chord は swift app family の共有ライブラリに乗る（plan [atelier](ht
 
 **自己完結しない — 共有候補は sill に PR を模索**: app 単独で実装する前に「2 つ以上の app で冗長になりそうか」を問い、そうなら sill への PR を検討する（過剰共通化はしない・zero-debt ≠ 全部共有）。
 
+## 作業方針 (multi-session work policy)
+
+長尺の作業を**セッション跨ぎ**で安全に進めるための運用ルール。
+破壊的変更 / 品質重視の扱いは既存ポリシーを参照 — ここでは
+重複させない: 破壊的変更は §config.toml grammar additions・
+§CLI option additions の "Breaking changes are OK"、品質重視は
+§Conventions の "Quality-first phased workflow"
+("Don't push without explicit OK") が正。
+
+- **1 セッションで完了しなくてよい**。大きな作業は plan(計画)と
+  execute(実行)に分け、複数セッションに跨ってよい。途中で
+  終わること自体は失敗ではない — 失敗は**進行状況を残さずに
+  終わること**。
+- **進行状況は必ず 1 箇所に記録し、二重管理しない**。進行中の
+  作業ごとに `docs/plans/<#issue>-<slug>.md` を 1 枚作り、そこが
+  進行状況の唯一の真実 (single source of truth)。GitHub Projects
+  (§Roadmap board) とは**粒度で棲み分ける**: Projects = 高レベルな
+  issue / milestone の status、plan file = その issue を実装する
+  ための細粒度な計画 + 進行ログ。両者は `#N` で相互リンクし、
+  同じ情報を二重に持たない。
+- **plan file の構成** (テンプレートは
+  [docs/plans/README.md](docs/plans/README.md)): ゴール (+
+  `Closes #N`) / 計画チェックリスト / 進行ログ / 未達成・保留。
+- **未達成を暗黙にしない**。チェック未了・保留・既知の積み残しは
+  plan file に**明示的に**残す (黙って消さない)。「この作業の中で
+  まだやる」ものは plan file に、「別途やる」ものは issue 化して
+  Projects Inbox へ — どちらかに必ず可視化する。
+- **plan file のライフサイクル**: 未達成が残る限り `docs/plans/`
+  に置く。全項目が完了したら削除 (履歴は git に残る) し、issue を
+  Done へ。→ **`docs/plans/` に README 以外のファイルが無い =
+  進行中の積み残しなし**、という不変条件を保つ。
+- **セッション境界の所作**: 作業再開時はまず該当 plan file を
+  読み、終了時 (あるいは節目) に必ず進行ログを更新してから終わる。
+- **記録形式は md** (現状)。より良い管理方法が見つかれば乗り換える
+  — その場合もこの「1 箇所 / 未達成を残す / 粒度で棲み分け」の
+  原則は維持する。
+- **これらは原則であって教条ではない**。重視はするが、ある場面で
+  適用しても**メリットが無い**、あるいは運用してみて**作業しづらい**
+  と感じたら、黙って無視するのでも形だけ遵守するのでもなく
+  **相談する** (未達成を暗黙にしないのと同じ精神 — ルールの不都合も
+  可視化する)。相談は原則そのものを見直す契機にしてよい
+  ([docs/non-goals.md](docs/non-goals.md) の「再検討する条件」と
+  同じ姿勢)。
+
 ## Roadmap board (GitHub Projects)
 
 この repo の issue は集約 Project「roadmap」(akira-toriyama #5・
