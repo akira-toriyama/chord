@@ -100,6 +100,8 @@ is configured.)
 
 ## Install
 
+Requires macOS 13+ — the latest macOS is recommended.
+
 ```sh
 brew install akira-toriyama/tap/chord
 
@@ -117,8 +119,8 @@ Accessibility grant would otherwise be lost on every upgrade.
 `chord daemon --resign` swaps the ad-hoc signature for the persistent
 `chord-dev` identity and restarts the daemon in one step.
 
-Or build from source — requires macOS 13+ and Xcode CommandLineTools
-(or full Xcode):
+Or build from source — requires Xcode CommandLineTools (or full
+Xcode):
 
 ```sh
 git clone https://github.com/akira-toriyama/chord
