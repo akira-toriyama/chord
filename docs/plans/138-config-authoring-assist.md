@@ -1,28 +1,36 @@
 # config.toml オーサリング補助 (Taplo/schema) 強化
 
 - Issue: Closes #138 (umbrella)。Sub: #144 A / #145 B / #146 S1 / #147 S2 / #148 E
-- Status: in-progress (A ✅ / B ✅ merged / 次=S1 sill 共有コア / E 残)
+- Status: in-progress (A ✅ / B ✅ / S1 ✅ merged / S2 ✅ / 次=S3 sill Spec 統合 / S4 / S-validate / S5 / E 残)
 - Updated: 2026-06-24
 
 ## 🔖 次セッション着手ガイド (cold-start 用)
 
-**着手対象: S1 (#146) — sill の decode-free 共有 schema コア。** 推奨は **設計先行**
-(公開 API を1枚出す → maintainer 合意 → 実装。品質最優先・手戻り最小)。
+**着手対象: S3 (sill) — 既存 `Spec<Root>.jsonSchema()` を S1 共有コア経由に。**
+S1(decode-free 共有コア)+ S2(chord 載せ替え・byte-identical)は完了済 (下記)。
 
-S1 設計の出発点:
-- **移設元 (chord)**: [Sources/ChordCore/ConfigSchema/SchemaDescriptor.swift](../../Sources/ChordCore/ConfigSchema/SchemaDescriptor.swift)(型)+
-  [SchemaEmit.swift](../../Sources/ChordCore/ConfigSchema/SchemaEmit.swift)(lowering)。Phase B で
-  `enumDocs`/`initKeys`/`xChordConstraints`/cross-field `ExclusionRule` 実装済 = **一般化の素材**。
-- **移設先 (sill)**: `Sources/ConfigSchema/ConfigSchema.swift`(現状 `Spec<Root>` で decode+emit。
-  arrayOfTables emit 対応だが **flat fields のみ・enumDocs/exclusions/nested/x-taplo 無し**)。
-  → `Spec` とは別に **decode-free な新型群**(`SchemaField`/`ObjectShape`/`SchemaSection`/`ExclusionRule`)
-  + lowering を追加。S3 で既存 `Spec.jsonSchema()` を新コア経由に。
-- **設計要件**: descriptor はルールを純データ保持 = **emit + validate 両対応**(validator は S-validate)。
-  chord(自前 descriptor)と sill `Spec`(flat decode)の両方が emit を共有。
-- **S2 受け入れ条件**: chord 載せ替え後の `config.schema.json` が **byte-identical**
-  (`ConfigSchemaDriftTests` + `ConfigSchemaShapeTests` + `ConfigConstraintCoverageTests` + `taplo lint` で担保)。
+S1/S2 で確立した事実(再利用の足場):
+- **共有コア (sill 1.25.0)**: `Sources/ConfigSchema/SchemaDescriptor.swift`(型)+
+  `SchemaDescriptorEmit.swift`(Draft-07 lowering + `EmitOptions`)。型は `SchemaField`/
+  `ObjectShape`/`SchemaSection`(nested `Kind`)/`ExclusionRule`/`NestedTable`/root `SchemaDescriptor`。
+  app 固有 spelling(`constraintsKey`/`escapeSlashes`/`trailingNewline`)は `EmitOptions` knob。
+  `x-taplo` は固定。データは **let**(不変)・`EmitOptions` は **var**。
+- **chord 載せ替え済 (S2)**: [SchemaDescriptor.swift](../../Sources/ChordCore/ConfigSchema/SchemaDescriptor.swift)
+  は ChordConfigSchema の **データ + RuntimeConstraint catalog** のみ(型/emit は sill)。
+  `ChordConfigSchema.jsonSchema` は `descriptor.jsonSchema(options: .init(constraintsKey: "x-chord-constraints"))`。
+  SchemaEmit.swift は **削除**。StructuralCheck.swift は `import ConfigSchema` 追加。
 
-検証: `swift build` / `swift test`(Xcode でローカル可・386+ green)/ `npx --yes @taplo/cli@0.7.0 lint config.toml`。
+S3 の出発点:
+- **移設先 (sill)**: `Sources/ConfigSchema/ConfigSchema.swift` の `Spec<Root>.jsonSchema()` は
+  まだ独自 lowering(SchemaNode tree・flat fields のみ・`.withoutEscapingSlashes`＋末尾改行)。
+  → S1 コア経由に統合。注意: `Spec` は **dotted header の nested tree 畳み込み**・dynamicTable
+  permissive を持つので、S1 `SchemaSection` 語彙に **header 分割 + permissive object** の表現を足すか、
+  `Spec` 側で descriptor へ変換する adapter を書く。facet が `Spec` を採用済(45 desc fields)なので
+  byte-identical を `ConfigSchemaTests.testJSONSchemaIsValidAndStable` 等で担保。
+- S4(facet enumDocs)/ S-validate(共有 generic validator)/ S5(perch/wand/halo)/ E は後続。
+
+検証: `swift build`(local gate)/ `swift test`(Xcode でローカル可・chord 393 / sill 683 green)/
+`npx --yes @taplo/cli@0.7.0 lint config.toml`。
 
 **cross-repo 作業の鉄則 (本セッションの教訓 — 共有資産化で多発する)**:
 - sibling repo は **fresh clone (SSH alias `ssh://github.com.akira-toriyama/akira-toriyama/<repo>.git`)** で作業。
@@ -95,13 +103,14 @@ family 共有資産にしたい。chord がその **pilot / 実 driver**。
 
 > 当初 Phase C/D を「共有 schema エンジン(emit + validate)」に統合。実装は **emit 先行**。
 
-- [ ] **S1 (sill, #146)**: decode-free 共有コアを sill `ConfigSchema` に新設 —
-      `SchemaField`/`ObjectShape`/`SchemaSection`/`ExclusionRule`(enumDocs/initKeys/xChordConstraints/
-      rejected/nested 付)+ Draft-07 & x-taplo & cross-field lowering(= chord B の型/emitter を一般化移設)。
-      **descriptor はルールを純データで保持 = emit と validate の両対応**(validator は S-validate)。
-      sill minor bump。sill tests(chord の shape/emit テスト移植)。
-- [ ] **S2 (chord, #147)**: `ChordConfigSchema` を sill 共有型に載せ替え(自前 SchemaEmit 削除・descriptor
-      データと StructuralCheck/keySet は local 維持)。sill dep bump。**byte-identical** config.schema.json。
+- [x] **S1 (sill, #146)**: decode-free 共有コアを sill `ConfigSchema` に新設 —
+      `SchemaField`/`ObjectShape`/`SchemaSection`/`ExclusionRule`/`NestedTable`/`SchemaDescriptor`
+      (enumDocs/initKeys/constraints/rejected/nested 付)+ Draft-07 & x-taplo & cross-field lowering。
+      app 固有 spelling は `EmitOptions`(constraintsKey/escapeSlashes/trailingNewline)。sill PR #76 →
+      **v1.25.0** tag。35 ConfigSchema tests(31 new)/ 683 green。28-agent adversarial review 適用済。
+- [x] **S2 (chord, #147)**: `ChordConfigSchema` を sill 共有型に載せ替え(自前 SchemaEmit.swift 削除・
+      descriptor データと RuntimeConstraint/StructuralCheck/keySet は local 維持)。sill pin 1.25.0。
+      **config.schema.json byte-identical**(`chord config --emit-schema` == committed・diff 0)。393 green。
 - [ ] **S3 (sill)**: 既存 `Spec<Root>.jsonSchema()` を共有コア経由に + `Spec.Field` に enumDocs(S1 内包可)。
 - [ ] **S4 (facet)**: sill bump + enum フィールドに enumDocs → facet エディタ UX。
 - [ ] **S-validate (sill)**: 共有 generic runtime validator(descriptor のルールを decode 後の値に実行 → `[error]`)。
@@ -127,6 +136,18 @@ family 共有資産にしたい。chord がその **pilot / 実 driver**。
 
 ## 進行ログ
 
+- 2026-06-24: **S1 完了** — sill PR #76 merged → **v1.25.0** tag。decode-free 共有コア
+  (`SchemaDescriptor` 型群 + `SchemaDescriptorEmit` lowering + `EmitOptions`)を `ConfigSchema`
+  モジュール top-level に追加(既存 `Spec<Root>` は無改変・S3 で統合)。emit は chord の SchemaEmit を
+  逐語移植し **app 非依存に一般化**(`x-chord-constraints`/slash-escape/末尾改行 → `EmitOptions`、
+  `x-taplo` は固定)。データは `let`・review 指摘で immutable 化。テストは sill 慣習の **XCTest**
+  (synthetic fixture 全網羅 + 否定パス)。**28-agent adversarial review** を適用(immutability /
+  doc 明確化 / negative-path test)。sill 非 issue-tracker → PR は chord#146/#138 を本文リンク。
+- 2026-06-24: **S2 完了** — 本 PR。chord pin → sill 1.25.0、ChordConfigSchema を sill 型に載せ替え、
+  SchemaEmit.swift 削除、StructuralCheck に `import ConfigSchema`。`xChordConstraints:`→`constraints:`。
+  **`chord config --emit-schema` が committed config.schema.json と byte-identical**(diff 0・
+  git status でも未変更)。393 green。S1 で chord descriptor を sill 型で再構成し byte-parity を
+  事前検証済(throwaway・未 commit)だったため手戻りゼロ。
 - 2026-06-24: #119/#125 close + 残タスク整理 (#142 Icebox / #143 Backlog)。#138 に cross-repo 吸収。
 - 2026-06-24: investigation workflow 完了 (13 agents)。markdownDescription が taplo で死にと判明。
 - 2026-06-24: **Phase A 完了** — chord#149。A3 family-wide: perch#136 / wand#165 → .github#7 flip → 5 caller 全 green。#144 close。
@@ -139,8 +160,10 @@ family 共有資産にしたい。chord がその **pilot / 実 driver**。
 
 ## 未達成・保留 (明示)
 
-- **S1 (#146)**: sill 共有 emit コア。次に着手。
-- **S2 (#147)**: chord を共有コアに載せ替え(byte-identical)。
-- **S3/S4/S-validate/S5**: sill Spec 統合 / facet 採用 / 共有 validator / perch/wand/halo 採用。
+- **S3 (sill)**: 既存 `Spec<Root>.jsonSchema()` を S1 共有コア経由に。次に着手(cold-start ガイド参照)。
+- **S4 (facet)**: sill bump + enum フィールドに enumDocs。
+- **S-validate (sill)**: 共有 generic runtime validator(descriptor のルールを decode 後の値に実行)。
+  facet/wand の大 toml が主受益者。
+- **S5 (perch/wand/halo)**: sill ConfigSchema + emission + validator 採用。各 app の別 issue。
 - **Phase E (#148)**: swift-toml-edit span API。
 - x-chord-constraints は A方式で確定(真の単一 source 化は不採用・over-engineering)。

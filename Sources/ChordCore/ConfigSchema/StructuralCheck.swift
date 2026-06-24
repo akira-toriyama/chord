@@ -14,6 +14,7 @@
 // [input-aliases]) accept any key by design and are not checked here.
 
 import Foundation
+import ConfigSchema
 
 public extension ChordConfigSchema {
 

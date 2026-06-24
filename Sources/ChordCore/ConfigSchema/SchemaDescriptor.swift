@@ -1,150 +1,38 @@
-// SchemaDescriptor.swift — chord-LOCAL descriptor of the config.toml INPUT
-// surface (the keys a user writes), the single source for:
+// SchemaDescriptor.swift — chord-LOCAL descriptor DATA for the config.toml
+// INPUT surface (the keys a user writes), the single source for:
 //   • `chord config --emit-schema` → the Draft-07 JSON Schema for taplo
 //     editor completion (issue #78), and
 //   • the parser's STRUCTURAL validation (unknown-key per section) — issue
 //     #52, bounded: the descriptor owns the key inventory; the hand-written
 //     leaf DSL parsing (InputParser / ActionParser / alias resolution) stays.
 //
-// This is NOT sill `ConfigSchema` (#52's full parser-unification is iceboxed —
-// chord's config is an imperative DSL, not a flat decode), and it is NOT
-// `chord.bindings.v3.json` (that is the parse-OUTPUT wire format; this models
-// the config.toml INPUT). Pure data + Foundation only.
+// The descriptor TYPES (`SchemaField` / `ObjectShape` / `SchemaSection` /
+// `ExclusionRule` / `NestedTable`) and the JSON-Schema LOWERING now live in
+// sill's `ConfigSchema` module (atelier #138 S1) — generalised so facet / wand
+// / perch share one emitter. This file is the chord-specific DATA + the
+// runtime-only-constraint catalog (which needs `ConfigWarning.Kind`, a
+// chord-local type). `config.schema.json` stays byte-identical across the
+// move — the only chord-specific output spellings (the `x-chord-constraints`
+// vendor key, slash-escaping, no trailing newline) are passed as `EmitOptions`.
+//
+// This is NOT sill `ConfigSchema.Spec` (#52's full parser-unification is
+// iceboxed — chord's config is an imperative DSL, not a flat decode), and it
+// is NOT `chord.bindings.v3.json` (that is the parse-OUTPUT wire format; this
+// models the config.toml INPUT).
 
 import Foundation
-
-// MARK: - Leaf field
-
-/// One scalar / array / map leaf in the config.toml input surface.
-public struct SchemaField: Sendable, Equatable {
-    public enum Shape: Sendable, Equatable {
-        case string                 // plain or free-form DSL string
-        case integer
-        case boolean
-        case stringOrStringArray    // `action-keys`, `input-source`
-        case stringArray            // `apps`, `exclude-apps`, `inputs`
-        case constTrue              // `action-noop`, `action-spotlight` (only `true`)
-        case intMap                 // `when-vars { a = 1 }` (additionalProperties: integer)
-        case stringMap              // `[action-aliases]`, `[[remap]].map`
-    }
-    public var key: String
-    public var shape: Shape
-    /// Finite value set → JSON `enum`. nil for free-form / DSL strings.
-    public var enumDomain: [String]?
-    /// Per-enum-value hover docs, index-aligned to `enumDomain` (a nil entry
-    /// skips that value). Emitted as `x-taplo.docs.enumValues` — taplo's
-    /// per-value hover, which plain `description` cannot give.
-    public var enumDocs: [String?]?
-    public var defaultBool: Bool?
-    public var defaultInt: Int?
-    /// `> n` knobs (timeout-ms, hold-while-timeout) → `exclusiveMinimum`.
-    public var exclusiveMinimum: Int?
-    public var doc: String
-    /// A key the PARSER recognises but that is NOT schema-valid — it is
-    /// detected only to reject it with a specific error (the
-    /// `action-toggle-var-on-up` / `action-hold-var-on-up` forms, which
-    /// have no valid on-up half). It belongs in [ObjectShape.keySet] (so
-    /// the #52 unknown-key check doesn't mis-report it as a typo) but is
-    /// OMITTED from the emitted JSON Schema (#78) — the schema's
-    /// `additionalProperties: false` correctly rejects it.
-    public var rejected: Bool
-
-    public init(_ key: String, _ shape: Shape, doc: String,
-                enumDomain: [String]? = nil, enumDocs: [String?]? = nil,
-                defaultBool: Bool? = nil, defaultInt: Int? = nil,
-                exclusiveMinimum: Int? = nil, rejected: Bool = false) {
-        self.key = key; self.shape = shape; self.doc = doc
-        self.enumDomain = enumDomain; self.enumDocs = enumDocs
-        self.defaultBool = defaultBool; self.defaultInt = defaultInt
-        self.exclusiveMinimum = exclusiveMinimum; self.rejected = rejected
-    }
-}
-
-// MARK: - Cross-field rules (lowered to JSON Schema by SchemaEmit)
-
-public enum ExclusionRule: Sendable, Equatable {
-    /// ≥1 of these keys must be present (the action-* union — NOT exactly-one,
-    /// because `action-shell` + `action-keys` legally co-occur, shell first).
-    case anyOfRequired([String])
-    /// exactly one of these is present (`input` xor `inputs` on fallbacks).
-    case oneOfRequired([String])
-    /// these keys may not all be present together (`hold-while` +
-    /// `hold-while-timeout`; the set/toggle/hold-var lifecycle triad).
-    case forbidsTogether([String])
-    /// `key` present ⇒ `needs` present (`action-set-value` ⇒ `action-set-var`).
-    case dependency(key: String, needs: String)
-}
-
-// MARK: - Object / table shapes
-
-/// A table (or array-of-tables item) shape: its fields, what is required,
-/// the cross-field rules, and any nested array-of-tables children.
-public struct ObjectShape: Sendable {
-    public var fields: [SchemaField]
-    public var required: [String]
-    public var exclusions: [ExclusionRule]
-    public var nested: [NestedTable]
-    public var doc: String
-    /// Keys taplo pre-inserts when autocompleting a new table of this shape
-    /// (`x-taplo.initKeys`) — a curated starter set for array-of-tables items.
-    public var initKeys: [String]
-    /// Cross-cutting rules the daemon enforces at load that Draft-07 cannot
-    /// express (alias definedness, cross-row uniqueness, reserved names, …).
-    /// Emitted as the `x-chord-constraints` vendor array for editor hover.
-    /// DISCOVERABILITY only — `chord config --validate` / the daemon remain the
-    /// enforcement authority. Kept in lockstep with the relevant
-    /// ConfigWarning.Kind cases by ConfigConstraintCoverageTests.
-    public var xChordConstraints: [String]
-
-    public init(fields: [SchemaField], required: [String] = [],
-                exclusions: [ExclusionRule] = [], nested: [NestedTable] = [],
-                doc: String = "", initKeys: [String] = [],
-                xChordConstraints: [String] = []) {
-        self.fields = fields; self.required = required
-        self.exclusions = exclusions; self.nested = nested; self.doc = doc
-        self.initKeys = initKeys; self.xChordConstraints = xChordConstraints
-    }
-
-    /// Every key this object accepts (own fields + nested-table keys). Used by
-    /// the parser's unknown-key validation (#52-bounded) and the shape tests.
-    public var keySet: Set<String> {
-        Set(fields.map(\.key)).union(nested.map(\.key))
-    }
-}
-
-public struct NestedTable: Sendable {
-    public var key: String          // e.g. "per-app", "bindings"
-    public var item: ObjectShape    // the array-of-tables item shape
-    public var required: Bool       // the parent must declare it
-    public var nonEmpty: Bool       // minItems: 1
-    public init(key: String, item: ObjectShape, required: Bool = false,
-                nonEmpty: Bool = false) {
-        self.key = key; self.item = item; self.required = required
-        self.nonEmpty = nonEmpty
-    }
-}
-
-public enum SectionKind: Sendable {
-    case table(ObjectShape)                          // [options]
-    case openStringMap(valueDoc: String)             // [action-aliases] / [input-aliases]
-    case openIntMap(valueDoc: String, min: Int, max: Int)  // [v-key-aliases]
-    case arrayOfTables(ObjectShape)                  // [[bindings]] etc.
-}
-
-public struct SchemaSection: Sendable {
-    public var name: String          // the TOML key: "options", "bindings", …
-    public var kind: SectionKind
-    public var doc: String
-    public init(_ name: String, _ kind: SectionKind, doc: String) {
-        self.name = name; self.kind = kind; self.doc = doc
-    }
-}
+import ConfigSchema
 
 // MARK: - Shared field factories (reused across every binding-like context so
 // a field added once lands everywhere — completeness is structural).
 
 public enum ChordConfigSchema {
     public static let title = "chord config.toml"
+
+    /// The `$comment` line carried into the emitted schema.
+    static let comment = "chord config.toml INPUT schema (editor completion). "
+        + "Regenerate: `chord config --emit-schema > config.schema.json`. "
+        + "NOT chord.bindings.v3.json (the parse-OUTPUT wire format)."
 
     /// The action-* union members (key-down). Free-form vs enum vs const-true,
     /// matching ActionParser. mission-control / screenshot enum values are the
@@ -320,7 +208,7 @@ public enum ChordConfigSchema {
             nested: [NestedTable(key: "per-app", item: perAppShape())],
             doc: "A key/chord → action binding.",
             initKeys: ["input", "action-keys"],
-            xChordConstraints: bindingConstraints())
+            constraints: bindingConstraints())
     }
 
     /// `[[bindings.per-app]]` — bundle-id required, every field an optional
@@ -357,7 +245,7 @@ public enum ChordConfigSchema {
             ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields() + scopeFields(),
             exclusions: [.oneOfRequired(["input", "inputs"])] + commonExclusions(),
             doc: "A lower-priority binding tried only when no [[bindings]] row matched.",
-            xChordConstraints: bindingConstraints())
+            constraints: bindingConstraints())
     }
 
     /// `[[sequence]]` — prefix + timeout-ms + nested bindings (leader key).
@@ -384,7 +272,7 @@ public enum ChordConfigSchema {
             required: ["input"],
             exclusions: commonExclusions(),
             doc: "A binding active only after its sequence prefix is armed.",
-            xChordConstraints: bindingConstraints())
+            constraints: bindingConstraints())
     }
 
     /// `[[remap]]` — modifiers + map of source→action-keys.
@@ -431,5 +319,23 @@ public enum ChordConfigSchema {
             SchemaSection("sequence", .arrayOfTables(sequenceShape()), doc: "Leader-key sequences."),
             SchemaSection("remap", .arrayOfTables(remapShape()), doc: "Bulk key remaps."),
         ]
+    }
+
+    // MARK: Emit (delegated to sill's shared lowering)
+
+    /// The whole config.toml input surface as a sill `SchemaDescriptor`.
+    static var descriptor: SchemaDescriptor {
+        SchemaDescriptor(title: title, comment: comment, sections: sections)
+    }
+
+    /// The emitted Draft-07 JSON Schema for config.toml (no trailing newline,
+    /// matching the sibling apps' `--emit-schema`). chord's output spellings —
+    /// the `x-chord-constraints` vendor key, escaped slashes, no trailing
+    /// newline — are the `EmitOptions`; everything else is sill's shared
+    /// lowering. NOT chord.bindings.v3.json (the parse-OUTPUT wire format).
+    public static var jsonSchema: String {
+        descriptor.jsonSchema(options: .init(escapeSlashes: true,
+                                             trailingNewline: false,
+                                             constraintsKey: "x-chord-constraints"))
     }
 }
