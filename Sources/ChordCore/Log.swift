@@ -31,12 +31,12 @@ public enum Log {
     }()
 
     public static func line(_ message: @autoclosure () -> String) {
-        emit(message(), mirrorToStderrOverride: nil)
+        emit(message())
     }
 
     public static func debug(_ message: @autoclosure () -> String) {
         guard debugMode else { return }
-        emit(message(), mirrorToStderrOverride: nil)
+        emit(message())
     }
 
     /// Per-event structured line for `chord daemon --watch`. Cheap no-op
@@ -59,7 +59,7 @@ public enum Log {
         try? h.write(contentsOf: data)
     }
 
-    private static func emit(_ message: String, mirrorToStderrOverride: Bool?) {
+    private static func emit(_ message: String) {
         let ts = formatter.string(from: Date())
         let line = "[\(ts)] \(message)\n"
         lock.lock()
@@ -75,8 +75,7 @@ public enum Log {
                 FileManager.default.createFile(atPath: path, contents: data)
             }
         }
-        let mirror = mirrorToStderrOverride ?? debugMode
-        if mirror {
+        if debugMode {
             FileHandle.standardError.write(Data(line.utf8))
         }
     }
