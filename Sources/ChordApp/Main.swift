@@ -70,6 +70,7 @@ enum ChordApp {
         "--show":        ["--json", "--include-dropped"],   // was --list
         "--doctor":      [],
         "--emit-schema": [],
+        "--observe":     [],
     ]
     @MainActor
     private static let daemonVerbs: [String: [String]] = [
@@ -212,6 +213,8 @@ enum ChordApp {
             return .code(runDoctor())
         case "--emit-schema":
             return .code(runEmitSchema())
+        case "--observe":
+            return .code(ObserveCommand.run())
         default:
             return .fail(2, stderr: "chord: unreachable config verb \(verb)")
         }
@@ -636,6 +639,8 @@ enum ChordApp {
           chord config --show --include-dropped   also list dropped bindings
           chord config --doctor             report Accessibility / config / daemon
           chord config --emit-schema        config.toml JSON Schema for editors (Draft-07)
+          chord config --observe            stream pressed keycodes / mouse / modifier
+                                              sides live (discovery; nothing consumed)
 
         daemon — lifecycle (need a running daemon; exit 3 if none)
           chord daemon --reload             tell the running daemon to reload config

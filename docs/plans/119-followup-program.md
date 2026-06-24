@@ -54,7 +54,8 @@ interactive keycode/modifier/mouse discovery (skhd `-o`)。survey 唯一の adop
 AX のみ・headless debugging 補強・consume/pass 単段契約に非抵触。
 
 - [x] 維持者確認 → **`config --observe` で実装** (config domain、--doctor/--emit-schema と同 family)
-- [ ] 実装: configVerbs に `--observe` 追加 / 短命 CGEventTap を passthrough で開き keyDown code+mods(side bits)+mouse/scroll を stderr に stream / Ctrl-C 終了 / 自前 AX grant を help に注記 / テスト
+- [x] 実装: configVerbs に `--observe` 追加 / `MacOSEventSource` を passthrough handler で再利用し keyDown(code+name+side bits)/mouse/scroll/flags を stdout に stream / Ctrl-C 終了 / AX 未許可は exit 1 / help + README(EN/JA) / 純関数 `ObserveCommand.line` を切り出し test (ObserveFormatTests)
+- ✅ done in PR (#123)。`Sources/ChordApp/Observe.swift`。
 
 ## 5. feature-survey discuss (#124) — 維持者判断待ち
 
@@ -78,13 +79,13 @@ repeat-last-action (fits) / mouse_key (one-shot に scope) / to_delayed_action (
   所見を 6 issue (#120-#125) + 本 plan に集約。
 - 2026-06-24: #120 schema contract fix → PR #126 merge。dependabot #116 (sill 1.12.0) auto-merge 設定。
   維持者 decision: observe=`config --observe`、#116=merge、共通化=推奨/一貫性 fix OK。
-- 2026-06-24: #121 docs sweep (14 files、doc+comment text のみ・build 緑) → PR #121。#122 の comment 項目を吸収。
+- 2026-06-24: #121 docs sweep (14 files、doc+comment text のみ・build 緑) → PR #127。#122 の comment 項目を吸収。
+- 2026-06-24: #123 `config --observe` 実装 (Observe.swift + Main 配線 + テスト + README EN/JA、build 緑) → PR feat/config-observe。
 
 ## 未達成・保留 (明示)
 
 - **#122 refactor**: dead-code 削除 (Log.emit/resolveBareAlias/cmdToggle) + 任意の dedup。次の PR。
-- **#123 observe**: `config --observe` 実装 (決定済、未着手)。
-- **glossary.yml Pages publisher** (#125): 追加予定 (要 Pages 有効化確認)。
+- **glossary.yml Pages publisher** (#125): **Pages が未有効化** (404) のため保留 — 維持者が Settings→Pages→GitHub Actions を有効化したら thin caller を追加。
 - **#124 feature 群**: 維持者がどれを issue 化するか待ち (parked、黙って進めない)。
 - **cross-repo (保留)**: swift-toml-edit span API / sill ConfigSchema(#52) — heavier、別途相談。
 - 運用メモ: plan file 更新は各 work PR 内で該当 checkbox を同時更新 (plan 専用 PR を作らない)。
