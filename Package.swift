@@ -61,12 +61,21 @@ let package = Package(
         // after `--limit` is a value, not a flag). Floor bumped to 0.11.0 (the release that removed
         // sill's in-tree `Toml`). Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "1.24.0")),
+                 .upToNextMinor(from: "1.25.0")),
     ],
     targets: [
         .target(
             name: "ChordCore",
-            dependencies: [.product(name: "Toml", package: "swift-toml-edit")]),
+            dependencies: [
+                .product(name: "Toml", package: "swift-toml-edit"),
+                // ConfigSchema: the family's shared decode-free schema
+                // descriptor + Draft-07 emitter (atelier #138 S1, sill 1.25.0).
+                // ChordConfigSchema is the chord-LOCAL descriptor DATA; the
+                // type vocabulary (SchemaField / ObjectShape / SchemaSection /
+                // …) and the JSON-Schema lowering live here so facet / wand /
+                // perch share one emitter. chord drives it as the pilot.
+                .product(name: "ConfigSchema", package: "sill"),
+            ]),
         .target(name: "ChordAdapterMacOS", dependencies: ["ChordCore"]),
         .target(name: "ChordAdapterTest", dependencies: ["ChordCore"]),
         .executableTarget(
