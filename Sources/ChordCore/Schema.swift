@@ -108,6 +108,12 @@ public enum BindingsSchema {
         public let bindings: Int
         public let fallbacks: Int
         public let actionAliases: Int
+
+        enum CodingKeys: String, CodingKey {
+            case bindings
+            case fallbacks
+            case actionAliases = "action_aliases"
+        }
     }
 
     public struct WireOptions: Codable, Sendable {
@@ -274,8 +280,9 @@ public enum BindingsSchema {
     }
 
     public struct WireDropped: Codable, Sendable {
-        /// `"[[bindings]]"` | `"[[fallbacks]]"` | `"[actionAliases]"` —
-        /// matches the literal section header the warning fired in.
+        /// `"[[bindings]]"` | `"[[fallbacks]]"` | `"[action-aliases]"` |
+        /// `"[input-aliases]"` | `"[v-key-aliases]"` — matches the literal
+        /// section header the warning fired in.
         public let section: String
         public let name: String?
         public let sourceLine: Int?
@@ -674,7 +681,7 @@ public enum BindingsSchema {
             // skip in the dropped[] list.
             return nil
         case .actionAliasNonString:
-            section = "[actionAliases]"
+            section = "[action-aliases]"
         case .inputAliasNonString,
              .inputAliasShadowsModifier,
              .inputAliasInvalidBody:
