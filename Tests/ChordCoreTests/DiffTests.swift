@@ -1,17 +1,17 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// Coverage for the `daemon --reload --dry-run` diff algorithm. Bindings
 /// match by name; semantic equality ignores line numbers /
 /// document order.
-final class DiffTests: XCTestCase {
+@Suite struct DiffTests {
 
     private func doc(_ source: String) throws -> BindingsSchema.Document {
         let res = try Config.parse(source)
         return BindingsSchema.makeDocument(from: res)
     }
 
-    func testNoSnapshotEverythingAdded() throws {
+    @Test func noSnapshotEverythingAdded() throws {
         let new = try doc("""
         [[bindings]]
         name = "x"
@@ -19,13 +19,13 @@ final class DiffTests: XCTestCase {
         action-noop = true
         """)
         let d = BindingsSchema.diff(old: nil, new: new)
-        XCTAssertEqual(d.addedBindings.count, 1)
-        XCTAssertEqual(d.addedBindings[0].name, "x")
-        XCTAssertTrue(d.removedBindings.isEmpty)
-        XCTAssertTrue(d.changedBindings.isEmpty)
+        #expect(d.addedBindings.count == 1)
+        #expect(d.addedBindings[0].name == "x")
+        #expect(d.removedBindings.isEmpty)
+        #expect(d.changedBindings.isEmpty)
     }
 
-    func testIdenticalDocsAreClean() throws {
+    @Test func identicalDocsAreClean() throws {
         let src = """
         [[bindings]]
         name = "x"
@@ -35,11 +35,11 @@ final class DiffTests: XCTestCase {
         let a = try doc(src)
         let b = try doc(src)
         let d = BindingsSchema.diff(old: a, new: b)
-        XCTAssertTrue(d.isClean)
-        XCTAssertEqual(d.unchangedBindingCount, 1)
+        #expect(d.isClean)
+        #expect(d.unchangedBindingCount == 1)
     }
 
-    func testNameChangeIsAddedPlusRemoved() throws {
+    @Test func nameChangeIsAddedPlusRemoved() throws {
         let oldDoc = try doc("""
         [[bindings]]
         name = "old name"
@@ -53,12 +53,12 @@ final class DiffTests: XCTestCase {
         action-noop = true
         """)
         let d = BindingsSchema.diff(old: oldDoc, new: newDoc)
-        XCTAssertEqual(d.addedBindings.map(\.name), ["new name"])
-        XCTAssertEqual(d.removedBindings.map(\.name), ["old name"])
-        XCTAssertTrue(d.changedBindings.isEmpty)
+        #expect(d.addedBindings.map(\.name) == ["new name"])
+        #expect(d.removedBindings.map(\.name) == ["old name"])
+        #expect(d.changedBindings.isEmpty)
     }
 
-    func testSameNameDifferentInputIsChanged() throws {
+    @Test func sameNameDifferentInputIsChanged() throws {
         let oldDoc = try doc("""
         [[bindings]]
         name = "x"
@@ -72,14 +72,14 @@ final class DiffTests: XCTestCase {
         action-noop = true
         """)
         let d = BindingsSchema.diff(old: oldDoc, new: newDoc)
-        XCTAssertTrue(d.addedBindings.isEmpty)
-        XCTAssertTrue(d.removedBindings.isEmpty)
-        XCTAssertEqual(d.changedBindings.count, 1)
-        XCTAssertEqual(d.changedBindings[0].old.input.raw, "f13")
-        XCTAssertEqual(d.changedBindings[0].new.input.raw, "f14")
+        #expect(d.addedBindings.isEmpty)
+        #expect(d.removedBindings.isEmpty)
+        #expect(d.changedBindings.count == 1)
+        #expect(d.changedBindings[0].old.input.raw == "f13")
+        #expect(d.changedBindings[0].new.input.raw == "f14")
     }
 
-    func testLineShiftIsNotChange() throws {
+    @Test func lineShiftIsNotChange() throws {
         // Inserting a different binding above shouldn't surface the
         // shifted binding as "changed". Its source_line moves but
         // its name + input + action are stable.
@@ -101,12 +101,12 @@ final class DiffTests: XCTestCase {
         action-noop = true
         """)
         let d = BindingsSchema.diff(old: oldDoc, new: newDoc)
-        XCTAssertEqual(d.addedBindings.map(\.name), ["newcomer"])
-        XCTAssertTrue(d.changedBindings.isEmpty)
-        XCTAssertEqual(d.unchangedBindingCount, 1)
+        #expect(d.addedBindings.map(\.name) == ["newcomer"])
+        #expect(d.changedBindings.isEmpty)
+        #expect(d.unchangedBindingCount == 1)
     }
 
-    func testFallbacksDiffSeparately() throws {
+    @Test func fallbacksDiffSeparately() throws {
         let oldDoc = try doc("""
         [[bindings]]
         name = "b"
@@ -130,12 +130,12 @@ final class DiffTests: XCTestCase {
         action-shell = "afplay /System/Library/Sounds/Glass.aiff"
         """)
         let d = BindingsSchema.diff(old: oldDoc, new: newDoc)
-        XCTAssertEqual(d.unchangedBindingCount, 1)
-        XCTAssertEqual(d.changedFallbacks.count, 1)
-        XCTAssertTrue(d.addedFallbacks.isEmpty)
+        #expect(d.unchangedBindingCount == 1)
+        #expect(d.changedFallbacks.count == 1)
+        #expect(d.addedFallbacks.isEmpty)
     }
 
-    func testAliasDiff() throws {
+    @Test func aliasDiff() throws {
         let oldDoc = try doc("""
         [action-aliases]
         keep = "echo keep"
@@ -149,12 +149,12 @@ final class DiffTests: XCTestCase {
         fresh = "echo hi"
         """)
         let d = BindingsSchema.diff(old: oldDoc, new: newDoc)
-        XCTAssertEqual(d.actionAliasesAdded, ["fresh": "echo hi"])
-        XCTAssertEqual(d.actionAliasesRemoved, ["gone": "echo bye"])
-        XCTAssertEqual(d.actionAliasesChanged.count, 1)
-        XCTAssertEqual(d.actionAliasesChanged[0].name, "change")
-        XCTAssertEqual(d.actionAliasesChanged[0].oldBody, "echo old")
-        XCTAssertEqual(d.actionAliasesChanged[0].newBody, "echo new")
+        #expect(d.actionAliasesAdded == ["fresh": "echo hi"])
+        #expect(d.actionAliasesRemoved == ["gone": "echo bye"])
+        #expect(d.actionAliasesChanged.count == 1)
+        #expect(d.actionAliasesChanged[0].name == "change")
+        #expect(d.actionAliasesChanged[0].oldBody == "echo old")
+        #expect(d.actionAliasesChanged[0].newBody == "echo new")
     }
 
     // MARK: - younger fields (chord 0.9.0+) must register as changes
@@ -164,7 +164,7 @@ final class DiffTests: XCTestCase {
     // reported "no change" (the dry-run lied). Each must now surface as a
     // changed binding.
 
-    func testPassthroughOnlyEditIsChanged() throws {
+    @Test func passthroughOnlyEditIsChanged() throws {
         let base = """
         [[bindings]]
         name = "x"
@@ -173,12 +173,12 @@ final class DiffTests: XCTestCase {
         """
         let d = BindingsSchema.diff(old: try doc(base),
                                     new: try doc(base + "\npassthrough = true"))
-        XCTAssertEqual(d.changedBindings.count, 1,
-                       "passthrough-only edit must surface as changed")
-        XCTAssertEqual(d.unchangedBindingCount, 0)
+        #expect(d.changedBindings.count == 1,
+                "passthrough-only edit must surface as changed")
+        #expect(d.unchangedBindingCount == 0)
     }
 
-    func testRepeatOnlyEditIsChanged() throws {
+    @Test func repeatOnlyEditIsChanged() throws {
         let base = """
         [[bindings]]
         name = "x"
@@ -187,11 +187,11 @@ final class DiffTests: XCTestCase {
         """
         let d = BindingsSchema.diff(old: try doc(base),
                                     new: try doc(base + "\nrepeat = \"ignore\""))
-        XCTAssertEqual(d.changedBindings.count, 1,
-                       "repeat-only edit must surface as changed")
+        #expect(d.changedBindings.count == 1,
+                "repeat-only edit must surface as changed")
     }
 
-    func testInputSourceOnlyEditIsChanged() throws {
+    @Test func inputSourceOnlyEditIsChanged() throws {
         let base = """
         [[bindings]]
         name = "x"
@@ -201,11 +201,11 @@ final class DiffTests: XCTestCase {
         let d = BindingsSchema.diff(
             old: try doc(base),
             new: try doc(base + "\ninput-source = [\"com.apple.keylayout.US\"]"))
-        XCTAssertEqual(d.changedBindings.count, 1,
-                       "input-source-only edit must surface as changed")
+        #expect(d.changedBindings.count == 1,
+                "input-source-only edit must surface as changed")
     }
 
-    func testConditionOnlyEditIsChanged() throws {
+    @Test func conditionOnlyEditIsChanged() throws {
         let oldDoc = try doc("""
         [[bindings]]
         name = "g"
@@ -223,7 +223,7 @@ final class DiffTests: XCTestCase {
         action-noop = true
         """)
         let d = BindingsSchema.diff(old: oldDoc, new: newDoc)
-        XCTAssertEqual(d.changedBindings.count, 1,
-                       "when-var value change must surface as changed")
+        #expect(d.changedBindings.count == 1,
+                "when-var value change must surface as changed")
     }
 }

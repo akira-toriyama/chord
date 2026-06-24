@@ -1,10 +1,11 @@
-import XCTest
+import Foundation
+import Testing
 import ChordCore
 import ChordAdapterTest
 
-final class TestEventSourceTests: XCTestCase {
+@Suite struct TestEventSourceTests {
     @MainActor
-    func testHandlerConsumesMatchedAndPassesUnmatched() throws {
+    @Test func handlerConsumesMatchedAndPassesUnmatched() throws {
         let cfg = """
         [[bindings]]
         name = "screenshot"
@@ -28,8 +29,8 @@ final class TestEventSourceTests: XCTestCase {
         let unmatched = src.feed(.init(trigger: .key(0x00),
                                        modifiers: [],
                                        frontmostBundleID: nil))
-        XCTAssertEqual(matched, .consume)
-        XCTAssertEqual(unmatched, .passthrough)
+        #expect(matched == .consume)
+        #expect(unmatched == .passthrough)
     }
 
     /// End-to-end happy path for `[[sequence]]` over the synthetic
@@ -39,7 +40,7 @@ final class TestEventSourceTests: XCTestCase {
     /// composes on top of: prefix fires unconditionally and writes
     /// `_seq_<name>`, children fire only while the variable is set.
     @MainActor
-    func testSequenceLeaderFlowThroughEventSource() throws {
+    @Test func sequenceLeaderFlowThroughEventSource() throws {
         let cfg = """
         [[sequence]]
         name = "j"
@@ -55,7 +56,7 @@ final class TestEventSourceTests: XCTestCase {
           action-keys = "backspace"
         """
         let result = try Config.parse(cfg)
-        XCTAssertEqual(result.droppedBindings, 0)
+        #expect(result.droppedBindings == 0)
         let matcher = Matcher(bindings: result.config.bindings)
 
         // Stand-in for the Controller's state-var store. The real
@@ -81,36 +82,36 @@ final class TestEventSourceTests: XCTestCase {
         let kBefore = src.feed(.init(trigger: .key(0x28),       // k
                                      modifiers: [.lcmd, .lopt],
                                      frontmostBundleID: nil))
-        XCTAssertEqual(kBefore, .passthrough,
-                       "child must not fire before prefix sets _seq_j")
-        XCTAssertEqual(state.snapshot.value("_seq_j"), 0)
+        #expect(kBefore == .passthrough,
+                "child must not fire before prefix sets _seq_j")
+        #expect(state.snapshot.value("_seq_j") == 0)
 
         // 2. Prefix: enters mode, consumes, sets _seq_j = 1.
         let prefix = src.feed(.init(trigger: .key(0x26),        // j
                                     modifiers: [.lcmd, .lopt],
                                     frontmostBundleID: nil))
-        XCTAssertEqual(prefix, .consume)
-        XCTAssertEqual(state.snapshot.value("_seq_j"), 1)
+        #expect(prefix == .consume)
+        #expect(state.snapshot.value("_seq_j") == 1)
 
         // 3. Child within mode: consumes (would emit return).
         let kAfter = src.feed(.init(trigger: .key(0x28),
                                     modifiers: [.lcmd, .lopt],
                                     frontmostBundleID: nil))
-        XCTAssertEqual(kAfter, .consume)
+        #expect(kAfter == .consume)
 
         // 4. Second child also fires.
         let lInMode = src.feed(.init(trigger: .key(0x25),       // l
                                      modifiers: [.lcmd, .lopt],
                                      frontmostBundleID: nil))
-        XCTAssertEqual(lInMode, .consume)
+        #expect(lInMode == .consume)
 
         // 5. Simulate Controller's timeout clear: wipe state.
         state.reset()
         let kAfterTimeout = src.feed(.init(trigger: .key(0x28),
                                            modifiers: [.lcmd, .lopt],
                                            frontmostBundleID: nil))
-        XCTAssertEqual(kAfterTimeout, .passthrough,
-                       "child should stop firing after timeout-clear")
+        #expect(kAfterTimeout == .passthrough,
+                "child should stop firing after timeout-clear")
     }
 }
 

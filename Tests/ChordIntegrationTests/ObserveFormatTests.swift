@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import ChordApp
 @testable import ChordCore
 
@@ -7,8 +7,8 @@ import XCTest
 /// `ObserveCommand.run()` is not unit-testable (it blocks until Ctrl-C
 /// and needs an Accessibility grant), so the testable seam is the
 /// pure event→line mapping plus the CLI registration.
-@MainActor
-final class ObserveFormatTests: XCTestCase {
+@Suite @MainActor
+struct ObserveFormatTests {
 
     private func keyDown(_ code: UInt16, _ mods: Modifiers,
                          repeat isRepeat: Bool = false) -> InputEvent {
@@ -18,79 +18,78 @@ final class ObserveFormatTests: XCTestCase {
 
     // MARK: - line(for:)
 
-    func testKeyDownShowsCodeNameAndSideSpecificMods() {
+    @Test func keyDownShowsCodeNameAndSideSpecificMods() {
         let line = ObserveCommand.line(for: keyDown(38, [.rctrl, .rshift]))
-        XCTAssertNotNil(line)
-        XCTAssertTrue(line!.contains("keyDown"))
-        XCTAssertTrue(line!.contains("code=38"))
+        #expect(line != nil)
+        #expect(line!.contains("keyDown"))
+        #expect(line!.contains("code=38"))
         // Name comes from KeyCodes (38 == ANSI 'j'); don't hardcode it.
-        XCTAssertTrue(line!.contains("key=\(KeyCodes.name(forCode: 38))"))
+        #expect(line!.contains("key=\(KeyCodes.name(forCode: 38))"))
         // The whole point: side bits are surfaced, not collapsed to "ctrl".
-        XCTAssertTrue(line!.contains("rctrl + rshift"))
-        XCTAssertFalse(line!.contains("(repeat)"))
+        #expect(line!.contains("rctrl + rshift"))
+        #expect(!line!.contains("(repeat)"))
     }
 
-    func testKeyDownNoModifiersShowsNone() {
+    @Test func keyDownNoModifiersShowsNone() {
         let line = ObserveCommand.line(for: keyDown(0, []))
-        XCTAssertEqual(line?.contains("mods=[(none)]"), true)
+        #expect(line?.contains("mods=[(none)]") == true)
     }
 
-    func testAutorepeatIsFlagged() {
+    @Test func autorepeatIsFlagged() {
         let line = ObserveCommand.line(for: keyDown(38, [.lcmd], repeat: true))
-        XCTAssertEqual(line?.contains("(repeat)"), true)
+        #expect(line?.contains("(repeat)") == true)
     }
 
-    func testKeyUpIsOmitted() {
+    @Test func keyUpIsOmitted() {
         let up = InputEvent(trigger: .key(38), modifiers: [.rctrl],
                             frontmostBundleID: nil, kind: .up)
-        XCTAssertNil(ObserveCommand.line(for: up))
+        #expect(ObserveCommand.line(for: up) == nil)
     }
 
-    func testSyntheticEventIsOmitted() {
+    @Test func syntheticEventIsOmitted() {
         let synth = InputEvent(trigger: .key(38), modifiers: [],
                                frontmostBundleID: nil, kind: .down,
                                isSynthetic: true)
-        XCTAssertNil(ObserveCommand.line(for: synth))
+        #expect(ObserveCommand.line(for: synth) == nil)
     }
 
-    func testModifiersChangedWithHeldModShown() {
+    @Test func modifiersChangedWithHeldModShown() {
         let e = InputEvent(trigger: .key(0), modifiers: [.rctrl],
                            frontmostBundleID: nil, kind: .modifiersChanged)
         let line = ObserveCommand.line(for: e)
-        XCTAssertEqual(line?.contains("flags"), true)
-        XCTAssertEqual(line?.contains("rctrl"), true)
+        #expect(line?.contains("flags") == true)
+        #expect(line?.contains("rctrl") == true)
     }
 
-    func testModifiersChangedReleaseToEmptyIsOmitted() {
+    @Test func modifiersChangedReleaseToEmptyIsOmitted() {
         let e = InputEvent(trigger: .key(0), modifiers: [],
                            frontmostBundleID: nil, kind: .modifiersChanged)
-        XCTAssertNil(ObserveCommand.line(for: e))
+        #expect(ObserveCommand.line(for: e) == nil)
     }
 
-    func testMouseButtonDownShowsNameAndRawNumber() {
+    @Test func mouseButtonDownShowsNameAndRawNumber() {
         let e = InputEvent(trigger: .mouseButton(.side1), modifiers: [.cmd],
                            frontmostBundleID: nil, kind: .down)
         let line = ObserveCommand.line(for: e)
-        XCTAssertEqual(line?.contains("mouseDown"), true)
-        XCTAssertEqual(line?.contains("side1"), true)
-        XCTAssertEqual(line?.contains("(3)"), true)   // MouseButton.side1.rawValue
+        #expect(line?.contains("mouseDown") == true)
+        #expect(line?.contains("side1") == true)
+        #expect(line?.contains("(3)") == true)   // MouseButton.side1.rawValue
     }
 
-    func testScrollShowsDirection() {
+    @Test func scrollShowsDirection() {
         let e = InputEvent(trigger: .scroll(.up), modifiers: [],
                            frontmostBundleID: nil, kind: .down)
-        XCTAssertEqual(ObserveCommand.line(for: e)?.contains("dir=up"), true)
+        #expect(ObserveCommand.line(for: e)?.contains("dir=up") == true)
     }
 
     // MARK: - modString
 
-    func testModStringEmptyIsNone() {
-        XCTAssertEqual(ObserveCommand.modString([]), "(none)")
+    @Test func modStringEmptyIsNone() {
+        #expect(ObserveCommand.modString([]) == "(none)")
     }
 
-    func testModStringKeepsSideBitsInStableOrder() {
-        XCTAssertEqual(ObserveCommand.modString([.rshift, .lctrl]),
-                       "lctrl + rshift")
+    @Test func modStringKeepsSideBitsInStableOrder() {
+        #expect(ObserveCommand.modString([.rshift, .lctrl]) == "lctrl + rshift")
     }
 
     // MARK: - dispatch wiring (no tap is opened)
@@ -99,14 +98,14 @@ final class ObserveFormatTests: XCTestCase {
     /// modifiers — so passing one is rejected (exit 2) BEFORE the
     /// blocking `run()` is reached. This proves the verb is wired in
     /// without actually opening a tap.
-    func testObserveRejectsModifierFlag() {
+    @Test func observeRejectsModifierFlag() {
         let out = ChordApp.dispatch(["config", "--observe", "--json"])
-        XCTAssertEqual(out?.exitCode, 2)
-        XCTAssertTrue(out?.stderr?.contains("no effect with --observe") == true)
+        #expect(out?.exitCode == 2)
+        #expect(out?.stderr?.contains("no effect with --observe") == true)
     }
 
-    func testObserveAppearsInHelp() {
+    @Test func observeAppearsInHelp() {
         let out = ChordApp.dispatch(["--help"])
-        XCTAssertTrue(out?.stdout?.contains("config --observe") == true)
+        #expect(out?.stdout?.contains("config --observe") == true)
     }
 }

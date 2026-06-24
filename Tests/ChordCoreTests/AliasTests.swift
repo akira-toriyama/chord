@@ -1,12 +1,12 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// Coverage for `[action-aliases]` + `@name` expansion (PR4).
 /// Resolution is strict: undefined `@name` drops the binding with a
 /// warning carrying the source line + the undefined alias name.
-final class AliasTests: XCTestCase {
+@Suite struct AliasTests {
 
-    func testAliasExpansionInActionShell() throws {
+    @Test func aliasExpansionInActionShell() throws {
         let res = try Config.parse("""
         [action-aliases]
         rift_focus_next = "rift-cli execute window next"
@@ -16,20 +16,20 @@ final class AliasTests: XCTestCase {
         input = "ctrl + alt + shift - f"
         action-shell = "@rift_focus_next"
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.warnings.count, 0)
-        XCTAssertEqual(res.config.actionAliases["rift_focus_next"],
+        #expect(res.config.bindings.count == 1)
+        #expect(res.droppedBindings == 0)
+        #expect(res.warnings.count == 0)
+        #expect(res.config.actionAliases["rift_focus_next"] ==
                        "rift-cli execute window next")
         switch res.config.bindings[0].action {
         case .shell(let body):
-            XCTAssertEqual(body, "rift-cli execute window next")
+            #expect(body == "rift-cli execute window next")
         default:
-            XCTFail("expected expanded shell action")
+            Issue.record("expected expanded shell action")
         }
     }
 
-    func testUndefinedAliasDropsBindingWithWarning() throws {
+    @Test func undefinedAliasDropsBindingWithWarning() throws {
         let res = try Config.parse("""
         [action-aliases]
         defined_one = "echo yes"
@@ -44,29 +44,29 @@ final class AliasTests: XCTestCase {
         input = "f14"
         action-shell = "@no_such_alias"
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
-        XCTAssertEqual(res.config.bindings[0].name, "uses defined")
-        XCTAssertEqual(res.droppedBindings, 1)
+        #expect(res.config.bindings.count == 1)
+        #expect(res.config.bindings[0].name == "uses defined")
+        #expect(res.droppedBindings == 1)
         // The canon-specified warning format: binding name +
         // (config.toml:LINE) + the alias name + "binding dropped".
         let w = res.warnings.first { $0.kind == .undefinedActionAlias }
-        XCTAssertNotNil(w)
+        #expect(w != nil)
         if let warning = w {
-            XCTAssertEqual(warning.bindingName, "uses undefined")
-            XCTAssertTrue(warning.message.contains("'uses undefined'"),
+            #expect(warning.bindingName == "uses undefined")
+            #expect(warning.message.contains("'uses undefined'"),
                           "want binding name in warning: \(warning.message)")
-            XCTAssertTrue(warning.message.contains("@no_such_alias"),
+            #expect(warning.message.contains("@no_such_alias"),
                           "want alias name in warning: \(warning.message)")
-            XCTAssertTrue(warning.message.contains("binding dropped"),
+            #expect(warning.message.contains("binding dropped"),
                           "want explicit outcome in warning: \(warning.message)")
-            XCTAssertTrue(warning.message.contains("config.toml:"),
+            #expect(warning.message.contains("config.toml:"),
                           "want source line tag: \(warning.message)")
-            XCTAssertNotNil(warning.sourceLine,
+            #expect(warning.sourceLine != nil,
                             "structured sourceLine should be populated")
         }
     }
 
-    func testAliasOnlyAppliesToActionShell() throws {
+    @Test func aliasOnlyAppliesToActionShell() throws {
         // `action-keys` is parsed by InputParser; `@name` would be
         // an unknown token and drop the binding via a different path.
         // We expect NO alias expansion to happen for action-keys.
@@ -79,15 +79,15 @@ final class AliasTests: XCTestCase {
         input = "f13"
         action-keys = "@x"
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertEqual(res.droppedBindings, 1)
+        #expect(res.config.bindings.count == 0)
+        #expect(res.droppedBindings == 1)
         // The drop reason is InputParser's unknown-token, NOT the
         // alias resolver. Make sure no "undefined alias" warning
         // leaks through that path.
-        XCTAssertFalse(res.warnings.contains { $0.kind == .undefinedActionAlias })
+        #expect(!res.warnings.contains { $0.kind == .undefinedActionAlias })
     }
 
-    func testLiteralAtSignPassesThrough() throws {
+    @Test func literalAtSignPassesThrough() throws {
         // `@something with space` is reserved for a future
         // `@name arg` syntax; for now it's treated as a literal
         // command string (the user wrote it; we don't second-guess).
@@ -97,23 +97,23 @@ final class AliasTests: XCTestCase {
         input = "f13"
         action-shell = "@something with arg"
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
+        #expect(res.config.bindings.count == 1)
         switch res.config.bindings[0].action {
         case .shell(let body):
-            XCTAssertEqual(body, "@something with arg")
+            #expect(body == "@something with arg")
         default:
-            XCTFail("expected literal shell action")
+            Issue.record("expected literal shell action")
         }
     }
 
-    func testNonStringAliasValueIgnored() throws {
+    @Test func nonStringAliasValueIgnored() throws {
         let res = try Config.parse("""
         [action-aliases]
         good = "echo yes"
         bad = 42
         """)
-        XCTAssertEqual(res.config.actionAliases, ["good": "echo yes"])
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.actionAliases == ["good": "echo yes"])
+        #expect(res.warnings.contains {
             $0.kind == .actionAliasNonString && $0.message.contains("'bad'")
         })
     }

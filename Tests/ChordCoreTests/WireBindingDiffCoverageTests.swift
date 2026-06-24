@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// Guards the reload-diff against silently dropping a binding dimension.
@@ -10,7 +10,7 @@ import XCTest
 /// properties and forces every one to be classified as either
 /// compared-by-equality or intentionally-ignored. Add a field and this
 /// test fails until you also touch semanticallyEqual + ReloadDiffPrinter.
-final class WireBindingDiffCoverageTests: XCTestCase {
+@Suite struct WireBindingDiffCoverageTests {
 
     /// A representative binding built through the real wire path.
     private func sampleBinding() throws -> BindingsSchema.WireBinding {
@@ -20,7 +20,7 @@ final class WireBindingDiffCoverageTests: XCTestCase {
         input = "cmd - x"
         action-shell = "echo hi"
         """)
-        return try XCTUnwrap(BindingsSchema.makeDocument(from: res).bindings.first)
+        return try #require(BindingsSchema.makeDocument(from: res).bindings.first)
     }
 
     /// Fields semanticallyEqual deliberately IGNORES — cosmetic / ordering
@@ -36,17 +36,16 @@ final class WireBindingDiffCoverageTests: XCTestCase {
         "passthrough", "repeatStrategy", "inputSource",
     ]
 
-    func testEveryStoredPropertyIsClassified() throws {
+    @Test func everyStoredPropertyIsClassified() throws {
         let labels = Mirror(reflecting: try sampleBinding())
             .children.compactMap(\.label)
-        XCTAssertEqual(
-            Set(labels), ignored.union(compared),
-            "WireBinding stored properties drifted from the diff's coverage. "
-            + "A new field must be classified: add it to `compared` AND to "
-            + "BindingsSchema.semanticallyEqual AND to "
-            + "ReloadDiffPrinter.renderDiffBucket — or to `ignored` if it is "
-            + "cosmetic.")
+        // Extracted to a `let` so the macro expansion doesn't tip the
+        // type-checker into an "unable to type-check in reasonable time".
+        let classified = Set(labels) == ignored.union(compared)
+        #expect(
+            classified,
+            "WireBinding stored properties drifted from the diff's coverage. A new field must be classified: add it to `compared` AND to BindingsSchema.semanticallyEqual AND to ReloadDiffPrinter.renderDiffBucket — or to `ignored` if it is cosmetic.")
         // Sanity: reflection saw the full set (no Optional-flattening etc.).
-        XCTAssertEqual(labels.count, ignored.count + compared.count)
+        #expect(labels.count == ignored.count + compared.count)
     }
 }

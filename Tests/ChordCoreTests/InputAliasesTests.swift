@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// Coverage for `[input-aliases]` + `$name` references
@@ -15,11 +15,11 @@ import XCTest
 ///   * Load-time validation (`[input-aliases]` table itself)
 ///   * Parse-time resolution (`$name` token lookup)
 ///   * Schema output (`chord.bindings.v3` `input_aliases` field)
-final class InputAliasesTests: XCTestCase {
+@Suite struct InputAliasesTests {
 
     // MARK: - Resolution: alias hits
 
-    func testDollarPrefixedAliasResolvesToModifierMask() throws {
+    @Test func dollarPrefixedAliasResolvesToModifierMask() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = "rctrl + ralt + rshift"
@@ -29,16 +29,16 @@ final class InputAliasesTests: XCTestCase {
         input = "$ULTRA_LL - c"
         action-keys = "ctrl + shift - tab"
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.warnings.count, 0)
+        #expect(res.config.bindings.count == 1)
+        #expect(res.droppedBindings == 0)
+        #expect(res.warnings.count == 0)
         let b = res.config.bindings[0]
-        XCTAssertTrue(b.modifiers.contains(.rctrl))
-        XCTAssertTrue(b.modifiers.contains(.ropt))
-        XCTAssertTrue(b.modifiers.contains(.rshift))
+        #expect(b.modifiers.contains(.rctrl))
+        #expect(b.modifiers.contains(.ropt))
+        #expect(b.modifiers.contains(.rshift))
     }
 
-    func testAliasMixedWithBuiltinModifier() throws {
+    @Test func aliasMixedWithBuiltinModifier() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = "rctrl + ralt + rshift"
@@ -48,15 +48,15 @@ final class InputAliasesTests: XCTestCase {
         input = "$ULTRA_LL + cmd - m"
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
+        #expect(res.config.bindings.count == 1)
         let b = res.config.bindings[0]
-        XCTAssertTrue(b.modifiers.contains(.rctrl))
-        XCTAssertTrue(b.modifiers.contains(.ropt))
-        XCTAssertTrue(b.modifiers.contains(.rshift))
-        XCTAssertTrue(b.modifiers.contains(.cmd))
+        #expect(b.modifiers.contains(.rctrl))
+        #expect(b.modifiers.contains(.ropt))
+        #expect(b.modifiers.contains(.rshift))
+        #expect(b.modifiers.contains(.cmd))
     }
 
-    func testTwoAliasesUnion() throws {
+    @Test func twoAliasesUnion() throws {
         let res = try Config.parse("""
         [input-aliases]
         LEFT  = "lctrl"
@@ -67,13 +67,13 @@ final class InputAliasesTests: XCTestCase {
         input = "$LEFT + $RIGHT - a"
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
+        #expect(res.config.bindings.count == 1)
         let b = res.config.bindings[0]
-        XCTAssertTrue(b.modifiers.contains(.lctrl))
-        XCTAssertTrue(b.modifiers.contains(.rctrl))
+        #expect(b.modifiers.contains(.lctrl))
+        #expect(b.modifiers.contains(.rctrl))
     }
 
-    func testAliasLookupIsCaseInsensitive() throws {
+    @Test func aliasLookupIsCaseInsensitive() throws {
         // Source declares with uppercase, binding references in
         // lowercase. Both resolve to the same entry.
         let res = try Config.parse("""
@@ -85,11 +85,11 @@ final class InputAliasesTests: XCTestCase {
         input = "$ultra_ll - c"
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.config.bindings.count == 1)
+        #expect(res.droppedBindings == 0)
     }
 
-    func testAliasSharedAcrossMultipleBindings() throws {
+    @Test func aliasSharedAcrossMultipleBindings() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = "rctrl + ralt + rshift"
@@ -104,13 +104,13 @@ final class InputAliasesTests: XCTestCase {
         input = "$ULTRA_LL - b"
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 2)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.config.bindings.count == 2)
+        #expect(res.droppedBindings == 0)
     }
 
     // MARK: - Resolution: alias misses
 
-    func testBareReferenceFallsThroughAsUnknownToken() throws {
+    @Test func bareReferenceFallsThroughAsUnknownToken() throws {
         // Bare `ULTRA_LL` (no `$` prefix) is treated as a plain
         // modifier token — and since it isn't a built-in, it fails
         // as unknown-input-token. The `$` sigil is required to
@@ -124,14 +124,14 @@ final class InputAliasesTests: XCTestCase {
         input = "ULTRA_LL - m"
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertEqual(res.droppedBindings, 1)
+        #expect(res.config.bindings.count == 0)
+        #expect(res.droppedBindings == 1)
         let w = res.warnings.first { $0.kind == .unknownInputToken }
-        XCTAssertNotNil(w)
-        XCTAssertTrue(w?.message.contains("ultra_ll") == true)
+        #expect(w != nil)
+        #expect(w?.message.contains("ultra_ll") == true)
     }
 
-    func testUndefinedDollarReferenceDropsBindingWithSpecificKind() throws {
+    @Test func undefinedDollarReferenceDropsBindingWithSpecificKind() throws {
         // `$FOO_BAR` with no matching entry in `[input-aliases]`
         // emits `undefined-input-alias` (distinct from
         // `unknown-input-token` for bare typos) so consumers can
@@ -143,17 +143,17 @@ final class InputAliasesTests: XCTestCase {
         input = "$FOO_BAR - x"
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertEqual(res.droppedBindings, 1)
+        #expect(res.config.bindings.count == 0)
+        #expect(res.droppedBindings == 1)
         let w = res.warnings.first { $0.kind == .undefinedInputAlias }
-        XCTAssertNotNil(w)
-        XCTAssertTrue(w?.message.contains("$foo_bar") == true,
-                      "want alias name with `$` prefix in error: \(w?.message ?? "")")
+        #expect(w != nil)
+        #expect(w?.message.contains("$foo_bar") == true,
+                "want alias name with `$` prefix in error: \(w?.message ?? "")")
     }
 
     // MARK: - Load validation
 
-    func testAliasNameShadowsModifierIsRejected() throws {
+    @Test func aliasNameShadowsModifierIsRejected() throws {
         let res = try Config.parse("""
         [input-aliases]
         cmd = "ctrl + shift"
@@ -164,17 +164,17 @@ final class InputAliasesTests: XCTestCase {
         action-noop = true
         """)
         let w = res.warnings.first { $0.kind == .inputAliasShadowsModifier }
-        XCTAssertNotNil(w)
-        XCTAssertTrue(w?.message.contains("'cmd'") == true)
+        #expect(w != nil)
+        #expect(w?.message.contains("'cmd'") == true)
         // The binding still loads (cmd is the built-in modifier).
-        XCTAssertEqual(res.config.bindings.count, 1)
+        #expect(res.config.bindings.count == 1)
         let b = res.config.bindings[0]
-        XCTAssertTrue(b.modifiers.contains(.cmd))
-        XCTAssertFalse(b.modifiers.contains(.ctrl))
-        XCTAssertFalse(b.modifiers.contains(.shift))
+        #expect(b.modifiers.contains(.cmd))
+        #expect(!b.modifiers.contains(.ctrl))
+        #expect(!b.modifiers.contains(.shift))
     }
 
-    func testAliasNonStringValueIsRejected() throws {
+    @Test func aliasNonStringValueIsRejected() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = 42
@@ -185,15 +185,15 @@ final class InputAliasesTests: XCTestCase {
         action-noop = true
         """)
         let w = res.warnings.first { $0.kind == .inputAliasNonString }
-        XCTAssertNotNil(w)
+        #expect(w != nil)
         // Binding drops because alias didn't load → undefined-input-alias.
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertEqual(res.droppedBindings, 1)
-        XCTAssertNotNil(
-            res.warnings.first { $0.kind == .undefinedInputAlias })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.droppedBindings == 1)
+        #expect(
+            res.warnings.first { $0.kind == .undefinedInputAlias } != nil)
     }
 
-    func testAliasInvalidBodyIsRejected() throws {
+    @Test func aliasInvalidBodyIsRejected() throws {
         let res = try Config.parse("""
         [input-aliases]
         BAD = "notamod"
@@ -204,11 +204,11 @@ final class InputAliasesTests: XCTestCase {
         action-noop = true
         """)
         let w = res.warnings.first { $0.kind == .inputAliasInvalidBody }
-        XCTAssertNotNil(w)
-        XCTAssertEqual(res.config.bindings.count, 0)
+        #expect(w != nil)
+        #expect(res.config.bindings.count == 0)
     }
 
-    func testAliasEmptyBodyIsRejected() throws {
+    @Test func aliasEmptyBodyIsRejected() throws {
         let res = try Config.parse("""
         [input-aliases]
         EMPTY = ""
@@ -219,10 +219,10 @@ final class InputAliasesTests: XCTestCase {
         action-noop = true
         """)
         let w = res.warnings.first { $0.kind == .inputAliasInvalidBody }
-        XCTAssertNotNil(w)
+        #expect(w != nil)
     }
 
-    func testNestedAliasReferenceIsRejected() throws {
+    @Test func nestedAliasReferenceIsRejected() throws {
         // Body must contain only built-in modifier tokens — alias
         // bodies aren't recursively resolved (prevents cycles).
         // `$INNER` inside OUTER's body fails because the load-time
@@ -241,17 +241,17 @@ final class InputAliasesTests: XCTestCase {
         let w = res.warnings.first {
             $0.kind == .inputAliasInvalidBody && $0.bindingName == "OUTER"
         }
-        XCTAssertNotNil(w)
+        #expect(w != nil)
         // INNER is fine on its own. OUTER didn't register, so the
         // binding using $OUTER drops as undefinedInputAlias.
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertNotNil(
-            res.warnings.first { $0.kind == .undefinedInputAlias })
+        #expect(res.config.bindings.count == 0)
+        #expect(
+            res.warnings.first { $0.kind == .undefinedInputAlias } != nil)
     }
 
     // MARK: - Schema output
 
-    func testInputAliasesAppearInSchemaDocument() throws {
+    @Test func inputAliasesAppearInSchemaDocument() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL   = "rctrl + ralt + rshift"
@@ -263,13 +263,13 @@ final class InputAliasesTests: XCTestCase {
         action-noop = true
         """)
         let doc = BindingsSchema.makeDocument(from: res)
-        XCTAssertEqual(doc.inputAliases["ULTRA_LL"], "rctrl + ralt + rshift")
-        XCTAssertEqual(doc.inputAliases["MIRACLE_LM"], "rctrl + rcmd + rshift")
+        #expect(doc.inputAliases["ULTRA_LL"] == "rctrl + ralt + rshift")
+        #expect(doc.inputAliases["MIRACLE_LM"] == "rctrl + rcmd + rshift")
     }
 
     // MARK: - Wildcard fallback uses actionAliases too
 
-    func testFallbackInputUsesAlias() throws {
+    @Test func fallbackInputUsesAlias() throws {
         let res = try Config.parse("""
         [input-aliases]
         ULTRA_LL = "rctrl + ralt + rshift"
@@ -279,10 +279,10 @@ final class InputAliasesTests: XCTestCase {
         input = "$ULTRA_LL - *"
         action-shell = "afplay foo.wav"
         """)
-        XCTAssertEqual(res.config.fallbacks.count, 1)
+        #expect(res.config.fallbacks.count == 1)
         let f = res.config.fallbacks[0]
-        XCTAssertTrue(f.modifiers.contains(.rctrl))
-        XCTAssertTrue(f.modifiers.contains(.ropt))
-        XCTAssertTrue(f.modifiers.contains(.rshift))
+        #expect(f.modifiers.contains(.rctrl))
+        #expect(f.modifiers.contains(.ropt))
+        #expect(f.modifiers.contains(.rshift))
     }
 }

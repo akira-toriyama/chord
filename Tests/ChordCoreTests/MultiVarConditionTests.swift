@@ -1,15 +1,15 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// chord 0.9.0+: `when-vars = { a = 1, b = 2 }` inline-table form
 /// gates a binding on the AND of N variable-equality predicates.
 /// Single-entry tables collapse to the existing `.variable`
 /// Condition shape; multi-entry tables emit `.conjunction([...])`.
-final class MultiVarConditionTests: XCTestCase {
+@Suite struct MultiVarConditionTests {
 
     // MARK: - Parse
 
-    func testWhenVarsTwoEntriesProducesConjunction() throws {
+    @Test func whenVarsTwoEntriesProducesConjunction() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "multi-gated"
@@ -17,17 +17,17 @@ final class MultiVarConditionTests: XCTestCase {
         when-vars = { jlayer = 1, sub = 2 }
         action-noop = true
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
+        #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         if case .conjunction(let parts) = b.condition {
-            XCTAssertEqual(parts.count, 2)
+            #expect(parts.count == 2)
             // Sorted by key: jlayer first, sub second.
-            XCTAssertEqual(parts[0], .variable(name: "jlayer", equals: 1))
-            XCTAssertEqual(parts[1], .variable(name: "sub", equals: 2))
-        } else { XCTFail("expected .conjunction") }
+            #expect(parts[0] == .variable(name: "jlayer", equals: 1))
+            #expect(parts[1] == .variable(name: "sub", equals: 2))
+        } else { Issue.record("expected .conjunction") }
     }
 
-    func testWhenVarsSingleEntryCollapsesToVariable() throws {
+    @Test func whenVarsSingleEntryCollapsesToVariable() throws {
         // 1-element table is semantically identical to the v2
         // `when-var` shape — collapse so consumers see one form.
         let res = try Config.parse("""
@@ -37,12 +37,12 @@ final class MultiVarConditionTests: XCTestCase {
         when-vars = { jlayer = 1 }
         action-noop = true
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.bindings[0].condition,
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings[0].condition ==
                        .variable(name: "jlayer", equals: 1))
     }
 
-    func testWhenVarStillWorks() throws {
+    @Test func whenVarStillWorks() throws {
         // Regression: classic when-var / when-var-value path unchanged.
         let res = try Config.parse("""
         [[bindings]]
@@ -52,14 +52,14 @@ final class MultiVarConditionTests: XCTestCase {
         when-var-value = 2
         action-noop = true
         """)
-        XCTAssertEqual(res.droppedBindings, 0)
-        XCTAssertEqual(res.config.bindings[0].condition,
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings[0].condition ==
                        .variable(name: "jlayer", equals: 2))
     }
 
     // MARK: - Validation
 
-    func testWhenVarAndWhenVarsMutuallyExclusive() throws {
+    @Test func whenVarAndWhenVarsMutuallyExclusive() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "both"
@@ -68,14 +68,14 @@ final class MultiVarConditionTests: XCTestCase {
         when-vars = { b = 1 }
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .conditionParseError &&
             $0.message.contains("mutually exclusive")
         })
     }
 
-    func testEmptyWhenVarsRejected() throws {
+    @Test func emptyWhenVarsRejected() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "empty"
@@ -83,14 +83,14 @@ final class MultiVarConditionTests: XCTestCase {
         when-vars = {}
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .conditionParseError &&
             $0.message.contains("at least one")
         })
     }
 
-    func testNonIntegerValueRejected() throws {
+    @Test func nonIntegerValueRejected() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "bad-value"
@@ -98,14 +98,14 @@ final class MultiVarConditionTests: XCTestCase {
         when-vars = { a = "string" }
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .conditionParseError &&
             $0.message.contains("integer")
         })
     }
 
-    func testNonTableValueRejected() throws {
+    @Test func nonTableValueRejected() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "bad-shape"
@@ -113,8 +113,8 @@ final class MultiVarConditionTests: XCTestCase {
         when-vars = "not a table"
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains {
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains {
             $0.kind == .conditionParseError &&
             $0.message.contains("inline table")
         })
@@ -122,7 +122,7 @@ final class MultiVarConditionTests: XCTestCase {
 
     // MARK: - Matcher semantics
 
-    func testConjunctionFiresOnlyWhenAllPartsHold() throws {
+    @Test func conjunctionFiresOnlyWhenAllPartsHold() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "multi-gate"
@@ -137,33 +137,33 @@ final class MultiVarConditionTests: XCTestCase {
                                 modifiers: [.lcmd],
                                 bundleID: nil,
                                 state: StateSnapshot()))
-        XCTAssertNil(none)
+        #expect(none == nil)
 
         // Only a → no fire.
         let onlyA = m.find(.init(trigger: .key(0x07),
                                  modifiers: [.lcmd],
                                  bundleID: nil,
                                  state: StateSnapshot(variables: ["a": 1])))
-        XCTAssertNil(onlyA)
+        #expect(onlyA == nil)
 
         // Both set with correct values → fire.
         let both = m.find(.init(trigger: .key(0x07),
                                 modifiers: [.lcmd],
                                 bundleID: nil,
                                 state: StateSnapshot(variables: ["a": 1, "b": 2])))
-        XCTAssertEqual(both?.name, "multi-gate")
+        #expect(both?.name == "multi-gate")
 
         // b set to wrong value → no fire.
         let wrong = m.find(.init(trigger: .key(0x07),
                                  modifiers: [.lcmd],
                                  bundleID: nil,
                                  state: StateSnapshot(variables: ["a": 1, "b": 3])))
-        XCTAssertNil(wrong)
+        #expect(wrong == nil)
     }
 
     // MARK: - Schema
 
-    func testSchemaEmitsConjunctionAsAllKind() throws {
+    @Test func schemaEmitsConjunctionAsAllKind() throws {
         let b = try firstBinding("""
         [[bindings]]
         name = "multi"
@@ -171,18 +171,18 @@ final class MultiVarConditionTests: XCTestCase {
         when-vars = { a = 1, b = 2 }
         action-noop = true
         """)
-        let cond = try XCTUnwrap(b["condition"] as? [String: Any])
-        XCTAssertEqual(cond["kind"] as? String, "all")
-        let nested = try XCTUnwrap(cond["conditions"] as? [[String: Any]])
-        XCTAssertEqual(nested.count, 2)
-        XCTAssertEqual(nested[0]["kind"] as? String, "variable")
-        XCTAssertEqual(nested[0]["variable"] as? String, "a")
-        XCTAssertEqual(nested[0]["equals"] as? Int, 1)
-        XCTAssertEqual(nested[1]["variable"] as? String, "b")
-        XCTAssertEqual(nested[1]["equals"] as? Int, 2)
+        let cond = try #require(b["condition"] as? [String: Any])
+        #expect(cond["kind"] as? String == "all")
+        let nested = try #require(cond["conditions"] as? [[String: Any]])
+        #expect(nested.count == 2)
+        #expect(nested[0]["kind"] as? String == "variable")
+        #expect(nested[0]["variable"] as? String == "a")
+        #expect(nested[0]["equals"] as? Int == 1)
+        #expect(nested[1]["variable"] as? String == "b")
+        #expect(nested[1]["equals"] as? Int == 2)
     }
 
-    func testSchemaSingleEntryEmitsAsVariable() throws {
+    @Test func schemaSingleEntryEmitsAsVariable() throws {
         // 1-entry table collapses, so JSON still uses kind="variable".
         let b = try firstBinding("""
         [[bindings]]
@@ -191,8 +191,8 @@ final class MultiVarConditionTests: XCTestCase {
         when-vars = { a = 1 }
         action-noop = true
         """)
-        let cond = try XCTUnwrap(b["condition"] as? [String: Any])
-        XCTAssertEqual(cond["kind"] as? String, "variable")
-        XCTAssertEqual(cond["variable"] as? String, "a")
+        let cond = try #require(b["condition"] as? [String: Any])
+        #expect(cond["kind"] as? String == "variable")
+        #expect(cond["variable"] as? String == "a")
     }
 }

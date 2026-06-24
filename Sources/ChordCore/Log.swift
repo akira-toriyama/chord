@@ -43,8 +43,15 @@ public enum Log {
     /// when the watch file doesn't exist (i.e. no client has run
     /// `chord daemon --watch` since this daemon start). Writes only to the
     /// watch file, never mirrored to stderr or to the main log.
-    public static func watch(_ message: @autoclosure () -> String) {
-        guard FileManager.default.fileExists(atPath: watchPath) else {
+    ///
+    /// `path` defaults to the canonical `watchPath`; production never passes
+    /// it. The seam exists for tests: a unit test can point at an isolated
+    /// temp file so its assertions don't race other suites that drive the
+    /// real Controller (which calls this with the default path) under Swift
+    /// Testing's parallel-by-default execution.
+    public static func watch(_ message: @autoclosure () -> String,
+                             to path: String = watchPath) {
+        guard FileManager.default.fileExists(atPath: path) else {
             return
         }
         let ts = formatter.string(from: Date())
@@ -52,7 +59,7 @@ public enum Log {
         lock.lock()
         defer { lock.unlock() }
         guard let data = line.data(using: .utf8),
-              let h = FileHandle(forWritingAtPath: watchPath)
+              let h = FileHandle(forWritingAtPath: path)
         else { return }
         defer { try? h.close() }
         _ = try? h.seekToEnd()

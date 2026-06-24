@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
 /// Coverage for the v2 state-machine surface — `Condition`,
@@ -7,11 +7,11 @@ import XCTest
 /// `action-*-on-up`). The Controller-side wiring (pending-up table,
 /// flagsChanged routing) is exercised in
 /// `ChordIntegrationTests` against the synthetic event source.
-final class StateTests: XCTestCase {
+@Suite struct StateTests {
 
     // MARK: - Matcher condition gate
 
-    func testConditionGateBlocksWhenVariableUnset() {
+    @Test func conditionGateBlocksWhenVariableUnset() {
         let bind = Binding(name: "wm-k", trigger: .key(0x28),
                            modifiers: [.cmd, .opt], apps: nil,
                            action: .noop,
@@ -22,10 +22,10 @@ final class StateTests: XCTestCase {
                                modifiers: [.lcmd, .lopt],
                                bundleID: nil,
                                state: StateSnapshot()))
-        XCTAssertNil(hit, "binding should not fire when wm == 0 (unset)")
+        #expect(hit == nil, "binding should not fire when wm == 0 (unset)")
     }
 
-    func testConditionGateFiresWhenVariableMatches() {
+    @Test func conditionGateFiresWhenVariableMatches() {
         let bind = Binding(name: "wm-k", trigger: .key(0x28),
                            modifiers: [.cmd, .opt], apps: nil,
                            action: .noop,
@@ -35,10 +35,10 @@ final class StateTests: XCTestCase {
                                modifiers: [.lcmd, .lopt],
                                bundleID: nil,
                                state: StateSnapshot(variables: ["wm": 1])))
-        XCTAssertEqual(hit?.name, "wm-k")
+        #expect(hit?.name == "wm-k")
     }
 
-    func testConditionGateRespectsExactValue() {
+    @Test func conditionGateRespectsExactValue() {
         let bind = Binding(name: "layer-3", trigger: .key(0x00),
                            modifiers: [], apps: nil, action: .noop,
                            condition: .variable(name: "layer", equals: 3))
@@ -49,57 +49,57 @@ final class StateTests: XCTestCase {
         let three = m.find(.init(trigger: .key(0x00), modifiers: [],
                                  bundleID: nil,
                                  state: StateSnapshot(variables: ["layer": 3])))
-        XCTAssertNil(two)
-        XCTAssertEqual(three?.name, "layer-3")
+        #expect(two == nil)
+        #expect(three?.name == "layer-3")
     }
 
     // MARK: - StateSnapshot
 
-    func testStateSnapshotUnsetReadsAsZero() {
+    @Test func stateSnapshotUnsetReadsAsZero() {
         let s = StateSnapshot()
-        XCTAssertEqual(s.value("missing"), 0)
+        #expect(s.value("missing") == 0)
     }
 
-    func testStateSnapshotReturnsStoredValue() {
+    @Test func stateSnapshotReturnsStoredValue() {
         let s = StateSnapshot(variables: ["wm": 1, "layer": 3])
-        XCTAssertEqual(s.value("wm"), 1)
-        XCTAssertEqual(s.value("layer"), 3)
-        XCTAssertEqual(s.value("nope"), 0)
+        #expect(s.value("wm") == 1)
+        #expect(s.value("layer") == 3)
+        #expect(s.value("nope") == 0)
     }
 
     // MARK: - Modifiers.isStillHeld (hold-while subset check)
 
-    func testHoldWhileSatisfiedByLeftSideOnly() {
+    @Test func holdWhileSatisfiedByLeftSideOnly() {
         let hold: Modifiers = [.cmd, .opt]   // any-side
         let current: Modifiers = [.lcmd, .lopt]
-        XCTAssertTrue(hold.isStillHeld(in: current))
+        #expect(hold.isStillHeld(in: current))
     }
 
-    func testHoldWhileFailsWhenAModifierReleased() {
+    @Test func holdWhileFailsWhenAModifierReleased() {
         let hold: Modifiers = [.cmd, .opt]
         let current: Modifiers = [.lcmd]    // opt was released
-        XCTAssertFalse(hold.isStillHeld(in: current))
+        #expect(!hold.isStillHeld(in: current))
     }
 
-    func testHoldWhilePermissiveOfExtras() {
+    @Test func holdWhilePermissiveOfExtras() {
         // Adding shift on top of held cmd+opt must NOT clear the
         // variable — matches() would say false because shift category
         // disagrees; isStillHeld is the looser check.
         let hold: Modifiers = [.cmd, .opt]
         let current: Modifiers = [.lcmd, .lopt, .lshift]
-        XCTAssertTrue(hold.isStillHeld(in: current))
+        #expect(hold.isStillHeld(in: current))
     }
 
-    func testHoldWhileStrictSide() {
+    @Test func holdWhileStrictSide() {
         let hold: Modifiers = [.lcmd]
-        XCTAssertTrue(hold.isStillHeld(in: [.lcmd]))
+        #expect(hold.isStillHeld(in: [.lcmd]))
         // Right-side cmd does not satisfy strict-left holdWhile.
-        XCTAssertFalse(hold.isStillHeld(in: [.rcmd]))
+        #expect(!hold.isStillHeld(in: [.rcmd]))
     }
 
     // MARK: - Config: v2 TOML fields
 
-    func testParseActionSetVar() throws {
+    @Test func parseActionSetVar() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "enter wm"
@@ -107,18 +107,18 @@ final class StateTests: XCTestCase {
         action-set-var = "wm"
         hold-while = "cmd + opt"
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
+        #expect(res.config.bindings.count == 1)
         let b = res.config.bindings[0]
         if case .setVariable(let name, let value) = b.action {
-            XCTAssertEqual(name, "wm")
-            XCTAssertEqual(value, 1, "action-set-value defaults to 1")
+            #expect(name == "wm")
+            #expect(value == 1, "action-set-value defaults to 1")
         } else {
-            XCTFail("expected setVariable action, got \(b.action)")
+            Issue.record("expected setVariable action, got \(b.action)")
         }
-        XCTAssertEqual(b.holdWhile, [.cmd, .opt])
+        #expect(b.holdWhile == [.cmd, .opt])
     }
 
-    func testParseActionSetWithExplicitValue() throws {
+    @Test func parseActionSetWithExplicitValue() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "leave wm"
@@ -126,15 +126,15 @@ final class StateTests: XCTestCase {
         action-set-var = "wm"
         action-set-value = 0
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
+        #expect(res.config.bindings.count == 1)
         if case .setVariable(_, let v) = res.config.bindings[0].action {
-            XCTAssertEqual(v, 0)
+            #expect(v == 0)
         } else {
-            XCTFail("expected setVariable")
+            Issue.record("expected setVariable")
         }
     }
 
-    func testParseConditionAndOnUp() throws {
+    @Test func parseConditionAndOnUp() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "wm-l"
@@ -143,17 +143,17 @@ final class StateTests: XCTestCase {
         action-shell = "yabai -m window --grid 1:1:0:0:1:1"
         action-shell-on-up = "yabai -m window --minimize"
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
+        #expect(res.config.bindings.count == 1)
         let b = res.config.bindings[0]
-        XCTAssertEqual(b.condition,
-                       .variable(name: "wm", equals: 1))
+        #expect(b.condition == .variable(name: "wm", equals: 1))
         guard case .shell(let body) = b.onUpAction ?? .noop else {
-            return XCTFail("expected shell onUpAction, got \(String(describing: b.onUpAction))")
+            Issue.record("expected shell onUpAction, got \(String(describing: b.onUpAction))")
+            return
         }
-        XCTAssertEqual(body, "yabai -m window --minimize")
+        #expect(body == "yabai -m window --minimize")
     }
 
-    func testOrphanWhenVarValueDropsBinding() throws {
+    @Test func orphanWhenVarValueDropsBinding() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "orphan"
@@ -161,13 +161,13 @@ final class StateTests: XCTestCase {
         when-var-value = 1
         action-noop = true
         """)
-        XCTAssertEqual(res.config.bindings.count, 0,
-                       "orphan when-var-value must drop the binding")
-        XCTAssertEqual(res.droppedBindings, 1)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .conditionParseError })
+        #expect(res.config.bindings.count == 0,
+                "orphan when-var-value must drop the binding")
+        #expect(res.droppedBindings == 1)
+        #expect(res.warnings.contains { $0.kind == .conditionParseError })
     }
 
-    func testHoldWhileEmptyDropsBinding() throws {
+    @Test func holdWhileEmptyDropsBinding() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "bad-hold"
@@ -175,13 +175,13 @@ final class StateTests: XCTestCase {
         action-set-var = "x"
         hold-while = ""
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
 
     // MARK: - hold-while-timeout (chord 0.4.0)
 
-    func testParseHoldWhileTimeout() throws {
+    @Test func parseHoldWhileTimeout() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "j-layer (timeout)"
@@ -189,13 +189,13 @@ final class StateTests: XCTestCase {
         action-set-var = "jlayer"
         hold-while-timeout = 800
         """)
-        XCTAssertEqual(res.config.bindings.count, 1)
-        XCTAssertEqual(res.config.bindings[0].holdWhileTimeoutMs, 800)
-        XCTAssertNil(res.config.bindings[0].holdWhile,
-                     "timeout-only binding should not carry holdWhile")
+        #expect(res.config.bindings.count == 1)
+        #expect(res.config.bindings[0].holdWhileTimeoutMs == 800)
+        #expect(res.config.bindings[0].holdWhile == nil,
+                "timeout-only binding should not carry holdWhile")
     }
 
-    func testHoldWhileTimeoutZeroDropsBinding() throws {
+    @Test func holdWhileTimeoutZeroDropsBinding() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "bad-timeout"
@@ -203,11 +203,11 @@ final class StateTests: XCTestCase {
         action-set-var = "x"
         hold-while-timeout = 0
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
 
-    func testHoldWhileTimeoutNegativeDropsBinding() throws {
+    @Test func holdWhileTimeoutNegativeDropsBinding() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "bad-timeout"
@@ -215,11 +215,11 @@ final class StateTests: XCTestCase {
         action-set-var = "x"
         hold-while-timeout = -100
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError })
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
 
-    func testHoldWhileAndTimeoutMutuallyExclusive() throws {
+    @Test func holdWhileAndTimeoutMutuallyExclusive() throws {
         let res = try Config.parse("""
         [[bindings]]
         name = "both-lifecycles"
@@ -228,12 +228,12 @@ final class StateTests: XCTestCase {
         hold-while = "cmd"
         hold-while-timeout = 500
         """)
-        XCTAssertEqual(res.config.bindings.count, 0)
-        XCTAssertTrue(res.warnings.contains { $0.kind == .holdWhileParseError },
-                      "both lifecycles should produce a holdWhileParseError")
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .holdWhileParseError },
+                "both lifecycles should produce a holdWhileParseError")
     }
 
-    func testSchemaEmitsHoldWhileTimeout() throws {
+    @Test func schemaEmitsHoldWhileTimeout() throws {
         let b = try firstBinding("""
         [[bindings]]
         name = "j-layer"
@@ -241,14 +241,14 @@ final class StateTests: XCTestCase {
         action-set-var = "jlayer"
         hold-while-timeout = 800
         """)
-        XCTAssertEqual(b["hold_while_timeout"] as? Int, 800)
-        XCTAssertNil(b["hold_while"],
-                     "timeout-only binding omits hold_while in JSON")
+        #expect(b["hold_while_timeout"] as? Int == 800)
+        #expect(b["hold_while"] == nil,
+                "timeout-only binding omits hold_while in JSON")
     }
 
     // MARK: - Schema v2 emission
 
-    func testSchemaEmitsSetVariableAction() throws {
+    @Test func schemaEmitsSetVariableAction() throws {
         let json = try parseToBindingsJSON("""
         [[bindings]]
         name = "enter"
@@ -256,18 +256,18 @@ final class StateTests: XCTestCase {
         action-set-var = "wm"
         hold-while = "cmd + opt"
         """)
-        XCTAssertEqual(json["schema"] as? String, "chord.bindings.v3")
-        let bs = try XCTUnwrap(json["bindings"] as? [[String: Any]])
+        #expect(json["schema"] as? String == "chord.bindings.v3")
+        let bs = try #require(json["bindings"] as? [[String: Any]])
         let b = bs[0]
-        let action = try XCTUnwrap(b["action"] as? [String: Any])
-        XCTAssertEqual(action["kind"] as? String, "set-variable")
-        XCTAssertEqual(action["variable"] as? String, "wm")
-        XCTAssertEqual(action["value"] as? Int, 1)
-        let hold = try XCTUnwrap(b["hold_while"] as? [String])
-        XCTAssertEqual(hold.sorted(), ["cmd", "opt"])
+        let action = try #require(b["action"] as? [String: Any])
+        #expect(action["kind"] as? String == "set-variable")
+        #expect(action["variable"] as? String == "wm")
+        #expect(action["value"] as? Int == 1)
+        let hold = try #require(b["hold_while"] as? [String])
+        #expect(hold.sorted() == ["cmd", "opt"])
     }
 
-    func testSchemaEmitsConditionAndOnUp() throws {
+    @Test func schemaEmitsConditionAndOnUp() throws {
         let b = try firstBinding("""
         [[bindings]]
         name = "wm-l"
@@ -276,12 +276,12 @@ final class StateTests: XCTestCase {
         action-shell = "max"
         action-shell-on-up = "min"
         """)
-        let cond = try XCTUnwrap(b["condition"] as? [String: Any])
-        XCTAssertEqual(cond["kind"] as? String, "variable")
-        XCTAssertEqual(cond["variable"] as? String, "wm")
-        XCTAssertEqual(cond["equals"] as? Int, 1)
-        let onUp = try XCTUnwrap(b["action_on_up"] as? [String: Any])
-        XCTAssertEqual(onUp["kind"] as? String, "shell")
-        XCTAssertEqual(onUp["command"] as? String, "min")
+        let cond = try #require(b["condition"] as? [String: Any])
+        #expect(cond["kind"] as? String == "variable")
+        #expect(cond["variable"] as? String == "wm")
+        #expect(cond["equals"] as? Int == 1)
+        let onUp = try #require(b["action_on_up"] as? [String: Any])
+        #expect(onUp["kind"] as? String == "shell")
+        #expect(onUp["command"] as? String == "min")
     }
 }

@@ -1,94 +1,49 @@
-import XCTest
+import Testing
 @testable import ChordCore
 
-final class InputParserTests: XCTestCase {
-    func testSimpleKey() throws {
-        let p = try InputParser.parse("f13")
-        XCTAssertEqual(p.modifiers, [])
-        XCTAssertEqual(p.trigger, .key(0x69))
+@Suite struct InputParserTests {
+
+    /// One parse expectation. `mods` / `trigger` are optional so a case
+    /// can assert only the field it cares about (e.g. `hyper - space`
+    /// checks modifiers only; `mouse.side1` checks the trigger only).
+    struct Case: Sendable {
+        let input: String
+        var mods: Modifiers? = nil
+        var trigger: Trigger? = nil
     }
 
-    func testF24KaraConvention() throws {
-        let p = try InputParser.parse("f24")
-        XCTAssertEqual(p.trigger, .key(0x6C))
-    }
-
-    func testModifiers() throws {
-        let p = try InputParser.parse("cmd + shift - return")
-        XCTAssertEqual(p.modifiers, [.cmd, .shift])
-        XCTAssertEqual(p.trigger, .key(0x24))
-    }
-
-    func testHyperExpands() throws {
-        let p = try InputParser.parse("hyper - space")
-        XCTAssertEqual(p.modifiers, .hyper)
-    }
-
-    func testMouseSide1() throws {
-        let p = try InputParser.parse("mouse.side1")
-        XCTAssertEqual(p.trigger, .mouseButton(.side1))
-    }
-
-    func testScroll() throws {
-        let p = try InputParser.parse("ctrl - scroll.up")
-        XCTAssertEqual(p.modifiers, .ctrl)
-        XCTAssertEqual(p.trigger, .scroll(.up))
-    }
-
-    func testPlusOnly() throws {
-        let p = try InputParser.parse("cmd + a")
-        XCTAssertEqual(p.modifiers, .cmd)
-        XCTAssertEqual(p.trigger, .key(0x00))
-    }
-
-    func testKeycodeEscape() throws {
-        let p = try InputParser.parse("keycode-200")
-        XCTAssertEqual(p.trigger, .key(200))
-        XCTAssertEqual(p.modifiers, [])
-    }
-
-    /// Regression: `keycode-NNN` contains a `-`, which collides
-    /// with the modifier/primary separator. The parser's fast-path
-    /// (try-primary-first) covers the standalone form. With
-    /// modifiers we still need the separator-based split to work.
-    func testKeycodeWithModifier() throws {
-        let p = try InputParser.parse("ctrl - keycode-200")
-        XCTAssertEqual(p.modifiers, .ctrl)
-        XCTAssertEqual(p.trigger, .key(200))
-    }
-
-    func testUnknownToken() {
-        XCTAssertThrowsError(try InputParser.parse("supercmd - a"))
-    }
-
-    // MARK: - L/R modifier tokens (PR1)
-
-    func testRightCtrlToken() throws {
-        let p = try InputParser.parse("rctrl - a")
-        XCTAssertEqual(p.modifiers, .rctrl)
-    }
-
-    func testLeftAndRightCtrlTokens() throws {
-        let p = try InputParser.parse("lctrl + rctrl - a")
-        XCTAssertEqual(p.modifiers, [.lctrl, .rctrl])
-    }
-
-    func testRaltIsAliasForRopt() throws {
-        let p = try InputParser.parse("ralt - a")
-        XCTAssertEqual(p.modifiers, .ropt)
-    }
-
-    func testUltraLLChord() throws {
+    @Test(arguments: [
+        Case(input: "f13", mods: [], trigger: .key(0x69)),
+        Case(input: "f24", trigger: .key(0x6C)),  // Karabiner HID-slot convention
+        Case(input: "cmd + shift - return", mods: [.cmd, .shift], trigger: .key(0x24)),
+        Case(input: "hyper - space", mods: .hyper),
+        Case(input: "mouse.side1", trigger: .mouseButton(.side1)),
+        Case(input: "ctrl - scroll.up", mods: .ctrl, trigger: .scroll(.up)),
+        Case(input: "cmd + a", mods: .cmd, trigger: .key(0x00)),
+        Case(input: "keycode-200", mods: [], trigger: .key(200)),
+        // Regression: `keycode-NNN` contains a `-`, which collides with
+        // the modifier/primary separator. The standalone form is covered
+        // by the fast-path; with modifiers the separator-based split must
+        // still work.
+        Case(input: "ctrl - keycode-200", mods: .ctrl, trigger: .key(200)),
+        // L/R modifier tokens (PR1)
+        Case(input: "rctrl - a", mods: .rctrl),
+        Case(input: "lctrl + rctrl - a", mods: [.lctrl, .rctrl]),
+        Case(input: "ralt - a", mods: .ropt),  // ralt is an alias for ropt
         // ZMK ULTRA_LL = right-side ctrl + alt + shift modifier set.
-        let p = try InputParser.parse("rctrl + ralt + rshift - c")
-        XCTAssertEqual(p.modifiers, [.rctrl, .ropt, .rshift])
-        XCTAssertEqual(p.trigger, .key(0x08))
+        Case(input: "rctrl + ralt + rshift - c", mods: [.rctrl, .ropt, .rshift], trigger: .key(0x08)),
+        // Existing any-side tokens still parse — no breakage of current configs.
+        Case(input: "ctrl + shift - z", mods: [.ctrl, .shift]),
+    ])
+    func parses(_ c: Case) throws {
+        let p = try InputParser.parse(c.input)
+        if let mods = c.mods { #expect(p.modifiers == mods) }
+        if let trigger = c.trigger { #expect(p.trigger == trigger) }
     }
 
-    func testAnySideStillSupported() throws {
-        // Existing tokens still parse to the any-side bits — no
-        // breakage of any user's current config.
-        let p = try InputParser.parse("ctrl + shift - z")
-        XCTAssertEqual(p.modifiers, [.ctrl, .shift])
+    @Test func unknownTokenThrows() {
+        #expect(throws: (any Error).self) {
+            try InputParser.parse("supercmd - a")
+        }
     }
 }
