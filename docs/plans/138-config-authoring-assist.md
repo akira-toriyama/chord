@@ -1,13 +1,29 @@
 # config.toml オーサリング補助 (Taplo/schema) 強化
 
 - Issue: Closes #138 (umbrella)。Sub: #144 A / #145 B / #146 S1 / #147 S2 / #148 E
-- Status: in-progress (A ✅ / B ✅ / S1 ✅ merged / S2 ✅ / 次=S3 sill Spec 統合 / S4 / S-validate / S5 / E 残)
-- Updated: 2026-06-24
+- Status: in-progress (A ✅ / B ✅ / S1 ✅ / S2 ✅ / S3 ✅ (sill v1.26.0) / **S4 ✅ merged (facet #338+#339)** — emit+authoring 半分 完了 / 残=S-validate・S5・E は **consumer-gated**)
+- Updated: 2026-06-25
 
 ## 🔖 次セッション着手ガイド (cold-start 用)
 
-**着手対象: S3 (sill) — 既存 `Spec<Root>.jsonSchema()` を S1 共有コア経由に。**
-S1(decode-free 共有コア)+ S2(chord 載せ替え・byte-identical)は完了済 (下記)。
+**着手対象: S4b (facet) — enum フィールドに `enumDocs` を付与 (taplo per-value hover)。**
+S3 merged (sill v1.26.0)・S4a merged 待ち。`Spec.Field.enumDocs` は v1.26.0 に在る。
+
+**S4b の足場 (S4a で facet は sill 1.26.0 に乗った)**:
+- facet の `FacetConfig+Spec.swift` の `.str(... enum: ...)` フィールド (theme.name / window.raise-on-open /
+  grid.label-position / animation.curve / rail.edge / tree.preview-mode / border.effect / exclude.action 等) に
+  `enumDocs:` を足す。`ConfigSchema.Field.init` は既に `enumDocs:` 引数を持つ (S3)。facet の builder
+  (`str`/`descOnly`) に `enumDocs` パススルーを足すのが実装の中心。
+- **hover 文言は内容オーサリング** → ドラフトを作って maintainer レビュー (theme 名は大量・全部に文言は不要、
+  代表的な enum=curve/edge/preview-mode/action 等に絞るのが現実的)。
+- 完了後 `facet --emit-schema > config.schema.json` 再生成 + drift test green を確認して PR。
+
+**S4 スコープ実態 (調査済 2026-06-25・当初の「大移行」懸念は否定された)**:
+- facet @ origin/main は sill 1.26.0 + swift-toml-edit で **ソース改変ゼロ・クリーンビルド・932 test green**。
+  必要変更は Package.swift の依存張り替えのみ (sill 0.9→1.26 + 撤去された `Toml` を swift-toml-edit へ)。
+- schema 差分は **純 additive** (theme/effect の enum 値が増えただけ・構造変更ゼロ)。→ S4a として分離・実施済。
+- facet のアクティブ作業は branch `feat/section-focus-cli` (clean・未 push 1 commit) に隔離・main 乖離なし。
+  S4a は origin/main から独自 branch。衝突面は Package.resolved/config.schema.json のみ (小)。
 
 S1/S2 で確立した事実(再利用の足場):
 - **共有コア (sill 1.25.0)**: `Sources/ConfigSchema/SchemaDescriptor.swift`(型)+
@@ -111,8 +127,18 @@ family 共有資産にしたい。chord がその **pilot / 実 driver**。
 - [x] **S2 (chord, #147)**: `ChordConfigSchema` を sill 共有型に載せ替え(自前 SchemaEmit.swift 削除・
       descriptor データと RuntimeConstraint/StructuralCheck/keySet は local 維持)。sill pin 1.25.0。
       **config.schema.json byte-identical**(`chord config --emit-schema` == committed・diff 0)。393 green。
-- [ ] **S3 (sill)**: 既存 `Spec<Root>.jsonSchema()` を共有コア経由に + `Spec.Field` に enumDocs(S1 内包可)。
-- [ ] **S4 (facet)**: sill bump + enum フィールドに enumDocs → facet エディタ UX。
+- [x] **S3 (sill)**: `Spec<Root>.jsonSchema()` を共有 `SchemaEmit`(emitSection/emitObject/emitField/serialize の
+      internal 名前空間)経由に統合。`Spec` は dotted-header 畳み込みを保持しつつ各 node を `ObjectShape` に変換
+      → 共有 emitter で lower。descriptor 語彙を additive 拡張(`.number`/`arrayItemEnum`/inclusive min・max/
+      typed defaults・`ObjectShape.permissive`+`objects:[NestedObject]`)・`Spec.Field.enumDocs` 追加。
+      **byte-identical 検証**: Spec golden diff 0 / chord `--emit-schema` 1323行 diff 0 / sill 707 + chord 393 green。
+      28→**adversarial review (24 agents)** で latent byte-divergence 2件修正(documented root doc 欠落・
+      stringArray への scalar-only metadata 漏れ)。branch `138-s3-spec-shared-lowering`(未 push)。
+- [x] **S4a (facet)**: sill 0.9.0 → 1.26.0 bump + `Toml` を swift-toml-edit へ張り替え + config.schema.json 再生成。
+      ソース改変ゼロ・932 test green・schema 差分は純 additive (theme/effect enum 値)。facet PR #338(green・merge 待ち)。
+- [x] **S4b (facet)**: enum フィールドに `enumDocs` → taplo per-value hover。`str`/`descOnly` builder に `enumDocs` パススルー +
+      4 enum (window.raise-on-open / rail.edge / tree.preview-mode / exclude.action) に index-aligned hover。文言は各 enum の
+      code doc から逐語。catalog enum (theme/effect) と主観的な animation.curve は意図的に除外 (maintainer 判断)。facet PR #339(green・wording レビュー待ち)。
 - [ ] **S-validate (sill)**: 共有 generic runtime validator(descriptor のルールを decode 後の値に実行 → `[error]`)。
       **facet/wand の大 toml 検証が主目的**。editor schema と同じルールを load 時にも enforce。facet/wand 採用時。
 - [ ] **S5 (perch/wand/halo)**: sill ConfigSchema + schema emission + validator 採用。各 app の別 issue・将来。
@@ -136,6 +162,44 @@ family 共有資産にしたい。chord がその **pilot / 実 driver**。
 
 ## 進行ログ
 
+- 2026-06-25: **S4b merged (facet #339)** — wording 承認 → update-branch → squash merge。**S3+S4 で #138 の emit+authoring 半分が完了**。
+  残り (S-validate/S5/E) は consumer-gated と整理(下記「次の判断」)。
+- 2026-06-25: **S4b 完了 (facet PR #339・green・wording レビュー待ち)** — 4 enum に `enumDocs` per-value hover。
+  `str`/`descOnly` builder に `enumDocs` パススルー。文言は code doc 逐語。catalog (theme/effect) と主観的 curve は除外。
+  schema 差分は x-taplo 4 ブロックのみ・560 test green。S4b の hover 文言は「レビュー前提のドラフト」と PR 明記。
+- 2026-06-25: **S4a merged (facet #338)** — update-branch → squash merge (`ec52bfd`)。facet が sill 1.26.0 に乗った。
+- 2026-06-25: **S4a 完了 (facet PR #338・green・merge 承認待ち)** — facet を sill 0.9.0 → 1.26.0 bump +
+  `Toml` を swift-toml-edit へ張り替え + config.schema.json 再生成。**調査で当初の「大移行」懸念は否定**:
+  facet @ origin/main は新 sill で **ソース改変ゼロ・クリーンビルド・932 test green**、schema 差分は純 additive
+  (theme/effect enum 値が増えただけ・構造変更ゼロ)。PR は main から 1 docs commit BEHIND (overlap なし→update-branch クリーン)。
+  次=S4b(enumDocs)。
+- 2026-06-25: **S3 merged + released** — sill PR #77 merged → main `0a99a8c` → **v1.26.0 tag (push 済)**。
+- 2026-06-25: **S3 完了 (commit 済)** — sill branch `138-s3-spec-shared-lowering` @ `/tmp/sill-s3`。
+  `Spec.jsonSchema()` を共有 `SchemaEmit` 経由に統合(自前 fieldSchema/objectSchema/serialize 廃止)。
+  descriptor 語彙を additive 拡張(下記設計どおり)・`Spec.Field.enumDocs` 追加。**全 byte-identical 検証 pass**
+  (Spec golden facetlike diff 0・chord 1323行 diff 0・sill 707 green・chord 393 green)。**24-agent adversarial
+  review** 適用 → confirmed 9件中: ① documented root `Section("")` の description 欠落(`sectionDoc:""` hardcode
+  バグ)を `rootShape.doc` 渡しで修正、② `.stringArray` field の stray `domain`/`min`/`max` が array node に漏れる
+  のを `.scalar` gate で修正、③ `doc:""` の description 省略は **意図的正規化**として comment+test で固定
+  (historic は `"description":""` を emit・実 spec は `doc:""` を渡さない・shared `doc:String` を Optional 化しない)。
+  follow-up: SchemaField の 5 typed default を単一 `DefaultValue?` enum に統合(breaking・chord descriptor 同時移行要 → 別 PR)。
+  **教訓: review workflow の agent は default で write 権限を持ち、probe で `git clean`/`stash` を打って untracked
+  test file を消した**。今後 review は read-only(Explore 型)か repo copy 上で。本件は untracked 1 ファイル消失のみ・復元済。
+- 2026-06-25: **S3 着手** — sill fresh clone `/tmp/sill-s3`(origin/main = S1 merge b4846a3 / v1.25.0)。
+  `Spec<Root>.jsonSchema()`(独自 SchemaNode lowering)→ S1 共有 emitter 経由に統合する設計確定:
+  - **ONE lowering = `emitField`/`emitObject`/`serialize` を共有**(internal `SchemaEmit` 名前空間に集約)。
+    `Spec` は SchemaNode 畳み込み(dotted header→nested tree)を保持しつつ、各 node を `ObjectShape` に変換し
+    `emitObject` で lower。root も ObjectShape 1 枚 + `$schema`/`title`。
+  - **descriptor 語彙の追加**(全て additive・default が現状維持 → chord byte-identical):
+    `SchemaField`: `.number` shape / `arrayItemEnum` / inclusive `minimum`+`maximum`(Double) /
+    `defaultString`+`defaultNumber`+`defaultStringArray`。`ObjectShape`: `permissive`(→additionalProperties)+
+    `objects:[NestedObject]`(nested 単一 object・dotted 畳み込み用)。`Spec.Field`: `enumDocs`(S4 facet 用)。
+  - **byte-shape 要注意点**(golden 実測): min/max は **Double** で emit(JSONSerialization が 30.0→`30`・
+    0.1→`0.10000000000000001`)。Spec の arrayOfTables doc は **items 側**(array node は bare)=
+    descriptor の `NestedTable` 規約と一致(section-level `.arrayOfTables` の array-doc 規約とは別=chord 用に温存)。
+    permissive empty table は `properties` 省略 → emitObject に `if !props.isEmpty` guard 追加(chord は props 常に非空 → 無影響)。
+  - **検証ハーネス**: golden capture 済 `/tmp/golden/PRISTINE-{facetlike,nested}.json`(current-main Spec 出力・
+    facet 全 shape 忠実転写 + dotted/quoted/top-level)。S3 後に byte diff 0 を要求。+ chord `--emit-schema` diff 0 + sill 全 test green。
 - 2026-06-24: **S1 完了** — sill PR #76 merged → **v1.25.0** tag。decode-free 共有コア
   (`SchemaDescriptor` 型群 + `SchemaDescriptorEmit` lowering + `EmitOptions`)を `ConfigSchema`
   モジュール top-level に追加(既存 `Spec<Root>` は無改変・S3 で統合)。emit は chord の SchemaEmit を
@@ -160,8 +224,18 @@ family 共有資産にしたい。chord がその **pilot / 実 driver**。
 
 ## 未達成・保留 (明示)
 
-- **S3 (sill)**: 既存 `Spec<Root>.jsonSchema()` を S1 共有コア経由に。次に着手(cold-start ガイド参照)。
-- **S4 (facet)**: sill bump + enum フィールドに enumDocs。
+- **S3 follow-up (sill, 別 PR)**: `SchemaField` の 5 typed default Optional(defaultBool/Int/String/Number/StringArray)を
+  単一 `DefaultValue?` enum に統合(「default は高々1個」を型で表現・hand-written descriptor の silent last-wins 防止)。
+  **breaking**(chord descriptor の `defaultInt:`→`default:.int()` 同時移行要)ゆえ S3 本体から分離。優先度: 中。
+- **S-validate / S5 は consumer-gated (要 maintainer 判断)**: #138 の emit+authoring 半分 (S3+S4) は完了。残りは:
+  - **S-validate (sill)**: 共有 generic runtime validator。だが chord は runtime 検証を bespoke parser で enforce 済 →
+    **主受益者は facet/wand の大 toml だが両者とも今 config 検証を作っていない** (facet は別 feature 開発中・wand dormant)。
+    → driving consumer 無しで作ると **speculative API 設計** になり手戻りリスク。plan 北極星も「facet/wand 採用時」。
+    実 consumer が検証ペインを持った時に着手するのが筋。
+  - **S5 (perch/wand/halo)**: 各 app dormant → activate 時。
+  - **Phase E (swift-toml-edit span API)**: 最低優先・E。
+  → #138 umbrella を「emit 半分 done」で一旦締め、consumer-gated 分を別 issue に切り出して close する手もある (maintainer 判断)。
+- 追加候補(任意・S4 系): theme/effect catalog や animation.curve に hover を足すか(現状は意図的除外)。
 - **S-validate (sill)**: 共有 generic runtime validator(descriptor のルールを decode 後の値に実行)。
   facet/wand の大 toml が主受益者。
 - **S5 (perch/wand/halo)**: sill ConfigSchema + emission + validator 採用。各 app の別 issue。
