@@ -279,6 +279,8 @@ chord config --show --json       機械向け JSON (chord.bindings.v3)
 chord config --show --include-dropped  drop された binding も表示
 chord config --doctor            アクセシビリティ / 設定 / デーモンの稼働状況を表示
 chord config --emit-schema       config.toml の INPUT JSON Schema (Draft-07) をエディタ補完向けに出力
+chord config --observe           押したキーコード / マウスボタン / 修飾の左右をライブ表示
+                          (discovery 用・consume しない・Ctrl-C で終了)
 chord daemon --resign            Chord.app を chord-dev で再署名 + 再起動
                           (`brew install` / upgrade 後に 1 回)
 chord daemon --watch             ライブ per-event trace
