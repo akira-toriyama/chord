@@ -25,6 +25,12 @@ jobs:
       - name: check version sync (Swift / Info.plist)
         run: ./scripts/check-version-sync.sh
 
+      # chord-specific: fail fast (no toolchain needed) if a ConfigWarning.Kind
+      # raw value drifts across the Swift enum / wire schema / glossary. The
+      # compiled-enum cross-check is ConfigWarningKindSyncTests (run in `test`).
+      - name: check ConfigWarning.Kind sync (Swift / v3 schema / glossary)
+        run: ./scripts/check-warning-kind-sync.sh
+
       # Shared Swift build (setup-xcode + SPM cache + build + test).
       # Consumed as a STEP so the `build` required check name is unchanged.
       - uses: akira-toriyama/.github/actions/swift-build@main
