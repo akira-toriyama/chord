@@ -380,8 +380,8 @@
       "properties": {
         "section": {
           "type": "string",
-          "enum": ["[[bindings]]", "[[fallbacks]]", "[action-aliases]", "[input-aliases]"],
-          "description": "Literal TOML section header the warning fired in."
+          "enum": ["[[bindings]]", "[[fallbacks]]", "[action-aliases]", "[input-aliases]", "[v-key-aliases]"],
+          "description": "Literal TOML section header the warning fired in. `[v-key-aliases]` is a forward-compatible 0.10.0 addition."
         },
         "name":        { "type": "string" },
         "source_line": { "type": "integer", "minimum": 1 },
@@ -399,6 +399,7 @@
             "input-alias-shadows-modifier",
             "input-alias-invalid-body",
             "undefined-input-alias",
+            "v-key-alias-invalid",
             "condition-parse-error",
             "hold-while-parse-error",
             "action-set-parse-error",
@@ -411,7 +412,7 @@
             "duplicate-binding-name",
             "other"
           ],
-          "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a schema major bump. v2.x additions are forward-compatible: input-alias-non-string / input-alias-shadows-modifier / input-alias-invalid-body / undefined-input-alias (from [input-aliases] + $-prefixed references); condition-parse-error / hold-while-parse-error / action-set-parse-error (from v2 stateful bindings). v0.7–0.9 additions are likewise forward-compatible: sequence-parse-error (0.7) / remap-parse-error, per-app-parse-error (0.8) / action-alias-call-error, unknown-option-key, unknown-key (0.9) / duplicate-binding-name."
+          "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a schema major bump. v2.x additions are forward-compatible: input-alias-non-string / input-alias-shadows-modifier / input-alias-invalid-body / undefined-input-alias (from [input-aliases] + $-prefixed references); condition-parse-error / hold-while-parse-error / action-set-parse-error (from v2 stateful bindings). v0.7–0.9 additions are likewise forward-compatible: sequence-parse-error (0.7) / remap-parse-error, per-app-parse-error (0.8) / action-alias-call-error, unknown-option-key, unknown-key (0.9) / duplicate-binding-name. v-key-alias-invalid (0.10, from [v-key-aliases]) is likewise forward-compatible."
         },
         "message": {
           "type": "string",
