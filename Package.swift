@@ -49,7 +49,7 @@ let package = Package(
         // AppKit, zero theming) via its NESTED, strict `parse` skin. The
         // module name is unchanged, so chord's `import Toml` survives.
         .package(url: "https://github.com/akira-toriyama/swift-toml-edit.git",
-                 .upToNextMinor(from: "1.0.0")),
+                 .upToNextMajor(from: "2.0.0")),
         // sill — the shared swift-app-family library (atelier). chord is NOT
         // a theme consumer (no Palette / Effects / PaletteKit); it takes only
         // `CLIKit`, the family's shared pure argv tokenizer (Phase 3 M4),
@@ -61,7 +61,7 @@ let package = Package(
         // after `--limit` is a value, not a flag). Floor bumped to 0.11.0 (the release that removed
         // sill's in-tree `Toml`). Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "1.25.0")),
+                 .upToNextMinor(from: "1.27.0")),
     ],
     targets: [
         .target(

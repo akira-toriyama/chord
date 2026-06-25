@@ -11,7 +11,7 @@ extension Config {
     /// rows and route them through the same validation as user-authored
     /// rows.
     static func makeBinding(
-        from row: [String: TOML.Value], index: Int,
+        from row: [String: TOML.Value], sourceLine line: Int?, index: Int,
         isFallback: Bool,
         actionAliases: [String: String],
         inputAliases: [String: Modifiers],
@@ -21,7 +21,10 @@ extension Config {
     ) -> Binding? {
         let section = isFallback ? "[[fallbacks]]" : "[[bindings]]"
         let name = row["name"]?.asString ?? "binding-\(index + 1)"
-        let line = row.sourceLine
+        // Source line is resolved by the caller from the originating
+        // `Toml.Row.span` and passed in — synthesized desugar rows carry no
+        // source bytes, so the line travels alongside the fields, not inside
+        // them (no synthetic dict key).
         let source = sourceTag(line: line)
         guard let inputRaw = row["input"]?.asString else {
             warnings.append(ConfigWarning(

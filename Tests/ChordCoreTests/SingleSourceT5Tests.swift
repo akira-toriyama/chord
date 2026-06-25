@@ -111,12 +111,14 @@ import Testing
         }
     }
 
-    // MARK: item e — Dictionary.sourceLine threads the synthetic line key
+    // MARK: item e — Toml.Row.span threads the source line end-to-end
 
     @Test func sourceLineThreadedThroughDroppedWarning() throws {
         // The 2nd binding (header on line 6) is missing `input`, so it is
         // dropped; its dropped[] entry must carry that source line — proving
-        // the shared `row.sourceLine` accessor reads `__line__` correctly.
+        // the `Toml.Row.span` line is resolved at parse time and threaded
+        // through makeBinding into the warning (#148; replaced the old
+        // synthetic `__line__` dict key).
         let json = try parseBindings("""
         [[bindings]]
         name = "ok"

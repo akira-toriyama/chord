@@ -82,12 +82,12 @@ public enum Config {
             // Surface typos: `passthroughUnmatched` (camelCase),
             // `exclude_apps` (underscore), etc. would otherwise look
             // exactly like the binding worked but had no effect.
-            // TOML.lineKey is the synthetic line-number key the
-            // parser injects on the table header. #52-bounded: the
-            // known-key set is sourced from the descriptor (the same
-            // single source as `--emit-schema`), so it can't drift.
+            // #52-bounded: the known-key set is sourced from the
+            // descriptor (the same single source as `--emit-schema`),
+            // so it can't drift. `[options]` is a plain `[table]`, which
+            // never carried a synthetic line key.
             let known = ChordConfigSchema.optionsShape().keySet
-            for key in opts.keys where key != TOML.lineKey && !known.contains(key) {
+            for key in opts.keys where !known.contains(key) {
                 warnings.append(ConfigWarning(
                     kind: .unknownOptionKey,
                     message:
@@ -102,7 +102,6 @@ public enum Config {
         var actionAliases: [String: String] = [:]
         if case .table(let raw)? = root["action-aliases"] {
             for (key, value) in raw {
-                if key == TOML.lineKey { continue }
                 if let s = value.asString {
                     actionAliases[key] = s
                 } else {
@@ -133,7 +132,6 @@ public enum Config {
         var inputAliasesParsed: [String: Modifiers] = [:]
         if case .table(let raw)? = root["input-aliases"] {
             for (key, value) in raw {
-                if key == TOML.lineKey { continue }
                 let keyLower = key.lowercased()
                 if InputParser.reservedModifierTokens.contains(keyLower) {
                     warnings.append(ConfigWarning(
@@ -194,7 +192,6 @@ public enum Config {
         var vkeyAliasesParsed: [String: UInt8] = [:]
         if case .table(let raw)? = root["v-key-aliases"] {
             for (key, value) in raw {
-                if key == TOML.lineKey { continue }
                 let keyLower = key.lowercased()
                 if InputParser.vkeyWildcardNames.contains(keyLower)
                     || InputParser.reservedModifierTokens.contains(keyLower)
@@ -262,15 +259,19 @@ public enum Config {
             // `[[bindings.per-app]]` AoT child expands to N siblings,
             // one per per-app entry, with `apps = [bundle-id]` and
             // the entry's action-* fields layered onto the base row.
-            let synthRows: [[String: TOML.Value]]
+            // Each synthesized row carries its resolved source line
+            // alongside its fields (the per-app entry's line wins).
+            let synthRows: [(row: [String: TOML.Value], line: Int?)]
             switch expandBindingPerApp(row, warnings: &warnings) {
-            case .single(let r): synthRows = [r]
-            case .many(let rs):  synthRows = rs
-            case .invalid:       dropped += 1; continue
+            case .single(let r, let l): synthRows = [(r, l)]
+            case .many(let rs):         synthRows = rs
+            case .invalid:              dropped += 1; continue
             }
 
             for synth in synthRows {
-                guard let b = makeBinding(from: synth, index: bindingIndex,
+                guard let b = makeBinding(from: synth.row,
+                                          sourceLine: synth.line,
+                                          index: bindingIndex,
                                           isFallback: false,
                                           actionAliases: actionAliases,
                                           inputAliases: inputAliasesParsed,
@@ -346,8 +347,9 @@ public enum Config {
             let expanded = expandFallbackRow(row,
                                              warnings: &warnings)
             switch expanded {
-            case .single(let r):
-                if let b = makeBinding(from: r, index: fbExpansionIndex,
+            case .single(let r, let l):
+                if let b = makeBinding(from: r, sourceLine: l,
+                                       index: fbExpansionIndex,
                                        isFallback: true,
                                        actionAliases: actionAliases,
                                        inputAliases: inputAliasesParsed,
@@ -360,8 +362,9 @@ public enum Config {
                     dropped += 1
                 }
             case .many(let rows):
-                for r in rows {
-                    if let b = makeBinding(from: r, index: fbExpansionIndex,
+                for (r, l) in rows {
+                    if let b = makeBinding(from: r, sourceLine: l,
+                                           index: fbExpansionIndex,
                                            isFallback: true,
                                            actionAliases: actionAliases,
                                            inputAliases: inputAliasesParsed,

@@ -18,10 +18,10 @@ import Foundation
 ///   verbatim so existing callers (`print("warning: \(w)")`)
 ///   keep working byte-for-byte.
 /// * `sourceLine` — the 1-based config-file line, when known. Comes
-///   from the `__line__` synthetic key the TOML parser injects on
-///   every `[[X]]` header (`TOML.lineKey`). For `[action-aliases]` entries
-///   and `[options]` table fields, lines are not tracked yet —
-///   surfaces as `nil`.
+///   from the `Toml.Row.span` each `[[X]]` row carries (swift-toml-edit
+///   2.0.0; resolved at parse time and threaded into the binding). For
+///   `[action-aliases]` entries and `[options]` table fields, lines are
+///   not tracked (plain `[table]`s carry no span) — surfaces as `nil`.
 /// * `bindingName` — the row's `name` (or the synthetic `binding-N`
 ///   fallback) when the warning is attributable to a single binding.
 public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
