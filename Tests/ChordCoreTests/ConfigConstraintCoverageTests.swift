@@ -20,6 +20,7 @@ import Testing
         .missingAction,         // schema: action-* `anyOf`
         .unknownInputToken,     // leaf-DSL parse (daemon authority)
         .actionKeysParseError,  // leaf-DSL parse
+        .actionKeysDelayParseError, // schema: integer + exclusiveMinimum 0 (taplo squiggles)
         .actionAliasNonString,  // [action-aliases] value type — schema additionalProperties
         .inputAliasNonString,   // [input-aliases] value type — schema additionalProperties
         .inputAliasInvalidBody, // [input-aliases] body parse — table, not a binding hover

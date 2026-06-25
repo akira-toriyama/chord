@@ -161,6 +161,12 @@ extension Config {
             sourceLine: line,
             warnings: &warnings)
         else { return nil }
+        guard let actionKeysDelay = parseActionKeysDelay(
+            row: row, section: section,
+            name: name, source: source,
+            sourceLine: line,
+            warnings: &warnings)
+        else { return nil }
         // hold-while and hold-while-timeout are mutually exclusive —
         // they pick different lifecycles for the same variable. The
         // user almost certainly meant one or the other; offer a clear
@@ -279,6 +285,7 @@ extension Config {
             holdWhileTimeoutMs: holdWhileTimeout.value,
             passthrough: passthrough,
             repeatStrategy: repeatStrategy,
+            actionKeysDelayMs: actionKeysDelay.value,
             inputSource: inputSource,
             inputRaw: inputRaw,
             actionRaw: parsedAction.raw,

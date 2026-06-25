@@ -35,6 +35,8 @@ macOS 用 グローバルキーボード + マウス ホットキー常駐デー
 - **`action-shell`** — `/bin/zsh -l -c` 経由で実行、`$HOME` 展開可
 - **`action-keys`** — 置き換えキーを post
 - **`action-keys` 配列** — 1 トリガで複数キーのシーケンス送出
+  (任意 **`action-keys-delay-ms`** — キー間ディレイ (ms)。ゼロ間隔の
+  合成キーを取りこぼす高速アプリ向け。tap thread を block せず pacing)
 - **`action-shell` + `action-keys` 同時宣言** — shell を fire-
   and-forget して直後にキー post (Karabiner `to`-array 形)
 - **`action-noop`** — イベントを食い潰す

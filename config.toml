@@ -92,6 +92,14 @@ fn-auto-arrows = true
 #   action-keys  = "ctrl - right"
 # (only this pair combines; noop / set-var stay single-action.)
 #
+# Post SEVERAL keystrokes on one press — give action-keys an array
+# (first element is primary, the rest fire in order):
+#   action-keys = ["cmd - a", "cmd - c"]      — select-all then copy
+# Optional inter-key delay for fast apps (terminals / editors / games)
+# that drop zero-interval synthetic keys; ms between keystrokes
+# (>0; no effect on a single key). Paced off the event-tap thread:
+#   action-keys-delay-ms = 20
+#
 # Optional secondary action that fires on the key's release:
 #   action-shell-on-up = "…"
 #   action-keys-on-up  = "…"

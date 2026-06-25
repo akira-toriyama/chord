@@ -308,6 +308,7 @@ strict-side: `"lcmd"`, `"rcmd"`, `"lopt"`, `"ropt"`, `"lctrl"`, `"rctrl"`, `"lsh
 | `"missing-action"` | binding 行に action-* 欠如 |
 | `"unknown-input-token"` | 修飾/キー名の typo |
 | `"action-keys-parse-error"` | `action-keys` 文字列パース失敗 |
+| `"action-keys-delay-parse-error"` | `action-keys-delay-ms` が正整数でない |
 | `"action-alias-non-string"` | `[action-aliases]` の値が non-string |
 | `"undefined-action-alias"` | `@name` が `[action-aliases]` にない |
 | `"input-alias-non-string"` | `[input-aliases]` の値が non-string |

@@ -173,6 +173,9 @@ public enum BindingsSchema {
         /// allow / `!`-deny / `*`-wildcard semantics as `apps`.
         /// Omitted when nil.
         public let inputSource: [String]?
+        /// chord 0.10.0+: inter-key delay (ms) for a multi-key
+        /// `action-keys` array. Omitted when nil (post back-to-back).
+        public let actionKeysDelayMs: Int?
 
         enum CodingKeys: String, CodingKey {
             case index, name, input, apps, action, condition
@@ -184,6 +187,7 @@ public enum BindingsSchema {
             case passthrough
             case repeatStrategy     = "repeat"
             case inputSource        = "input_source"
+            case actionKeysDelayMs  = "action_keys_delay_ms"
         }
     }
 
@@ -429,6 +433,7 @@ public enum BindingsSchema {
             && a.passthrough == b.passthrough
             && a.repeatStrategy == b.repeatStrategy
             && a.inputSource == b.inputSource
+            && a.actionKeysDelayMs == b.actionKeysDelayMs
     }
 
     // MARK: - encoding
@@ -523,7 +528,8 @@ public enum BindingsSchema {
             repeatStrategy: b.repeatStrategy == .fireEach
                 ? nil
                 : b.repeatStrategy.rawValue,
-            inputSource: b.inputSource)
+            inputSource: b.inputSource,
+            actionKeysDelayMs: b.actionKeysDelayMs)
     }
 
     private static func wireCondition(_ c: Condition) -> WireCondition {

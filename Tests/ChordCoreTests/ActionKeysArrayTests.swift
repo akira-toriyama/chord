@@ -169,7 +169,99 @@ import Testing
         }
     }
 
+    // MARK: - action-keys-delay-ms (chord 0.10.0+ inter-key pacing)
+
+    @Test func delayMsParsedOntoArray() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "paced"
+        input = "cmd - p"
+        action-keys = ["cmd - a", "cmd - c"]
+        action-keys-delay-ms = 20
+        """)
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings[0].actionKeysDelayMs == 20)
+    }
+
+    @Test func delayMsAbsentIsNil() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "no-delay"
+        input = "cmd - p"
+        action-keys = ["cmd - a", "cmd - c"]
+        """)
+        #expect(res.droppedBindings == 0)
+        #expect(res.config.bindings[0].actionKeysDelayMs == nil)
+    }
+
+    @Test func delayMsNonIntegerDropsBinding() throws {
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "bad-delay"
+        input = "cmd - p"
+        action-keys = ["cmd - a", "cmd - c"]
+        action-keys-delay-ms = "soon"
+        """)
+        #expect(res.config.bindings.count == 0)
+        #expect(res.warnings.contains { $0.kind == .actionKeysDelayParseError })
+    }
+
+    @Test func delayMsZeroOrNegativeDropsBinding() throws {
+        for bad in ["0", "-5"] {
+            let res = try Config.parse("""
+            [[bindings]]
+            name = "nonpositive"
+            input = "cmd - p"
+            action-keys = ["cmd - a", "cmd - c"]
+            action-keys-delay-ms = \(bad)
+            """)
+            #expect(res.config.bindings.count == 0)
+            #expect(res.warnings.contains {
+                $0.kind == .actionKeysDelayParseError &&
+                $0.message.contains("> 0")
+            }, "delay \(bad) must drop with a '> 0' warning")
+        }
+    }
+
+    @Test func delayMsOnSingleKeyParsedButNoExtras() throws {
+        // A single keystroke has no inter-key gap, so the delay is a
+        // runtime no-op — but it parses and is stored without dropping
+        // the binding (the keystroke still fires).
+        let res = try Config.parse("""
+        [[bindings]]
+        name = "single-with-delay"
+        input = "cmd - x"
+        action-keys = "cmd - c"
+        action-keys-delay-ms = 50
+        """)
+        #expect(res.droppedBindings == 0)
+        let b = res.config.bindings[0]
+        #expect(b.actionKeysDelayMs == 50)
+        #expect(b.extraDownActions.isEmpty)
+    }
+
     // MARK: - Schema round-trip
+
+    @Test func schemaEmitsActionKeysDelayMs() throws {
+        let b = try firstBinding("""
+        [[bindings]]
+        name = "paced"
+        input = "cmd - p"
+        action-keys = ["cmd - a", "cmd - c"]
+        action-keys-delay-ms = 20
+        """)
+        #expect(b["action_keys_delay_ms"] as? Int == 20)
+    }
+
+    @Test func schemaOmitsActionKeysDelayMsWhenUnset() throws {
+        let b = try firstBinding("""
+        [[bindings]]
+        name = "no-delay"
+        input = "cmd - p"
+        action-keys = ["cmd - a", "cmd - c"]
+        """)
+        #expect(b["action_keys_delay_ms"] == nil)
+    }
 
     @Test func schemaEmitsExtraActionsForKeysArray() throws {
         let b = try firstBinding("""

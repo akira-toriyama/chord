@@ -36,6 +36,8 @@ Actions:
 - **`action-shell`** — `/bin/zsh -l -c` exec, `$HOME` available
 - **`action-keys`** — chord posts replacement keys
 - **`action-keys` array** — multi-key sequence on one trigger
+  (optional **`action-keys-delay-ms`** — inter-key delay, ms, for fast
+  apps that drop zero-interval synthetic keys; paced off the tap thread)
 - **`action-shell` + `action-keys` on one binding** — fire-and-forget
   shell then post keys (Karabiner `to`-array shape)
 - **`action-noop`** — eat the event
