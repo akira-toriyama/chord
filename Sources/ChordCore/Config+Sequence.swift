@@ -57,7 +57,7 @@ extension Config {
 
         let rows = root["sequence"]?.asArrayOfTables ?? []
         for (i, row) in rows.enumerated() {
-            let line = row.sourceLine
+            let line = row.span?.line
             let source = sourceTag(line: line)
             let rawName = row["name"]?.asString
             let seqName = rawName ?? "sequence-\(i + 1)"
@@ -153,9 +153,8 @@ extension Config {
                 "action-set-var": .string(varName),
                 "hold-while-timeout": .int(Int64(timeoutMs)),
             ]
-            if let lv = row[TOML.lineKey] { prefixRow[TOML.lineKey] = lv }
             guard let prefixBinding = makeBinding(
-                from: prefixRow, index: i, isFallback: false,
+                from: prefixRow, sourceLine: line, index: i, isFallback: false,
                 actionAliases: actionAliases,
                 inputAliases: inputAliases,
                 vkeyAliases: vkeyAliases,
@@ -171,7 +170,7 @@ extension Config {
 
             // Child bindings.
             for (ci, child) in childRows.enumerated() {
-                let childLine = child.sourceLine ?? line
+                let childLine = child.span?.line ?? line
                 let childSrc = sourceTag(line: childLine)
                 let childName = child["name"]?.asString
                     ?? "\(seqName).\(ci + 1)"
@@ -216,17 +215,13 @@ extension Config {
                 // composed string will fail to parse and makeBinding
                 // surfaces a clear "unknown-input-token" warning.
                 let composedInput = "\(modsetStr) - \(childInputRaw)"
-                var childRow = child
+                var childRow = child.fields
                 childRow["name"] = .string(childName)
                 childRow["input"] = .string(composedInput)
                 childRow["when-var"] = .string(varName)
-                if childRow[TOML.lineKey] == nil,
-                   let lv = row[TOML.lineKey] {
-                    childRow[TOML.lineKey] = lv
-                }
 
                 if let b = makeBinding(
-                    from: childRow, index: ci, isFallback: false,
+                    from: childRow, sourceLine: childLine, index: ci, isFallback: false,
                     actionAliases: actionAliases,
                     inputAliases: inputAliases,
                     vkeyAliases: vkeyAliases,

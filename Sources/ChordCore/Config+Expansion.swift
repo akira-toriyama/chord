@@ -12,10 +12,12 @@ extension Config {
     /// inputs[]` (chord 0.8.0+) and `[[bindings]] [[bindings.per-app]]`
     /// (chord 0.8.0+).
     enum RowExpansion {
-        /// Use the row as-is (no sugar field present).
-        case single([String: TOML.Value])
-        /// Expand into N rows. Caller threads each through makeBinding.
-        case many([[String: TOML.Value]])
+        /// Use the row as-is (no sugar field present), with its resolved
+        /// source line (from the originating `Toml.Row.span`).
+        case single([String: TOML.Value], line: Int?)
+        /// Expand into N rows, each paired with its resolved source line.
+        /// Caller threads each through makeBinding as `(fields, sourceLine)`.
+        case many([(row: [String: TOML.Value], line: Int?)])
         /// Validation failed (mutually exclusive fields, empty list,
         /// non-string member, etc.). Warning already appended; caller
         /// counts the drop.
@@ -50,13 +52,13 @@ extension Config {
     ///   * `bundle-id` is required on each per-app entry
     ///   * empty `per-app` array drops the whole binding
     static func expandBindingPerApp(
-        _ row: [String: TOML.Value],
+        _ row: TOML.Row,
         warnings: inout [ConfigWarning]
     ) -> RowExpansion {
         guard let perApp = row["per-app"]?.asArrayOfTables else {
-            return .single(row)
+            return .single(row.fields, line: row.span?.line)
         }
-        let line = row.sourceLine
+        let line = row.span?.line
         let baseName = row["name"]?.asString
         let displayName = baseName ?? "[[bindings]] entry"
         let source = sourceTag(line: line)
@@ -95,9 +97,12 @@ extension Config {
                 .filter { !$0.rejected && $0.key != "bundle-id" }
                 .map(\.key))
 
-        var out: [[String: TOML.Value]] = []
+        var out: [(row: [String: TOML.Value], line: Int?)] = []
         for entry in perApp {
-            let entryLine = entry.sourceLine ?? line
+            // Attribute each expansion to the per-app entry's line when
+            // present (so warnings point at the override row), otherwise
+            // inherit the base row's line.
+            let entryLine = entry.span?.line ?? line
             let entrySource = sourceTag(line: entryLine)
             guard let bundleID = entry["bundle-id"]?.asString,
                   !bundleID.isEmpty
@@ -111,7 +116,7 @@ extension Config {
                 return .invalid
             }
 
-            var synth = row
+            var synth = row.fields
             synth["per-app"] = nil
             synth["apps"] = .array([.string(bundleID)])
             for key in layerableKeys {
@@ -120,11 +125,7 @@ extension Config {
             if let baseName {
                 synth["name"] = .string("\(baseName) — \(bundleID)")
             }
-            // Attribute each expansion to the per-app entry's line
-            // when present (so warnings point at the override row),
-            // otherwise inherit the base row's line.
-            if let lv = entry[TOML.lineKey] { synth[TOML.lineKey] = lv }
-            out.append(synth)
+            out.append((synth, entryLine))
         }
         return .many(out)
     }
@@ -138,17 +139,17 @@ extension Config {
     /// provided a `name`) appends `" — <input>"` so warnings /
     /// `config --show --json` distinguish the siblings.
     ///
-    /// The `__line__` synthetic metadata key is preserved verbatim
-    /// across expansions (all expanded fallbacks attribute back to
-    /// the source `[[fallbacks]]` header line).
+    /// Every expanded fallback attributes back to the source
+    /// `[[fallbacks]]` header line (carried explicitly alongside the
+    /// synthesized fields).
     static func expandFallbackRow(
-        _ row: [String: TOML.Value],
+        _ row: TOML.Row,
         warnings: inout [ConfigWarning]
     ) -> FallbackExpansion {
         guard let inputsRaw = row["inputs"] else {
-            return .single(row)
+            return .single(row.fields, line: row.span?.line)
         }
-        let line = row.sourceLine
+        let line = row.span?.line
         let baseName = row["name"]?.asString
         let displayName = baseName ?? "[[fallbacks]] entry"
         let source = sourceTag(line: line)
@@ -191,15 +192,15 @@ extension Config {
             return .invalid
         }
 
-        var out: [[String: TOML.Value]] = []
+        var out: [(row: [String: TOML.Value], line: Int?)] = []
         for inputStr in inputStrings {
-            var synth = row
+            var synth = row.fields
             synth["input"] = .string(inputStr)
             synth["inputs"] = nil
             if let baseName {
                 synth["name"] = .string("\(baseName) — \(inputStr)")
             }
-            out.append(synth)
+            out.append((synth, line))
         }
         return .many(out)
     }

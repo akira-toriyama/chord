@@ -32,7 +32,7 @@ extension Config {
         var dropped = 0
         let rows = root["remap"]?.asArrayOfTables ?? []
         for (ri, row) in rows.enumerated() {
-            let line = row.sourceLine
+            let line = row.span?.line
             let source = sourceTag(line: line)
             let baseName = row["name"]?.asString ?? "remap-\(ri + 1)"
 
@@ -117,8 +117,7 @@ extension Config {
                     "action-keys": .string(valueStr),
                 ]
                 if let apps = row["apps"] { synth["apps"] = apps }
-                if let lv = row[TOML.lineKey] { synth[TOML.lineKey] = lv }
-                if let b = makeBinding(from: synth, index: ri,
+                if let b = makeBinding(from: synth, sourceLine: line, index: ri,
                                        isFallback: false,
                                        actionAliases: actionAliases,
                                        inputAliases: inputAliases,

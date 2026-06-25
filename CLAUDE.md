@@ -239,12 +239,16 @@ Rules:
   ```
   warning: binding 'NAME' (config.toml:LINE) references undefined alias '@xyz'; binding dropped
   ```
-  The `(config.toml:LINE)` suffix comes from the synthetic
-  `__line__` value the TOML parser injects into each `[[X]]` row
-  via `appendArrayOfTablesRow(_:path:lineNo:)`. Treat
-  `TOML.lineKey` as reserved — users naming a real TOML key
-  `__line__` would shadow the metadata (acceptable trade; the
-  alternative is changing the parser's return type).
+  The `(config.toml:LINE)` suffix comes from `Toml.Row.span` — each
+  `[[X]]` row `Toml.parse` returns is a `Toml.Row` carrying the
+  `SourceSpan` of its header (swift-toml-edit 2.0.0). The line is
+  resolved at parse time (`row.span?.line`) and threaded into the
+  binding / warning as an explicit value; synthesized desugar rows
+  inherit the originating row's line the same way. This replaced the
+  old synthetic `__line__` dict key (`TOML.lineKey`), which every
+  consumer had to skip and a user key could shadow — a typed `Row`
+  field can't collide and rides on value-copy when a row is cloned.
+  (#148 / #138-E.)
 - The Controller startup / reload log line surfaces alias counts
   and `undefined-aliases=N` alongside the bindings / fallbacks /
   dropped totals — so a single `tail -f /tmp/chord.log` shows the

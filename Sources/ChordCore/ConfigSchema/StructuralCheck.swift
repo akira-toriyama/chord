@@ -38,15 +38,17 @@ public extension ChordConfigSchema {
         let knownSections = Set(sections.map(\.name))
         let knownList = knownSections.sorted().joined(separator: ", ")
         for (key, value) in root.sorted(by: { $0.key < $1.key })
-        where key != TOML.lineKey && !knownSections.contains(key) {
+        where !knownSections.contains(key) {
             let line: Int?
             let label: String
             let noun: String
             switch value {
             case .arrayOfTables(let rows):
-                line = rows.first?.sourceLine; label = "[[\(key)]]"; noun = "section"
-            case .table(let t):
-                line = t.sourceLine; label = "[\(key)]"; noun = "section"
+                // Only `[[x]]` rows carry a source span; a `[x]` table or a
+                // stray top-level scalar has none.
+                line = rows.first?.span?.line; label = "[[\(key)]]"; noun = "section"
+            case .table:
+                line = nil; label = "[\(key)]"; noun = "section"
             default:
                 line = nil; label = "'\(key)'"; noun = "key"
             }
@@ -69,18 +71,17 @@ public extension ChordConfigSchema {
     /// Validate one row against `shape.keySet`, then recurse into the
     /// shape's nested array-of-tables (per-app / sequence.bindings). `path`
     /// is the dotted TOML section path, rendered as `[[path]]` in messages.
-    private static func checkRow(_ row: [String: TOML.Value],
+    private static func checkRow(_ row: TOML.Row,
                                  shape: ObjectShape,
                                  path: String,
                                  into out: inout [ConfigWarning]) {
         let known = shape.keySet
         // A per-app row identifies by bundle-id rather than name.
         let name = row["name"]?.asString ?? row["bundle-id"]?.asString
-        let line = row.sourceLine
+        let line = row.span?.line
         let who = name.map { " '\($0)'" } ?? ""
         // Sorted for deterministic warning order (TOML tables are unordered).
-        for key in row.keys.sorted()
-        where key != TOML.lineKey && !known.contains(key) {
+        for key in row.fields.keys.sorted() where !known.contains(key) {
             out.append(ConfigWarning(
                 kind: .unknownKey,
                 message: "[[\(path)]]\(who): unknown key '\(key)' — ignored",

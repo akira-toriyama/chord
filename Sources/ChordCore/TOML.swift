@@ -28,12 +28,9 @@
 
 public typealias TOML = Toml
 
-extension Dictionary where Key == String, Value == TOML.Value {
-    /// The 1-based source-file line for this `[[X]]` row, read from the
-    /// synthetic `__line__` key ([TOML.lineKey]) the parser seeds into
-    /// every array-of-tables row; `nil` when absent. The single reader
-    /// for the `row[TOML.lineKey]?.asInt` sites across `Config*` —
-    /// `asInt` is already a native `Int`, so no `Int(…)` width cast
-    /// (the old `Int64`-era `.map { Int($0) }` was a dead no-op).
-    var sourceLine: Int? { self[TOML.lineKey]?.asInt }
-}
+// Source-line attribution comes from `Toml.Row.span` now — each
+// `[[array-of-tables]]` row from `Toml.parse` is a `Toml.Row` carrying the
+// `SourceSpan` of its `[[header]]` (swift-toml-edit 2.0.0). The old
+// `__line__`/`TOML.lineKey` synthetic dict key is gone, so the
+// `Dictionary.sourceLine` reader that pulled it out is gone too; call sites
+// read `row.span?.line` directly off the `Row`.
