@@ -68,20 +68,9 @@ public enum Control {
         guard fd >= 0 else { return nil }
         defer { close(fd) }
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        let cap = MemoryLayout.size(ofValue: addr.sun_path)
-        let pathBytes = QuerySchema.socketPath.utf8CString   // incl. trailing NUL
-        guard pathBytes.count <= cap else { return nil }
-        withUnsafeMutablePointer(to: &addr.sun_path) { tuplePtr in
-            tuplePtr.withMemoryRebound(to: CChar.self, capacity: cap) { dst in
-                pathBytes.withUnsafeBufferPointer { src in
-                    dst.update(from: src.baseAddress!, count: src.count)
-                }
-            }
-        }
-        let len = socklen_t(MemoryLayout<sockaddr_un>.size)
-        let connected = withUnsafePointer(to: &addr) {
+        guard let (addr, len) = makeUnixSocketAddr(path: QuerySchema.socketPath)
+        else { return nil }   // fd closed by the `defer` above
+        let connected = withUnsafePointer(to: addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, len) }
         }
         guard connected == 0 else { return nil }   // ENOENT / ECONNREFUSED → no daemon

@@ -191,20 +191,9 @@ private func queryBindListen(path: String) -> Int32? {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { return nil }
 
-    var addr = sockaddr_un()
-    addr.sun_family = sa_family_t(AF_UNIX)
-    let cap = MemoryLayout.size(ofValue: addr.sun_path)
-    let pathBytes = path.utf8CString   // includes the trailing NUL
-    guard pathBytes.count <= cap else { close(fd); return nil }
-    withUnsafeMutablePointer(to: &addr.sun_path) { tuplePtr in
-        tuplePtr.withMemoryRebound(to: CChar.self, capacity: cap) { dst in
-            pathBytes.withUnsafeBufferPointer { src in
-                dst.update(from: src.baseAddress!, count: src.count)
-            }
-        }
-    }
-    let len = socklen_t(MemoryLayout<sockaddr_un>.size)
-    let bound = withUnsafePointer(to: &addr) {
+    guard let (addr, len) = makeUnixSocketAddr(path: path)
+    else { close(fd); return nil }
+    let bound = withUnsafePointer(to: addr) {
         $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, len) }
     }
     guard bound == 0 else { close(fd); return nil }

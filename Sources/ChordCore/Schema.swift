@@ -494,10 +494,7 @@ public enum BindingsSchema {
     /// Encode a [Document] as pretty-printed JSON with sorted keys
     /// (stable for diffs / golden tests).
     public static func encodeJSON(_ document: Document) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys,
-                                    .withoutEscapingSlashes]
-        return try encoder.encode(document)
+        try JSONEncoder.chordWire().encode(document)
     }
 
     // MARK: - mappers
