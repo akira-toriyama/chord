@@ -35,6 +35,9 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         case missingAction        = "missing-action"
         case unknownInputToken    = "unknown-input-token"
         case actionKeysParseError = "action-keys-parse-error"
+        /// `action-keys-delay-ms` is present but not a positive integer
+        /// (inter-key delay for a multi-key `action-keys` array).
+        case actionKeysDelayParseError = "action-keys-delay-parse-error"
         /// `[action-aliases]` entry whose value isn't a string.
         /// (was `aliasNonString` / `alias-non-string` before the split)
         case actionAliasNonString = "action-alias-non-string"

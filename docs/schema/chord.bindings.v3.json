@@ -72,7 +72,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["index", "name", "input", "action"],
-      "description": "`source_line` is absent when the TOML parser couldn't track it. `apps` is absent (== unscoped) or an array of bundle-id glob patterns. `condition`, `hold_while`, `action_on_up` are v2 additions and absent when the user did not declare them. `passthrough`, `repeat`, `input_source` are chord 0.9.0+ additions, omitted from JSON when at their default (false / fire-each / unset).",
+      "description": "`source_line` is absent when the TOML parser couldn't track it. `apps` is absent (== unscoped) or an array of bundle-id glob patterns. `condition`, `hold_while`, `action_on_up` are v2 additions and absent when the user did not declare them. `passthrough`, `repeat`, `input_source` are chord 0.9.0+ additions, omitted from JSON when at their default (false / fire-each / unset). `action_keys_delay_ms` is a chord 0.10.0+ addition, omitted when unset.",
       "properties": {
         "index":       { "type": "integer", "minimum": 0 },
         "name":        { "type": "string" },
@@ -118,6 +118,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "chord 0.9.0+: input-source-id glob filter list (same allow / `!`-deny / `*`-wildcard semantics as `apps`). The binding fires only when the current macOS text input source matches. Omitted when unset (no filter)."
+        },
+        "action_keys_delay_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "chord 0.10.0+: inter-key delay in milliseconds inserted between consecutive keystrokes of a multi-key `action-keys` array (the primary plus `extra_actions`). Omitted when unset (keystrokes post back-to-back). Has effect only with ≥2 keystrokes; the paced posting runs off the event-tap thread so input is never blocked."
         }
       }
     },
@@ -393,6 +398,7 @@
             "missing-action",
             "unknown-input-token",
             "action-keys-parse-error",
+            "action-keys-delay-parse-error",
             "undefined-action-alias",
             "action-alias-non-string",
             "input-alias-non-string",

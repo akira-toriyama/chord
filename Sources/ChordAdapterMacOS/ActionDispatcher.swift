@@ -49,6 +49,34 @@ public enum ActionDispatcher {
     nonisolated(unsafe) private static let source =
         CGEventSource(stateID: .hidSystemState)
 
+    /// Serial queue for PACED multi-key posting (`action-keys-delay-ms`).
+    /// The inter-key `Thread.sleep`s run here, NEVER on the tap thread —
+    /// the consume decision has already returned synchronously by the
+    /// time this is enqueued. Serial so two delayed macros fired in quick
+    /// succession don't interleave their keystrokes. Same dedicated-queue
+    /// idiom as `chord.state.timer` / `chord.query`.
+    nonisolated(unsafe) private static let macroQueue =
+        DispatchQueue(label: "chord.dispatch.macro", qos: .userInitiated)
+
+    /// Post a sequence of keystrokes with `delayMs` between each, off the
+    /// tap thread. Used when a multi-key `action-keys` array carries
+    /// `action-keys-delay-ms`. Each keystroke goes through [postKeys]
+    /// (so the synthetic-event sentinel + flag handling are identical to
+    /// the back-to-back path); the only addition is the pacing sleep.
+    public static func postKeysSequence(
+        _ keys: [(Modifiers, UInt16)], delayMs: Int, name: String
+    ) {
+        let interval = Double(delayMs) / 1000.0
+        macroQueue.async {
+            Log.debug("dispatch.keys-seq: \(name) → \(keys.count) keys, " +
+                      "delay=\(delayMs)ms")
+            for (i, key) in keys.enumerated() {
+                if i > 0 { Thread.sleep(forTimeInterval: interval) }
+                postKeys(modifiers: key.0, code: key.1)
+            }
+        }
+    }
+
     static func postKeys(modifiers: Modifiers, code: UInt16) {
         let src = source
         let flags = cgFlags(from: modifiers)

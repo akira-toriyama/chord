@@ -118,6 +118,9 @@ public enum ChordConfigSchema {
                 doc: "Bundle-id globs this binding applies to (`*` `?`); a `!` prefix excludes. Mutually exclusive with per-app. e.g. `[\"com.apple.Safari\"]`, or `[\"!com.apple.Terminal\"]` to exclude."),
             SchemaField("input-source", .stringOrStringArray,
                 doc: "Restrict to keyboard input-source id(s)."),
+            SchemaField("action-keys-delay-ms", .integer,
+                doc: "Inter-key delay (ms, >0) between keystrokes of a multi-key action-keys array. No effect on a single keystroke. e.g. `20` for fast apps that drop zero-interval synthetic keys.",
+                exclusiveMinimum: 0),
             SchemaField("passthrough", .boolean,
                 doc: "Let the original event reach the OS after firing.", defaultBool: false),
             // enumDocs are index-aligned to RepeatStrategy.allCases

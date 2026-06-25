@@ -341,6 +341,18 @@ public struct Binding: Hashable, Sendable {
     /// pre-0.9.0 behaviour (every repeat invokes the action).
     public var repeatStrategy: RepeatStrategy
 
+    /// Inter-key delay (milliseconds) inserted BETWEEN consecutive
+    /// keystrokes of a multi-key `action-keys` array (primary +
+    /// [extraDownActions]). `nil` = post back-to-back (the default).
+    /// Meaningful only when there are ≥2 keys to post; a single
+    /// keystroke has no inter-key gap, so the delay is a no-op there.
+    /// The paced posting runs off the tap thread (see
+    /// `ActionDispatcher.postKeysSequence`) so the inter-key sleeps
+    /// never block input. ZMK `&macro` `wait-ms` analogue — for fast
+    /// apps (terminals / editors / games) that drop zero-interval
+    /// synthetic keys.
+    public var actionKeysDelayMs: Int?
+
     // — metadata (read by Schema.swift, not by Matcher) —
 
     /// Original `input = "..."` string as the user wrote it. Kept
@@ -368,6 +380,7 @@ public struct Binding: Hashable, Sendable {
                 holdWhileTimeoutMs: Int? = nil,
                 passthrough: Bool = false,
                 repeatStrategy: RepeatStrategy = .fireEach,
+                actionKeysDelayMs: Int? = nil,
                 inputSource: [String]? = nil,
                 inputRaw: String = "",
                 actionRaw: String? = nil,
@@ -385,6 +398,7 @@ public struct Binding: Hashable, Sendable {
         self.holdWhileTimeoutMs = holdWhileTimeoutMs
         self.passthrough = passthrough
         self.repeatStrategy = repeatStrategy
+        self.actionKeysDelayMs = actionKeysDelayMs
         self.inputSource = inputSource
         self.inputRaw = inputRaw
         self.actionRaw = actionRaw

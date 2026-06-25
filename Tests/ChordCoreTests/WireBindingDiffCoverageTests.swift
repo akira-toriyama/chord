@@ -33,7 +33,7 @@ import Testing
     private let compared: Set<String> = [
         "name", "input", "apps", "action", "condition", "holdWhile",
         "holdWhileTimeoutMs", "actionOnUp", "extraActions",
-        "passthrough", "repeatStrategy", "inputSource",
+        "passthrough", "repeatStrategy", "inputSource", "actionKeysDelayMs",
     ]
 
     @Test func everyStoredPropertyIsClassified() throws {

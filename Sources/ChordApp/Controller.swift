@@ -132,33 +132,51 @@ public final class Controller {
                 return .passthrough
             }
         }
-        // Intercept state-mutating actions: state ownership lives here,
-        // not in the dispatcher (which is in the Adapter layer and has
-        // no legitimate reason to know about the controller's store).
-        switch binding.action {
-        case .setVariable(let name, let value):
-            applyAction(binding.action, for: binding)
-            Log.debug("state: set \(name)=\(value) " +
-                      "via '\(binding.name)'" +
-                      lifecycleTag(binding))
-        case .toggleVariable(let name):
-            // Flip 0↔1 atomically (single lock window) — any non-zero
-            // value collapses to 0, matching the documented contract. The
-            // live store is the source of truth, not the per-event snapshot.
-            let (current, next) = applyAction(binding.action, for: binding) ?? (0, 0)
-            Log.debug("state: toggle \(name) \(current)→\(next) " +
-                      "via '\(binding.name)'")
-        case .keys, .shell, .noop:
-            applyAction(binding.action, for: binding)
-        }
-        // Karabiner-style multi-action on down: run any extra actions
-        // (only `.keys`, per the parser) in order, right after the
-        // primary. Swap `.action` and re-dispatch — same trick the
-        // on-up path uses; the dispatcher only reads `.action`.
-        for extra in binding.extraDownActions {
-            var b = binding
-            b.action = extra
-            ActionDispatcher.dispatch(b)
+        // chord 0.10.0+: a multi-key action-keys output carrying
+        // `action-keys-delay-ms` is PACED off the tap thread — the
+        // keystroke list is the primary (when it is `.keys`) plus every
+        // `.keys` in extraDownActions. Pacing only kicks in at ≥2
+        // keystrokes (one key has no inter-key gap). A non-key primary
+        // (action-shell) still fires through `applyAction` first; only
+        // the keystroke output is handed to the paced queue.
+        let keyOutput = keystrokeList(of: binding)
+        if let delayMs = binding.actionKeysDelayMs, keyOutput.count >= 2 {
+            if case .keys = binding.action {
+                // primary IS the first paced keystroke — nothing to fire here
+            } else {
+                applyAction(binding.action, for: binding)   // e.g. shell primary
+            }
+            ActionDispatcher.postKeysSequence(keyOutput, delayMs: delayMs,
+                                              name: binding.name)
+        } else {
+            // Intercept state-mutating actions: state ownership lives here,
+            // not in the dispatcher (which is in the Adapter layer and has
+            // no legitimate reason to know about the controller's store).
+            switch binding.action {
+            case .setVariable(let name, let value):
+                applyAction(binding.action, for: binding)
+                Log.debug("state: set \(name)=\(value) " +
+                          "via '\(binding.name)'" +
+                          lifecycleTag(binding))
+            case .toggleVariable(let name):
+                // Flip 0↔1 atomically (single lock window) — any non-zero
+                // value collapses to 0, matching the documented contract. The
+                // live store is the source of truth, not the per-event snapshot.
+                let (current, next) = applyAction(binding.action, for: binding) ?? (0, 0)
+                Log.debug("state: toggle \(name) \(current)→\(next) " +
+                          "via '\(binding.name)'")
+            case .keys, .shell, .noop:
+                applyAction(binding.action, for: binding)
+            }
+            // Karabiner-style multi-action on down: run any extra actions
+            // (only `.keys`, per the parser) in order, right after the
+            // primary. Swap `.action` and re-dispatch — same trick the
+            // on-up path uses; the dispatcher only reads `.action`.
+            for extra in binding.extraDownActions {
+                var b = binding
+                b.action = extra
+                ActionDispatcher.dispatch(b)
+            }
         }
         // B-α reset-on-use: a binding gated on a SINGLE `.variable`
         // condition extends that variable's inactivity timer. (Only the
@@ -332,6 +350,23 @@ public final class Controller {
     /// can log it without re-reading the store, else nil. `action` is
     /// passed separately from `binding` so the on-up path can apply
     /// `binding.onUpAction` against the same binding.
+    /// The keystrokes a binding emits on down, in order: the primary
+    /// action when it is `.keys`, followed by every `.keys` in
+    /// `extraDownActions` (a non-key primary like `action-shell`
+    /// contributes nothing). Used to decide whether `action-keys-delay-ms`
+    /// pacing applies (it needs ≥2 keystrokes) and to build the list
+    /// handed to `ActionDispatcher.postKeysSequence`.
+    nonisolated private func keystrokeList(
+        of binding: Binding
+    ) -> [(Modifiers, UInt16)] {
+        var keys: [(Modifiers, UInt16)] = []
+        if case .keys(let m, let c) = binding.action { keys.append((m, c)) }
+        for extra in binding.extraDownActions {
+            if case .keys(let m, let c) = extra { keys.append((m, c)) }
+        }
+        return keys
+    }
+
     @discardableResult
     nonisolated private func applyAction(
         _ action: Action, for binding: Binding

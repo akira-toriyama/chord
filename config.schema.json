@@ -150,6 +150,11 @@
               }
             ]
           },
+          "action-keys-delay-ms" : {
+            "description" : "Inter-key delay (ms, >0) between keystrokes of a multi-key action-keys array. No effect on a single keystroke. e.g. `20` for fast apps that drop zero-interval synthetic keys.",
+            "exclusiveMinimum" : 0,
+            "type" : "integer"
+          },
           "action-keys-on-up" : {
             "description" : "Keystroke on key-up (string only — no array).",
             "type" : "string"
@@ -346,6 +351,11 @@
                       "type" : "array"
                     }
                   ]
+                },
+                "action-keys-delay-ms" : {
+                  "description" : "Inter-key delay (ms, >0) between keystrokes of a multi-key action-keys array. No effect on a single keystroke. e.g. `20` for fast apps that drop zero-interval synthetic keys.",
+                  "exclusiveMinimum" : 0,
+                  "type" : "integer"
                 },
                 "action-keys-on-up" : {
                   "description" : "Keystroke on key-up (string only — no array).",
@@ -714,6 +724,11 @@
                 "type" : "array"
               }
             ]
+          },
+          "action-keys-delay-ms" : {
+            "description" : "Inter-key delay (ms, >0) between keystrokes of a multi-key action-keys array. No effect on a single keystroke. e.g. `20` for fast apps that drop zero-interval synthetic keys.",
+            "exclusiveMinimum" : 0,
+            "type" : "integer"
           },
           "action-keys-on-up" : {
             "description" : "Keystroke on key-up (string only — no array).",
@@ -1104,6 +1119,11 @@
                       "type" : "array"
                     }
                   ]
+                },
+                "action-keys-delay-ms" : {
+                  "description" : "Inter-key delay (ms, >0) between keystrokes of a multi-key action-keys array. No effect on a single keystroke. e.g. `20` for fast apps that drop zero-interval synthetic keys.",
+                  "exclusiveMinimum" : 0,
+                  "type" : "integer"
                 },
                 "action-keys-on-up" : {
                   "description" : "Keystroke on key-up (string only — no array).",

@@ -163,6 +163,44 @@ extension Config {
         return OptionalParse(value: ms)
     }
 
+    /// Parse the optional `action-keys-delay-ms = 20` field — the
+    /// inter-key delay (ms) for a multi-key `action-keys` array.
+    /// Positive integer; 0 / negative / non-int is a user error and
+    /// drops the binding (0 would mean "no delay", which is just the
+    /// default — omit the field instead). Same `OptionalParse<Int>?`
+    /// convention as `parseHoldWhileTimeout`: outer `nil` = drop,
+    /// `OptionalParse(value: nil)` = field absent.
+    static func parseActionKeysDelay(
+        row: [String: TOML.Value],
+        section: String, name: String, source: String,
+        sourceLine: Int?,
+        warnings: inout [ConfigWarning]
+    ) -> OptionalParse<Int>? {
+        guard let raw = row["action-keys-delay-ms"] else {
+            return OptionalParse(value: nil)
+        }
+        guard let v = raw.asInt else {
+            warnings.append(ConfigWarning(
+                kind: .actionKeysDelayParseError,
+                message:
+                    "\(section) '\(name)'\(source): " +
+                    "action-keys-delay-ms must be an integer (ms)",
+                sourceLine: sourceLine, bindingName: name))
+            return nil
+        }
+        let ms = Int(v)
+        guard ms > 0 else {
+            warnings.append(ConfigWarning(
+                kind: .actionKeysDelayParseError,
+                message:
+                    "\(section) '\(name)'\(source): " +
+                    "action-keys-delay-ms must be > 0 (got \(ms))",
+                sourceLine: sourceLine, bindingName: name))
+            return nil
+        }
+        return OptionalParse(value: ms)
+    }
+
     /// Parse the optional `hold-while = "cmd + opt"` field into a
     /// [Modifiers] mask. Same return convention as `parseCondition`.
     static func parseHoldWhile(

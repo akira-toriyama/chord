@@ -203,6 +203,10 @@ extension ChordApp {
                 out.append("      input-source: \(describeList(c.old.inputSource)) → " +
                            "\(describeList(c.new.inputSource))")
             }
+            if c.old.actionKeysDelayMs != c.new.actionKeysDelayMs {
+                out.append("      action-keys-delay-ms: \(describeMs(c.old.actionKeysDelayMs)) → " +
+                           "\(describeMs(c.new.actionKeysDelayMs))")
+            }
             if c.old.apps != c.new.apps {
                 let oldApps = c.old.apps.map { "\($0)" } ?? "nil"
                 let newApps = c.new.apps.map { "\($0)" } ?? "nil"
