@@ -326,6 +326,7 @@ strict-side: `"lcmd"`, `"rcmd"`, `"lopt"`, `"ropt"`, `"lctrl"`, `"rctrl"`, `"lsh
 | `"unknown-key"` | `[[bindings]]` / `[[fallbacks]]` / `[[sequence]]` / `[[remap]]`（および nested `per-app` / `sequence.bindings`）行に descriptor 未知のキー (typo: `actoin-shell` 等)、**または top-level section header 自体の typo (`[[bindigs]]` / `[optoins]`)**。いずれも runtime は黙って無視・`--strict` で exit 1。既知目録 (section 名 + 各 section のキー) は `--emit-schema` を駆動する `ChordConfigSchema` descriptor と同一 (#52-bounded) |
 | `"duplicate-binding-name"` | ユーザ命名の `[[bindings]]` 行が同名で複数 (synth `binding-N` 名は除外) |
 | `"v-key-alias-invalid"` | `[v-key-aliases]` の値が非整数 / 範囲外 (1–255 外) / 名前が builtin key・modifier・`v-key` wildcard を shadow (chord 0.10.0+) |
+| `"field-type-mismatch"` | optional な `[options]` / `[[bindings]]` field が**存在するが期待 TOML 型でない** (例: `passthrough = "true"`・`input-source = 3`)。loader は `?.asBool` / `?.asArray` で読むため誤型は黙ってスキップ→default 据え置きで「効かない」ように見える。array field の非 string 要素 (compactMap で黙殺) も同 kind で 1 件報告。`--strict` で exit 1 (chord 0.10.0+) |
 | `"other"` | 将来の catch-all |
 
 ---

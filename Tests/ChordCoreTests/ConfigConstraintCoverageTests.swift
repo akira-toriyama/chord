@@ -31,6 +31,7 @@ import Testing
         .actionAliasCallError,  // @name(args) call parse
         .unknownOptionKey,      // [options] typo — schema additionalProperties:false
         .unknownKey,            // schema additionalProperties:false
+        .fieldTypeMismatch,     // field type — schema declares each field's `type` (taplo squiggles)
         .other,                 // catch-all
     ]
 

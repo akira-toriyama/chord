@@ -70,12 +70,29 @@ public enum Config {
             ChordConfigSchema.unknownKeyWarnings(root: root))
 
         if case .table(let opts)? = root["options"] {
+            // t-0055: surface present-but-wrong-type. The reads below keep
+            // their `?.asBool` / `?.asArray` guards (which fall through to
+            // the default on a type miss); these calls only make that
+            // otherwise-silent skip visible. Correct / absent → no warning.
+            warnFieldType(opts, key: "passthrough-unmatched",
+                          accept: ["boolean"],
+                          label: "[options] 'passthrough-unmatched'",
+                          warnings: &warnings)
             if let b = opts["passthrough-unmatched"]?.asBool {
                 options.passthroughUnmatched = b
             }
+            warnFieldType(opts, key: "exclude-apps", accept: ["array"],
+                          label: "[options] 'exclude-apps'",
+                          warnings: &warnings)
+            warnArrayElementTypes(opts, key: "exclude-apps",
+                                  label: "[options] 'exclude-apps'",
+                                  warnings: &warnings)
             if let arr = opts["exclude-apps"]?.asArray {
                 options.excludeApps = arr.compactMap(\.asString)
             }
+            warnFieldType(opts, key: "fn-auto-arrows", accept: ["boolean"],
+                          label: "[options] 'fn-auto-arrows'",
+                          warnings: &warnings)
             if let b = opts["fn-auto-arrows"]?.asBool {
                 options.fnAutoArrows = b
             }
@@ -418,6 +435,74 @@ public enum Config {
     static func sourceTag(line: Int?) -> String {
         guard let line else { return "" }
         return " (config.toml:\(line))"
+    }
+
+    /// Human-readable TOML type name for `field-type-mismatch` warnings.
+    static func tomlTypeName(_ v: TOML.Value) -> String {
+        switch v {
+        case .string:        return "string"
+        case .int:           return "integer"
+        case .double:        return "float"
+        case .bool:          return "boolean"
+        case .array:         return "array"
+        case .table:         return "table"
+        case .arrayOfTables: return "array-of-tables"
+        }
+    }
+
+    /// present-but-wrong-type guard (t-0055). When `key` exists in
+    /// `table` but its value's TOML type isn't one of `accept`, append a
+    /// `field-type-mismatch` warning. The read sites keep their
+    /// `?.asBool` / `?.asArray` guards (which already fall through to the
+    /// default on a type miss) — this only makes the otherwise-silent
+    /// skip visible. A missing or correctly-typed field emits nothing, so
+    /// valid configs are byte-for-byte unchanged (no regression).
+    /// `accept` strings must match `tomlTypeName`'s vocabulary.
+    static func warnFieldType(
+        _ table: [String: TOML.Value],
+        key: String,
+        accept: Set<String>,
+        label: String,
+        sourceLine: Int? = nil,
+        bindingName: String? = nil,
+        warnings: inout [ConfigWarning])
+    {
+        guard let value = table[key] else { return }
+        let actual = tomlTypeName(value)
+        guard !accept.contains(actual) else { return }
+        let expected = accept.sorted().joined(separator: " or ")
+        warnings.append(ConfigWarning(
+            kind: .fieldTypeMismatch,
+            message:
+                "\(label): expected \(expected), got \(actual) — " +
+                "ignored (value has no effect)",
+            sourceLine: sourceLine, bindingName: bindingName))
+    }
+
+    /// Element-level companion to `warnFieldType` for the string-array
+    /// fields (`exclude-apps`, `input-source`). When `key` *is* an array
+    /// but some elements are non-string — silently dropped by the read
+    /// site's `compactMap(\.asString)` — warn once, naming the offending
+    /// types. A field that isn't an array (caught by `warnFieldType`) or
+    /// whose elements are all strings emits nothing.
+    static func warnArrayElementTypes(
+        _ table: [String: TOML.Value],
+        key: String,
+        label: String,
+        sourceLine: Int? = nil,
+        bindingName: String? = nil,
+        warnings: inout [ConfigWarning])
+    {
+        guard let arr = table[key]?.asArray else { return }
+        let bad = arr.filter { $0.asString == nil }.map(tomlTypeName)
+        guard !bad.isEmpty else { return }
+        warnings.append(ConfigWarning(
+            kind: .fieldTypeMismatch,
+            message:
+                "\(label): expected an array of strings, got non-string " +
+                "element(s) [\(bad.joined(separator: ", "))] — " +
+                "dropped (no effect)",
+            sourceLine: sourceLine, bindingName: bindingName))
     }
 
 }

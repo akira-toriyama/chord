@@ -191,6 +191,17 @@ extension Config {
         // chord 0.9.0+ input-source filter — same glob semantics as
         // `apps` (allow / `!`-prefix deny / `["*"]` → nil). String
         // form is sugar for a one-element list.
+        // t-0055: present-but-wrong-type. Accepts an array or a bare
+        // string (sugar for a one-element list); anything else was
+        // silently skipped. The read below is unchanged.
+        warnFieldType(row, key: "input-source", accept: ["array", "string"],
+                      label: "\(section) '\(name)'\(source): input-source",
+                      sourceLine: line, bindingName: name,
+                      warnings: &warnings)
+        warnArrayElementTypes(row, key: "input-source",
+                              label: "\(section) '\(name)'\(source): input-source",
+                              sourceLine: line, bindingName: name,
+                              warnings: &warnings)
         var inputSource: [String]?
         if let arr = row["input-source"]?.asArray {
             let strs = arr.compactMap(\.asString)
@@ -226,6 +237,10 @@ extension Config {
         // combination explicitly. `noop` + passthrough is also
         // nonsense (the whole point of noop is to consume).
         var passthrough = false
+        warnFieldType(row, key: "passthrough", accept: ["boolean"],
+                      label: "\(section) '\(name)'\(source): passthrough",
+                      sourceLine: line, bindingName: name,
+                      warnings: &warnings)
         if let raw = row["passthrough"]?.asBool {
             passthrough = raw
         }

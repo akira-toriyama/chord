@@ -416,9 +416,10 @@
             "unknown-option-key",
             "unknown-key",
             "duplicate-binding-name",
+            "field-type-mismatch",
             "other"
           ],
-          "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a schema major bump. v2.x additions are forward-compatible: input-alias-non-string / input-alias-shadows-modifier / input-alias-invalid-body / undefined-input-alias (from [input-aliases] + $-prefixed references); condition-parse-error / hold-while-parse-error / action-set-parse-error (from v2 stateful bindings). v0.7–0.9 additions are likewise forward-compatible: sequence-parse-error (0.7) / remap-parse-error, per-app-parse-error (0.8) / action-alias-call-error, unknown-option-key, unknown-key (0.9) / duplicate-binding-name. v-key-alias-invalid (0.10, from [v-key-aliases]) is likewise forward-compatible."
+          "description": "Stable discriminator drawn from ConfigWarning.Kind. Renaming any value is a schema major bump. v2.x additions are forward-compatible: input-alias-non-string / input-alias-shadows-modifier / input-alias-invalid-body / undefined-input-alias (from [input-aliases] + $-prefixed references); condition-parse-error / hold-while-parse-error / action-set-parse-error (from v2 stateful bindings). v0.7–0.9 additions are likewise forward-compatible: sequence-parse-error (0.7) / remap-parse-error, per-app-parse-error (0.8) / action-alias-call-error, unknown-option-key, unknown-key (0.9) / duplicate-binding-name. v-key-alias-invalid (0.10, from [v-key-aliases]) is likewise forward-compatible. field-type-mismatch (0.10, an optional [options] / [[bindings]] field present but of the wrong TOML type — e.g. passthrough = \"true\") is likewise forward-compatible."
         },
         "message": {
           "type": "string",
