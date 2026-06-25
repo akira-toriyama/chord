@@ -113,6 +113,17 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// `binding-N` names (from rows without a user-supplied
         /// `name`) are exempt.
         case duplicateBindingName = "duplicate-binding-name"
+        /// An optional `[options]` or `[[bindings]]` field is *present
+        /// but of the wrong TOML type* (e.g. `passthrough = "true"`
+        /// — a string where a boolean is expected, or `input-source
+        /// = 3`). The loader reads these through `?.asBool` /
+        /// `?.asArray`, which return `nil` on a type miss, so the value
+        /// would otherwise be silently skipped and the default left in
+        /// place — looking exactly like "the option had no effect". The
+        /// field-level miss fires once; an array field with non-string
+        /// elements (silently dropped by `compactMap`) fires once too.
+        /// --strict turns it into a hard exit 1.
+        case fieldTypeMismatch    = "field-type-mismatch"
         /// Reserved for future surface-area expansion (e.g.
         /// `[include]` cycles). Kept as a catch-all so a downstream
         /// consumer's match-exhaustion never breaks.
