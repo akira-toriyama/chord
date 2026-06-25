@@ -244,10 +244,7 @@ public enum QuerySchema {
     /// settings as [BindingsSchema.encodeJSON] (sorted keys, pretty,
     /// unescaped slashes). No trailing newline — the server appends one.
     public static func encode<T: Encodable>(_ document: T) -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys,
-                                    .withoutEscapingSlashes]
-        return (try? encoder.encode(document)) ?? Data("{}".utf8)
+        (try? JSONEncoder.chordWire().encode(document)) ?? Data("{}".utf8)
     }
 
     /// JSON error document for a malformed request.

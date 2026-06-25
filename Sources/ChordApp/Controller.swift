@@ -137,9 +137,7 @@ public final class Controller {
         // no legitimate reason to know about the controller's store).
         switch binding.action {
         case .setVariable(let name, let value):
-            variableStore.set(name: name, value: value,
-                              holdWhile: binding.holdWhile,
-                              timeoutMs: binding.holdWhileTimeoutMs)
+            applyAction(binding.action, for: binding)
             Log.debug("state: set \(name)=\(value) " +
                       "via '\(binding.name)'" +
                       lifecycleTag(binding))
@@ -147,11 +145,11 @@ public final class Controller {
             // Flip 0↔1 atomically (single lock window) — any non-zero
             // value collapses to 0, matching the documented contract. The
             // live store is the source of truth, not the per-event snapshot.
-            let (current, next) = variableStore.toggle(name: name)
+            let (current, next) = applyAction(binding.action, for: binding) ?? (0, 0)
             Log.debug("state: toggle \(name) \(current)→\(next) " +
                       "via '\(binding.name)'")
         case .keys, .shell, .noop:
-            ActionDispatcher.dispatch(binding)
+            applyAction(binding.action, for: binding)
         }
         // Karabiner-style multi-action on down: run any extra actions
         // (only `.keys`, per the parser) in order, right after the
@@ -248,20 +246,14 @@ public final class Controller {
             return .passthrough
         }
         if let onUp = binding.onUpAction {
+            // `applyAction` owns the keys/shell/noop dispatch (swapping
+            // `.action` to `onUp` the same way) and the setVariable
+            // store write; toggle can't reach on-up (parser-rejected),
+            // so the only thing left here is the on-up log line.
+            applyAction(onUp, for: binding)
             if case .setVariable(let name, let value) = onUp {
-                variableStore.set(name: name, value: value,
-                                  holdWhile: binding.holdWhile,
-                                  timeoutMs: binding.holdWhileTimeoutMs)
                 Log.debug("state: set \(name)=\(value) " +
                           "via '\(binding.name)' (on-up)")
-            } else {
-                // Dispatch the on-up action under the original
-                // binding's name (for logging / status output). The
-                // dispatcher only looks at `.action`, so a swap is
-                // enough — no need to mutate the binding store.
-                var upBinding = binding
-                upBinding.action = onUp
-                ActionDispatcher.dispatch(upBinding)
             }
         }
         return .consume
@@ -315,35 +307,48 @@ public final class Controller {
         for (b, edge) in edges {
             switch edge {
             case .entered:
-                fireBindingAction(b, isOnUp: false)
+                applyAction(b.action, for: b)
                 Log.debug("modifiers-only entry: '\(b.name)'")
             case .exited:
                 // modifierTransitions only emits `.exited` when onUp exists.
                 guard let onUp = b.onUpAction else { continue }
-                var upBinding = b
-                upBinding.action = onUp
-                fireBindingAction(upBinding, isOnUp: true)
+                applyAction(onUp, for: b)
                 Log.debug("modifiers-only exit: '\(b.name)' (onUp)")
             }
         }
     }
 
-    /// Internal: run the binding's action with the same state-mutation
-    /// interception logic as the regular .down path (Controller owns
-    /// state; the dispatcher only handles keys / shell / noop).
-    nonisolated private func fireBindingAction(
-        _ binding: Binding, isOnUp: Bool
-    ) {
-        switch binding.action {
+    /// Apply one action with Controller-owned state interception — the
+    /// single place the down path, the on-up path, and the
+    /// modifier-only path all funnel through. State mutations
+    /// (`setVariable` / `toggleVariable`) hit the variable store, because
+    /// state ownership lives in the App layer, NOT the dispatcher (which
+    /// is in the Adapter layer and has no legitimate reason to know about
+    /// the store); `keys` / `shell` / `noop` go to the dispatcher.
+    ///
+    /// Pure side effect, no logging: each call site keeps its own trace
+    /// line (the three paths log differently). Returns the
+    /// `(current, next)` transition when `action` is a toggle so a caller
+    /// can log it without re-reading the store, else nil. `action` is
+    /// passed separately from `binding` so the on-up path can apply
+    /// `binding.onUpAction` against the same binding.
+    @discardableResult
+    nonisolated private func applyAction(
+        _ action: Action, for binding: Binding
+    ) -> (Int, Int)? {
+        switch action {
         case .setVariable(let name, let value):
             variableStore.set(name: name, value: value,
                               holdWhile: binding.holdWhile,
                               timeoutMs: binding.holdWhileTimeoutMs)
         case .toggleVariable(let name):
-            variableStore.toggle(name: name)
+            return variableStore.toggle(name: name)
         case .keys, .shell, .noop:
-            ActionDispatcher.dispatch(binding)
+            var b = binding
+            b.action = action
+            ActionDispatcher.dispatch(b)
         }
+        return nil
     }
 
     // MARK: - vkey (vendor-HID) hot path
