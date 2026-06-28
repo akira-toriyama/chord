@@ -1,17 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: ":rocket: chore(ci):"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "swift"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: ":rocket: chore(deps):"
-    open-pull-requests-limit: 3
+      interval: weekly
