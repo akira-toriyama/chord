@@ -1,0 +1,15 @@
+name: swift-format
+
+# Thin caller — delegates Swift formatting lint to the shared reusable workflow.
+# Logic lives in akira-toriyama/.github/.github/workflows/swift-format.yml.
+# Triggers are paths-limited to the lint scope (Sources/Tests), so the gate only
+# fires when Swift sources change. Lints against this repo's ./.swift-format.
+
+on:
+  pull_request:
+    paths: ['Sources/**/*.swift', 'Tests/**/*.swift']
+  workflow_dispatch:
+
+jobs:
+  swift-format:
+    uses: akira-toriyama/.github/.github/workflows/swift-format.yml@v1
