@@ -27,20 +27,22 @@ extension Config {
         // them (no synthetic dict key).
         let source = sourceTag(line: line)
         guard let inputRaw = row["input"]?.asString else {
-            warnings.append(ConfigWarning(
-                kind: .missingInput,
-                message: "\(section) '\(name)'\(source): missing 'input'",
-                sourceLine: line, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .missingInput,
+                    message: "\(section) '\(name)'\(source): missing 'input'",
+                    sourceLine: line, bindingName: name))
             return nil
         }
         let parsed: InputParser.Parsed
-        do { parsed = try InputParser.parse(
+        do {
+            parsed = try InputParser.parse(
                 inputRaw,
                 allowWildcard: isFallback,
                 allowModifiersOnly: !isFallback,
                 inputAliases: inputAliases,
-                vkeyAliases: vkeyAliases) }
-        catch let e as InputParser.InputParseError {
+                vkeyAliases: vkeyAliases)
+        } catch let e as InputParser.InputParseError {
             // Differentiate `$name` typos (undefinedInputAlias) from
             // plain modifier typos (unknownToken) so CI / schema
             // consumers can branch on the structured kind.
@@ -50,29 +52,31 @@ extension Config {
             } else {
                 kind = .unknownInputToken
             }
-            warnings.append(ConfigWarning(
-                kind: kind,
-                message: "\(section) '\(name)'\(source): \(e)",
-                sourceLine: line, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: kind,
+                    message: "\(section) '\(name)'\(source): \(e)",
+                    sourceLine: line, bindingName: name))
+            return nil
+        } catch {
+            warnings.append(
+                ConfigWarning(
+                    kind: .unknownInputToken,
+                    message: "\(section) '\(name)'\(source): \(error)",
+                    sourceLine: line, bindingName: name))
             return nil
         }
-        catch {
-            warnings.append(ConfigWarning(
-                kind: .unknownInputToken,
-                message: "\(section) '\(name)'\(source): \(error)",
-                sourceLine: line, bindingName: name))
-            return nil
-        }
-        let actionResult = parseAction(row: row,
-                                       section: section,
-                                       name: name,
-                                       source: source,
-                                       sourceLine: line,
-                                       actionAliases: actionAliases,
-                                       suffix: "",
-                                       required: true,
-                                       allowReservedVarNames: allowReservedVarNames,
-                                       warnings: &warnings)
+        let actionResult = parseAction(
+            row: row,
+            section: section,
+            name: name,
+            source: source,
+            sourceLine: line,
+            actionAliases: actionAliases,
+            suffix: "",
+            required: true,
+            allowReservedVarNames: allowReservedVarNames,
+            warnings: &warnings)
         guard let parsedAction = actionResult else { return nil }
 
         // Multi-action on down. Three sources combine here:
@@ -85,17 +89,18 @@ extension Config {
         //   3. All other primaries (noop / setVariable): no extras.
         let extraDownActions: [Action]
         if case .shell = parsedAction.action,
-           let keysVal = row["action-keys"] {
+            let keysVal = row["action-keys"]
+        {
             do {
                 let parsed = try parseKeysListValue(keysVal)
                 extraDownActions = parsed.map { .keys($0.0, $0.1) }
             } catch {
-                warnings.append(ConfigWarning(
-                    kind: .actionKeysParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "action-keys: \(error)",
-                    sourceLine: line, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionKeysParseError,
+                        message:
+                            "\(section) '\(name)'\(source): " + "action-keys: \(error)",
+                        sourceLine: line, bindingName: name))
                 return nil
             }
         } else if !parsedAction.extraKeys.isEmpty {
@@ -115,25 +120,27 @@ extension Config {
         let userWroteOnUp = hasOnUpAction(row: row)
         if userWroteOnUp {
             if parsedAction.autoOnUpAction != nil {
-                warnings.append(ConfigWarning(
-                    kind: .missingAction,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "action-hold-var owns the on-up half — remove " +
-                        "the explicit action-*-on-up entry",
-                    sourceLine: line, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .missingAction,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "action-hold-var owns the on-up half — remove "
+                            + "the explicit action-*-on-up entry",
+                        sourceLine: line, bindingName: name))
                 return nil
             }
-            onUpResult = parseAction(row: row,
-                                     section: section,
-                                     name: name,
-                                     source: source,
-                                     sourceLine: line,
-                                     actionAliases: actionAliases,
-                                     suffix: "-on-up",
-                                     required: false,
-                                     allowReservedVarNames: allowReservedVarNames,
-                                     warnings: &warnings)
+            onUpResult = parseAction(
+                row: row,
+                section: section,
+                name: name,
+                source: source,
+                sourceLine: line,
+                actionAliases: actionAliases,
+                suffix: "-on-up",
+                required: false,
+                allowReservedVarNames: allowReservedVarNames,
+                warnings: &warnings)
             if onUpResult == nil { return nil }
         } else if let auto = parsedAction.autoOnUpAction {
             // hold-var synthetic on-up.
@@ -145,40 +152,47 @@ extension Config {
         // Optional v2 fields. Each parser returns nil for "field
         // absent", or appends a warning + drops the binding when the
         // field is present but malformed.
-        guard let condition = parseCondition(row: row, section: section,
-                                             name: name, source: source,
-                                             sourceLine: line,
-                                             warnings: &warnings)
+        guard
+            let condition = parseCondition(
+                row: row, section: section,
+                name: name, source: source,
+                sourceLine: line,
+                warnings: &warnings)
         else { return nil }
-        guard let holdWhile = parseHoldWhile(row: row, section: section,
-                                             name: name, source: source,
-                                             sourceLine: line,
-                                             warnings: &warnings)
+        guard
+            let holdWhile = parseHoldWhile(
+                row: row, section: section,
+                name: name, source: source,
+                sourceLine: line,
+                warnings: &warnings)
         else { return nil }
-        guard let holdWhileTimeout = parseHoldWhileTimeout(
-            row: row, section: section,
-            name: name, source: source,
-            sourceLine: line,
-            warnings: &warnings)
+        guard
+            let holdWhileTimeout = parseHoldWhileTimeout(
+                row: row, section: section,
+                name: name, source: source,
+                sourceLine: line,
+                warnings: &warnings)
         else { return nil }
-        guard let actionKeysDelay = parseActionKeysDelay(
-            row: row, section: section,
-            name: name, source: source,
-            sourceLine: line,
-            warnings: &warnings)
+        guard
+            let actionKeysDelay = parseActionKeysDelay(
+                row: row, section: section,
+                name: name, source: source,
+                sourceLine: line,
+                warnings: &warnings)
         else { return nil }
         // hold-while and hold-while-timeout are mutually exclusive —
         // they pick different lifecycles for the same variable. The
         // user almost certainly meant one or the other; offer a clear
         // error rather than silently picking.
         if holdWhile.value != nil && holdWhileTimeout.value != nil {
-            warnings.append(ConfigWarning(
-                kind: .holdWhileParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "hold-while and hold-while-timeout are mutually " +
-                    "exclusive — pick one",
-                sourceLine: line, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .holdWhileParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "hold-while and hold-while-timeout are mutually "
+                        + "exclusive — pick one",
+                    sourceLine: line, bindingName: name))
             return nil
         }
 
@@ -194,14 +208,16 @@ extension Config {
         // t-0055: present-but-wrong-type. Accepts an array or a bare
         // string (sugar for a one-element list); anything else was
         // silently skipped. The read below is unchanged.
-        warnFieldType(row, key: "input-source", accept: ["array", "string"],
-                      label: "\(section) '\(name)'\(source): input-source",
-                      sourceLine: line, bindingName: name,
-                      warnings: &warnings)
-        warnArrayElementTypes(row, key: "input-source",
-                              label: "\(section) '\(name)'\(source): input-source",
-                              sourceLine: line, bindingName: name,
-                              warnings: &warnings)
+        warnFieldType(
+            row, key: "input-source", accept: ["array", "string"],
+            label: "\(section) '\(name)'\(source): input-source",
+            sourceLine: line, bindingName: name,
+            warnings: &warnings)
+        warnArrayElementTypes(
+            row, key: "input-source",
+            label: "\(section) '\(name)'\(source): input-source",
+            sourceLine: line, bindingName: name,
+            warnings: &warnings)
         var inputSource: [String]?
         if let arr = row["input-source"]?.asArray {
             let strs = arr.compactMap(\.asString)
@@ -218,13 +234,13 @@ extension Config {
             if let parsed = RepeatStrategy(rawValue: raw) {
                 repeatStrategy = parsed
             } else {
-                warnings.append(ConfigWarning(
-                    kind: .other,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "repeat: unknown value '\(raw)' — " +
-                        "expected fire-each / ignore / passthrough",
-                    sourceLine: line, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .other,
+                        message:
+                            "\(section) '\(name)'\(source): " + "repeat: unknown value '\(raw)' — "
+                            + "expected fire-each / ignore / passthrough",
+                        sourceLine: line, bindingName: name))
                 return nil
             }
         }
@@ -237,54 +253,59 @@ extension Config {
         // combination explicitly. `noop` + passthrough is also
         // nonsense (the whole point of noop is to consume).
         var passthrough = false
-        warnFieldType(row, key: "passthrough", accept: ["boolean"],
-                      label: "\(section) '\(name)'\(source): passthrough",
-                      sourceLine: line, bindingName: name,
-                      warnings: &warnings)
+        warnFieldType(
+            row, key: "passthrough", accept: ["boolean"],
+            label: "\(section) '\(name)'\(source): passthrough",
+            sourceLine: line, bindingName: name,
+            warnings: &warnings)
         if let raw = row["passthrough"]?.asBool {
             passthrough = raw
         }
         if passthrough {
             if !extraDownActions.isEmpty {
-                warnings.append(ConfigWarning(
-                    kind: .actionKeysParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "passthrough is incompatible with action-keys " +
-                        "(the original event already reaches the OS)",
-                    sourceLine: line, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionKeysParseError,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "passthrough is incompatible with action-keys "
+                            + "(the original event already reaches the OS)",
+                        sourceLine: line, bindingName: name))
                 return nil
             }
             switch parsedAction.action {
             case .keys:
-                warnings.append(ConfigWarning(
-                    kind: .actionKeysParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "passthrough requires action-shell (or no action) — " +
-                        "action-keys would duplicate the keystroke",
-                    sourceLine: line, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionKeysParseError,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "passthrough requires action-shell (or no action) — "
+                            + "action-keys would duplicate the keystroke",
+                        sourceLine: line, bindingName: name))
                 return nil
             case .noop:
-                warnings.append(ConfigWarning(
-                    kind: .missingAction,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "passthrough is incompatible with action-noop " +
-                        "(noop = absorb; passthrough = relay)",
-                    sourceLine: line, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .missingAction,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "passthrough is incompatible with action-noop "
+                            + "(noop = absorb; passthrough = relay)",
+                        sourceLine: line, bindingName: name))
                 return nil
             case .shell, .setVariable, .toggleVariable:
                 break
             }
             if onUpResult != nil {
-                warnings.append(ConfigWarning(
-                    kind: .missingAction,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "passthrough cannot carry an action-*-on-up — " +
-                        "no paired-up is captured when the event flows through",
-                    sourceLine: line, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .missingAction,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "passthrough cannot carry an action-*-on-up — "
+                            + "no paired-up is captured when the event flows through",
+                        sourceLine: line, bindingName: name))
                 return nil
             }
         }

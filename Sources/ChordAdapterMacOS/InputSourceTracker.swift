@@ -38,10 +38,12 @@ public final class InputSourceTracker: @unchecked Sendable {
     /// TIS-posted change. Cheap (one CoreFoundation call) so polling
     /// fallback isn't necessary; the observer covers every transition.
     private func refresh() {
-        guard let src = TISCopyCurrentKeyboardInputSource()?
+        guard
+            let src = TISCopyCurrentKeyboardInputSource()?
                 .takeRetainedValue()
         else { return }
-        guard let ptr = TISGetInputSourceProperty(
+        guard
+            let ptr = TISGetInputSourceProperty(
                 src, kTISPropertyInputSourceID)
         else { return }
         let cf = Unmanaged<CFString>.fromOpaque(ptr)

@@ -15,24 +15,24 @@ import Testing
     /// error (the daemon parser is the authority; no `pattern` per the boundary
     /// decision), or a non-binding/table-level concern.
     static let notSurfaced: Set<ConfigWarning.Kind> = [
-        .configNotFound,        // file-level, not a binding rule
-        .missingInput,          // schema: `required: ["input"]`
-        .missingAction,         // schema: action-* `anyOf`
-        .unknownInputToken,     // leaf-DSL parse (daemon authority)
+        .configNotFound,  // file-level, not a binding rule
+        .missingInput,  // schema: `required: ["input"]`
+        .missingAction,  // schema: action-* `anyOf`
+        .unknownInputToken,  // leaf-DSL parse (daemon authority)
         .actionKeysParseError,  // leaf-DSL parse
-        .actionKeysDelayParseError, // schema: integer + exclusiveMinimum 0 (taplo squiggles)
+        .actionKeysDelayParseError,  // schema: integer + exclusiveMinimum 0 (taplo squiggles)
         .actionAliasNonString,  // [action-aliases] value type — schema additionalProperties
-        .inputAliasNonString,   // [input-aliases] value type — schema additionalProperties
-        .inputAliasInvalidBody, // [input-aliases] body parse — table, not a binding hover
-        .conditionParseError,   // leaf parse (when-var)
-        .holdWhileParseError,   // leaf parse (hold-while / hold-while-timeout)
-        .remapParseError,       // [[remap]] parse — remap table, not a binding
-        .perAppParseError,      // [[bindings.per-app]] parse
+        .inputAliasNonString,  // [input-aliases] value type — schema additionalProperties
+        .inputAliasInvalidBody,  // [input-aliases] body parse — table, not a binding hover
+        .conditionParseError,  // leaf parse (when-var)
+        .holdWhileParseError,  // leaf parse (hold-while / hold-while-timeout)
+        .remapParseError,  // [[remap]] parse — remap table, not a binding
+        .perAppParseError,  // [[bindings.per-app]] parse
         .actionAliasCallError,  // @name(args) call parse
-        .unknownOptionKey,      // [options] typo — schema additionalProperties:false
-        .unknownKey,            // schema additionalProperties:false
-        .fieldTypeMismatch,     // field type — schema declares each field's `type` (taplo squiggles)
-        .other,                 // catch-all
+        .unknownOptionKey,  // [options] typo — schema additionalProperties:false
+        .unknownKey,  // schema additionalProperties:false
+        .fieldTypeMismatch,  // field type — schema declares each field's `type` (taplo squiggles)
+        .other  // catch-all
     ]
 
     @Test func everyKindIsClassified() {
@@ -40,15 +40,18 @@ import Testing
         let all = Set(ConfigWarning.Kind.allCases)
 
         // No Kind may be in both buckets.
-        #expect(surfaced.isDisjoint(with: Self.notSurfaced),
-                "Kind both surfaced and not-surfaced: \(surfaced.intersection(Self.notSurfaced))")
+        #expect(
+            surfaced.isDisjoint(with: Self.notSurfaced),
+            "Kind both surfaced and not-surfaced: \(surfaced.intersection(Self.notSurfaced))")
         // Every Kind must be classified (the drift guard).
         let unclassified = all.subtracting(surfaced).subtracting(Self.notSurfaced)
-        #expect(unclassified.isEmpty, """
-        ConfigWarning.Kind \(unclassified.map(\.rawValue).sorted()) is unclassified — \
-        add it to ChordConfigSchema.runtimeConstraints (surface in editor hover) \
-        or to ConfigConstraintCoverageTests.notSurfaced (with a reason).
-        """)
+        #expect(
+            unclassified.isEmpty,
+            """
+            ConfigWarning.Kind \(unclassified.map(\.rawValue).sorted()) is unclassified — \
+            add it to ChordConfigSchema.runtimeConstraints (surface in editor hover) \
+            or to ConfigConstraintCoverageTests.notSurfaced (with a reason).
+            """)
     }
 
     @Test func catalogIsWellFormed() {

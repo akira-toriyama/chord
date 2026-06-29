@@ -85,29 +85,37 @@ public final class Controller {
             for name in variableStore.clearStale(currentMods: event.modifiers) {
                 Log.debug("state: clear \(name) (hold-while released)")
             }
-            fireModifierOnlyBindings(currentMods: event.modifiers,
-                                     bundleID: event.frontmostBundleID)
+            fireModifierOnlyBindings(
+                currentMods: event.modifiers,
+                bundleID: event.frontmostBundleID)
             emitWatch(event: event, outcome: "passthrough (modifiers-only event)")
             return .passthrough
         case .up:
-            Log.debug("up: trigger=\(event.trigger) mods=0x\(String(event.modifiers.rawValue, radix: 16))")
+            Log.debug(
+                "up: trigger=\(event.trigger) mods=0x\(String(event.modifiers.rawValue, radix: 16))"
+            )
             let outcome = handleKeyUp(trigger: event.trigger)
-            emitWatch(event: event,
-                      outcome: outcome == .consume ? "consume (paired up)"
-                                                   : "passthrough (no pending up)")
+            emitWatch(
+                event: event,
+                outcome: outcome == .consume
+                    ? "consume (paired up)"
+                    : "passthrough (no pending up)")
             return outcome
         case .down:
-            Log.debug("down: trigger=\(event.trigger) mods=0x\(String(event.modifiers.rawValue, radix: 16))")
+            Log.debug(
+                "down: trigger=\(event.trigger) mods=0x\(String(event.modifiers.rawValue, radix: 16))"
+            )
             break
         }
 
         let snapshot = matcherSnapshot()
         let state = variableStore.snapshot()
-        let me = Matcher.Event(trigger: event.trigger,
-                               modifiers: event.modifiers,
-                               bundleID: event.frontmostBundleID,
-                               state: state,
-                               inputSourceID: event.inputSourceID)
+        let me = Matcher.Event(
+            trigger: event.trigger,
+            modifiers: event.modifiers,
+            bundleID: event.frontmostBundleID,
+            state: state,
+            inputSourceID: event.inputSourceID)
         guard let binding = snapshot.find(me) else {
             emitWatch(event: event, outcome: "passthrough (no match)")
             return .passthrough
@@ -123,12 +131,14 @@ public final class Controller {
             case .ignore:
                 // Consume so the OS doesn't see a phantom repeat for
                 // a key whose initial down we already swallowed.
-                emitWatch(event: event,
-                          outcome: "consume (repeat ignored, match='\(binding.name)')")
+                emitWatch(
+                    event: event,
+                    outcome: "consume (repeat ignored, match='\(binding.name)')")
                 return .consume
             case .passthrough:
-                emitWatch(event: event,
-                          outcome: "passthrough (repeat, match='\(binding.name)')")
+                emitWatch(
+                    event: event,
+                    outcome: "passthrough (repeat, match='\(binding.name)')")
                 return .passthrough
             }
         }
@@ -144,10 +154,11 @@ public final class Controller {
             if case .keys = binding.action {
                 // primary IS the first paced keystroke — nothing to fire here
             } else {
-                applyAction(binding.action, for: binding)   // e.g. shell primary
+                applyAction(binding.action, for: binding)  // e.g. shell primary
             }
-            ActionDispatcher.postKeysSequence(keyOutput, delayMs: delayMs,
-                                              name: binding.name)
+            ActionDispatcher.postKeysSequence(
+                keyOutput, delayMs: delayMs,
+                name: binding.name)
         } else {
             // Intercept state-mutating actions: state ownership lives here,
             // not in the dispatcher (which is in the Adapter layer and has
@@ -155,16 +166,15 @@ public final class Controller {
             switch binding.action {
             case .setVariable(let name, let value):
                 applyAction(binding.action, for: binding)
-                Log.debug("state: set \(name)=\(value) " +
-                          "via '\(binding.name)'" +
-                          lifecycleTag(binding))
+                Log.debug(
+                    "state: set \(name)=\(value) " + "via '\(binding.name)'" + lifecycleTag(binding)
+                )
             case .toggleVariable(let name):
                 // Flip 0↔1 atomically (single lock window) — any non-zero
                 // value collapses to 0, matching the documented contract. The
                 // live store is the source of truth, not the per-event snapshot.
                 let (current, next) = applyAction(binding.action, for: binding) ?? (0, 0)
-                Log.debug("state: toggle \(name) \(current)→\(next) " +
-                          "via '\(binding.name)'")
+                Log.debug("state: toggle \(name) \(current)→\(next) " + "via '\(binding.name)'")
             case .keys, .shell, .noop:
                 applyAction(binding.action, for: binding)
             }
@@ -187,8 +197,9 @@ public final class Controller {
         if case .variable(let gated, _) = binding.condition {
             variableStore.extendTimer(name: gated)
         }
-        recordFire(name: binding.name, app: event.frontmostBundleID,
-                   action: describeAction(binding.action))
+        recordFire(
+            name: binding.name, app: event.frontmostBundleID,
+            action: describeAction(binding.action))
         Control.writeStatus("fired \(binding.name)")
         // chord 0.9.0+ passthrough: action fires above, but we let the
         // original event reach the OS. No paired-up to capture (the
@@ -197,8 +208,9 @@ public final class Controller {
         // on passthrough bindings at parse time, so reaching here is
         // shell / setVariable only.
         if binding.passthrough {
-            emitWatch(event: event,
-                      outcome: "passthrough (match='\(binding.name)' passthrough=true)")
+            emitWatch(
+                event: event,
+                outcome: "passthrough (match='\(binding.name)' passthrough=true)")
             return .passthrough
         }
         // Register pairing: B1 contract — the OS never saw this
@@ -206,8 +218,9 @@ public final class Controller {
         // The binding (with its onUpAction) is what handleKeyUp
         // dispatches against.
         registerPendingUp(trigger: event.trigger, binding: binding)
-        emitWatch(event: event,
-                  outcome: "consume (match='\(binding.name)' action=\(describeAction(binding.action)))")
+        emitWatch(
+            event: event,
+            outcome: "consume (match='\(binding.name)' action=\(describeAction(binding.action)))")
         return .consume
     }
 
@@ -237,8 +250,9 @@ public final class Controller {
         let mods = String(event.modifiers.rawValue, radix: 16)
         let app = event.frontmostBundleID ?? "?"
         let isrc = event.inputSourceID.map { ", input-source=\($0)" } ?? ""
-        Log.watch("event(\(kind), trigger=\(event.trigger), " +
-                  "mods=0x\(mods), app=\(app)\(isrc)) → \(outcome)")
+        Log.watch(
+            "event(\(kind), trigger=\(event.trigger), "
+                + "mods=0x\(mods), app=\(app)\(isrc)) → \(outcome)")
     }
 
     /// Format the lifecycle suffix for the state-set log line.
@@ -270,8 +284,7 @@ public final class Controller {
             // so the only thing left here is the on-up log line.
             applyAction(onUp, for: binding)
             if case .setVariable(let name, let value) = onUp {
-                Log.debug("state: set \(name)=\(value) " +
-                          "via '\(binding.name)' (on-up)")
+                Log.debug("state: set \(name)=\(value) " + "via '\(binding.name)' (on-up)")
             }
         }
         return .consume
@@ -373,9 +386,10 @@ public final class Controller {
     ) -> (Int, Int)? {
         switch action {
         case .setVariable(let name, let value):
-            variableStore.set(name: name, value: value,
-                              holdWhile: binding.holdWhile,
-                              timeoutMs: binding.holdWhileTimeoutMs)
+            variableStore.set(
+                name: name, value: value,
+                holdWhile: binding.holdWhile,
+                timeoutMs: binding.holdWhileTimeoutMs)
         case .toggleVariable(let name):
             return variableStore.toggle(name: name)
         case .keys, .shell, .noop:
@@ -416,9 +430,11 @@ public final class Controller {
         // a .up pairs against the pendingUp registered on its .down, and
         // app/when-var/on-up/pause all apply for free.
         for edge in edges {
-            _ = handle(InputEvent(trigger: .vkey(edge.id), modifiers: [],
-                                  frontmostBundleID: bundle, kind: edge.kind,
-                                  inputSourceID: isrc))
+            _ = handle(
+                InputEvent(
+                    trigger: .vkey(edge.id), modifiers: [],
+                    frontmostBundleID: bundle, kind: edge.kind,
+                    inputSourceID: isrc))
         }
     }
 
@@ -426,8 +442,10 @@ public final class Controller {
     /// release event and dispatch any `onUpAction`. Keyed by Trigger
     /// alone — modifiers may transition between the down and up
     /// (the user lifts cmd before lifting the primary key).
-    nonisolated private func registerPendingUp(trigger: Trigger,
-                                               binding: Binding) {
+    nonisolated private func registerPendingUp(
+        trigger: Trigger,
+        binding: Binding
+    ) {
         // Skip pairing for triggers that have no up half (scroll).
         if case .scroll = trigger { return }
         pendingUpsLock.lock()
@@ -486,8 +504,9 @@ public final class Controller {
                 excludeApps: result.config.options.excludeApps,
                 fnAutoArrows: result.config.options.fnAutoArrows)
             publishMatcher()
-            publishConfigMeta(actionAliases: result.config.actionAliases.count,
-                              inputAliases: result.config.inputAliases.count)
+            publishConfigMeta(
+                actionAliases: result.config.actionAliases.count,
+                inputAliases: result.config.inputAliases.count)
             // Reload wipes the variable store — the new config may
             // have removed the binding that owned a variable, and a
             // stale entry no one can clear would silently keep a
@@ -496,13 +515,15 @@ public final class Controller {
             let undef = result.warnings.lazy
                 .filter { $0.kind == .undefinedActionAlias }
                 .count
-            let hint = (result.droppedBindings > 0 || result.warnings.count > 0)
+            let hint =
+                (result.droppedBindings > 0 || result.warnings.count > 0)
                 ? " (run config --validate --strict for details)" : ""
-            Log.line("config \(reason): \(matcher.bindings.count) bindings, " +
-                     "\(matcher.fallbacks.count) fallbacks, " +
-                     "\(result.config.actionAliases.count) action-aliases, " +
-                     "undefined-action-aliases=\(undef), " +
-                     "dropped=\(result.droppedBindings)\(hint)")
+            Log.line(
+                "config \(reason): \(matcher.bindings.count) bindings, "
+                    + "\(matcher.fallbacks.count) fallbacks, "
+                    + "\(result.config.actionAliases.count) action-aliases, "
+                    + "undefined-action-aliases=\(undef), "
+                    + "dropped=\(result.droppedBindings)\(hint)")
             // Snapshot the loaded state for `chord daemon --reload --dry-run`
             // to diff against on the next edit. Failures here are
             // non-fatal — the daemon keeps running, dry-run just
@@ -546,9 +567,9 @@ public final class Controller {
         } catch {
             Log.line(
                 "vkey: Input Monitoring unavailable — \(error). Vendor-HID "
-                + "keys disabled (grant chord under System Settings → Privacy "
-                + "& Security → Input Monitoring, then `chord daemon --reload`). "
-                + "Daemon continues.")
+                    + "keys disabled (grant chord under System Settings → Privacy "
+                    + "& Security → Input Monitoring, then `chord daemon --reload`). "
+                    + "Daemon continues.")
             // Surface the system prompt so the user can act on it.
             Permissions.promptForInputMonitoring()
         }
@@ -558,8 +579,10 @@ public final class Controller {
         let doc = BindingsSchema.makeDocument(from: result)
         do {
             let data = try BindingsSchema.encodeJSON(doc)
-            try data.write(to: URL(fileURLWithPath:
-                BindingsSchema.snapshotPath))
+            try data.write(
+                to: URL(
+                    fileURLWithPath:
+                        BindingsSchema.snapshotPath))
         } catch {
             Log.line("snapshot: write failed — \(error)")
         }
@@ -567,34 +590,38 @@ public final class Controller {
 
     private func installControlIPC() {
         let center = DistributedNotificationCenter.default()
-        observers.append(center.addObserver(
-            forName: Notification.Name(Control.reload),
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.reload() }
-        })
-        observers.append(center.addObserver(
-            forName: Notification.Name(Control.quit),
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.stop()
-                NSApp?.terminate(nil)
-                exit(0)
-            }
-        })
-        observers.append(center.addObserver(
-            forName: Notification.Name(Control.pause),
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.setPaused(true) }
-        })
-        observers.append(center.addObserver(
-            forName: Notification.Name(Control.resume),
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.setPaused(false) }
-        })
+        observers.append(
+            center.addObserver(
+                forName: Notification.Name(Control.reload),
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.reload() }
+            })
+        observers.append(
+            center.addObserver(
+                forName: Notification.Name(Control.quit),
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    self?.stop()
+                    NSApp?.terminate(nil)
+                    exit(0)
+                }
+            })
+        observers.append(
+            center.addObserver(
+                forName: Notification.Name(Control.pause),
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.setPaused(true) }
+            })
+        observers.append(
+            center.addObserver(
+                forName: Notification.Name(Control.resume),
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.setPaused(false) }
+            })
     }
 
     private func installConfigWatcher() {
@@ -691,10 +718,13 @@ let variableStore = VariableStore(scheduler: DispatchStateScheduler())
 /// dedicated serial queue (replaces the old `sharedTimers` /
 /// `stateTimerQueue` globals).
 struct DispatchStateScheduler: StateScheduler {
-    private static let queue = DispatchQueue(label: "chord.state.timer",
-                                             qos: .userInitiated)
-    func schedule(afterMs: Int,
-                  _ fire: @escaping @Sendable () -> Void) -> StateSchedulerToken {
+    private static let queue = DispatchQueue(
+        label: "chord.state.timer",
+        qos: .userInitiated)
+    func schedule(
+        afterMs: Int,
+        _ fire: @escaping @Sendable () -> Void
+    ) -> StateSchedulerToken {
         let timer = DispatchSource.makeTimerSource(queue: Self.queue)
         timer.schedule(deadline: .now() + .milliseconds(afterMs))
         timer.setEventHandler(handler: fire)
@@ -738,45 +768,45 @@ nonisolated(unsafe) private var vkeyTracker = VKeyEdgeTracker()
 private let vkeyLock = NSLock()
 
 #if DEBUG
-// MARK: - test seam
+    // MARK: - test seam
 
-public extension Controller {
-    /// Test-only entry point (ChordIntegrationTests). Wires the REAL
-    /// `handle()` consume/pass spine onto the injected `EventSource`,
-    /// driven by an explicit `Matcher`, WITHOUT the AppKit / AX / IPC /
-    /// config-watcher that `start()` brings up. Tests then `feed()`
-    /// synthetic events through the production code path and assert the
-    /// returned `EventOutcome` (and the shared state), instead of the
-    /// parallel `matcher.find()` reimplementation in `TestEventSourceTests`.
-    ///
-    /// `handle()` reads the **global** `sharedMatcher` (the tap thread's
-    /// lock-free snapshot), so this publishes the matcher rather than only
-    /// setting the instance field. The hot-path state (`sharedMatcher`,
-    /// `pendingUps`, the modifier baseline, the vkey latch, the variable
-    /// store) is module-global and shared across instances, so this resets
-    /// it first — each test starts from a clean slate regardless of order.
-    func startForTesting(matcher: Matcher) throws {
-        resetState()
-        self.matcher = matcher
-        publishMatcher()
-        let weakSelf = WeakWrap(self)
-        try source.start { event in
-            guard let me = weakSelf.value else { return .passthrough }
-            return me.handle(event)
+    public extension Controller {
+        /// Test-only entry point (ChordIntegrationTests). Wires the REAL
+        /// `handle()` consume/pass spine onto the injected `EventSource`,
+        /// driven by an explicit `Matcher`, WITHOUT the AppKit / AX / IPC /
+        /// config-watcher that `start()` brings up. Tests then `feed()`
+        /// synthetic events through the production code path and assert the
+        /// returned `EventOutcome` (and the shared state), instead of the
+        /// parallel `matcher.find()` reimplementation in `TestEventSourceTests`.
+        ///
+        /// `handle()` reads the **global** `sharedMatcher` (the tap thread's
+        /// lock-free snapshot), so this publishes the matcher rather than only
+        /// setting the instance field. The hot-path state (`sharedMatcher`,
+        /// `pendingUps`, the modifier baseline, the vkey latch, the variable
+        /// store) is module-global and shared across instances, so this resets
+        /// it first — each test starts from a clean slate regardless of order.
+        func startForTesting(matcher: Matcher) throws {
+            resetState()
+            self.matcher = matcher
+            publishMatcher()
+            let weakSelf = WeakWrap(self)
+            try source.start { event in
+                guard let me = weakSelf.value else { return .passthrough }
+                return me.handle(event)
+            }
+        }
+
+        /// Test-only read of the shared variable store, so a test can assert a
+        /// `setVariable` / on-up / modifier-only side effect took place through
+        /// the real spine without re-deriving it from a follow-up event.
+        func variableSnapshotForTesting() -> StateSnapshot { variableStore.snapshot() }
+
+        /// Test-only read of the pending-up table (the B1 pairing bookkeeping),
+        /// so a test can assert a consumed down registered exactly one pending
+        /// up and a passthrough binding registered none.
+        func pendingUpCountForTesting() -> Int {
+            pendingUpsLock.lock(); defer { pendingUpsLock.unlock() }
+            return pendingUps?.count ?? 0
         }
     }
-
-    /// Test-only read of the shared variable store, so a test can assert a
-    /// `setVariable` / on-up / modifier-only side effect took place through
-    /// the real spine without re-deriving it from a follow-up event.
-    func variableSnapshotForTesting() -> StateSnapshot { variableStore.snapshot() }
-
-    /// Test-only read of the pending-up table (the B1 pairing bookkeeping),
-    /// so a test can assert a consumed down registered exactly one pending
-    /// up and a passthrough binding registered none.
-    func pendingUpCountForTesting() -> Int {
-        pendingUpsLock.lock(); defer { pendingUpsLock.unlock() }
-        return pendingUps?.count ?? 0
-    }
-}
 #endif

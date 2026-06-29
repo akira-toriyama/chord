@@ -25,7 +25,8 @@ public final class FrontmostTracker: @unchecked Sendable {
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil, queue: .main
         ) { [weak self] note in
-            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey]
+            let app =
+                note.userInfo?[NSWorkspace.applicationUserInfoKey]
                 as? NSRunningApplication
             self?.update(app?.bundleIdentifier)
         }

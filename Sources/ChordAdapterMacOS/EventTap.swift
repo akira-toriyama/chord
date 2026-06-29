@@ -20,7 +20,7 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
     /// One bit chord owns in `kCGEventSourceUserData` — set on
     /// every synthetic event the dispatcher posts, checked on the
     /// way back into the tap.
-    public static let syntheticUserData: Int64 = 0x43_48_4F_52_44_00 // 'CHORD\0'
+    public static let syntheticUserData: Int64 = 0x43_48_4F_52_44_00  // 'CHORD\0'
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -48,20 +48,22 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
             .leftMouseDown, .leftMouseUp,
             .rightMouseDown, .rightMouseUp,
             .otherMouseDown, .otherMouseUp,
-            .scrollWheel,
+            .scrollWheel
         ]
         var mask: CGEventMask = 0
         for t in types { mask |= CGEventMask(1) << CGEventMask(t.rawValue) }
 
         let info = Unmanaged.passUnretained(self).toOpaque()
-        guard let port = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: MacOSEventSource.tapCallback,
-            userInfo: info
-        ) else {
+        guard
+            let port = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: mask,
+                callback: MacOSEventSource.tapCallback,
+                userInfo: info
+            )
+        else {
             Log.line("event-tap: tapCreate failed — Accessibility not granted?")
             throw EventTapError.tapCreateFailed
         }
@@ -108,12 +110,13 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
 
         // Skip events we posted ourselves.
         if event.getIntegerValueField(.eventSourceUserData)
-            == MacOSEventSource.syntheticUserData {
+            == MacOSEventSource.syntheticUserData
+        {
             return Unmanaged.passUnretained(event)
         }
 
         guard let handler = me.handler,
-              let input = me.makeInputEvent(from: event, type: type)
+            let input = me.makeInputEvent(from: event, type: type)
         else {
             return Unmanaged.passUnretained(event)
         }
@@ -141,8 +144,9 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
             // macOS sends `keyDown` events with the autorepeat flag set
             // for typematic repeats while a key is held. Surface that
             // here so the Controller can apply per-binding RepeatStrategy.
-            let isRepeat = event.getIntegerValueField(
-                .keyboardEventAutorepeat) != 0
+            let isRepeat =
+                event.getIntegerValueField(
+                    .keyboardEventAutorepeat) != 0
             // Strip the modifier bits from the modifiers we expose
             // to bindings — the raw flag mask includes the
             // numeric-keypad / device-dependent bits we don't
@@ -181,45 +185,51 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
             )
 
         case .leftMouseDown:
-            return InputEvent(trigger: .mouseButton(.left),
-                              modifiers: mods,
-                              frontmostBundleID: frontmost,
-                              kind: .down,
-                              inputSourceID: inputSourceID)
+            return InputEvent(
+                trigger: .mouseButton(.left),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                kind: .down,
+                inputSourceID: inputSourceID)
         case .leftMouseUp:
-            return InputEvent(trigger: .mouseButton(.left),
-                              modifiers: mods,
-                              frontmostBundleID: frontmost,
-                              kind: .up,
-                              inputSourceID: inputSourceID)
+            return InputEvent(
+                trigger: .mouseButton(.left),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                kind: .up,
+                inputSourceID: inputSourceID)
         case .rightMouseDown:
-            return InputEvent(trigger: .mouseButton(.right),
-                              modifiers: mods,
-                              frontmostBundleID: frontmost,
-                              kind: .down,
-                              inputSourceID: inputSourceID)
+            return InputEvent(
+                trigger: .mouseButton(.right),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                kind: .down,
+                inputSourceID: inputSourceID)
         case .rightMouseUp:
-            return InputEvent(trigger: .mouseButton(.right),
-                              modifiers: mods,
-                              frontmostBundleID: frontmost,
-                              kind: .up,
-                              inputSourceID: inputSourceID)
+            return InputEvent(
+                trigger: .mouseButton(.right),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                kind: .up,
+                inputSourceID: inputSourceID)
         case .otherMouseDown:
             let n = event.getIntegerValueField(.mouseEventButtonNumber)
             let btn = MouseButton(rawValue: Int(n)) ?? .middle
-            return InputEvent(trigger: .mouseButton(btn),
-                              modifiers: mods,
-                              frontmostBundleID: frontmost,
-                              kind: .down,
-                              inputSourceID: inputSourceID)
+            return InputEvent(
+                trigger: .mouseButton(btn),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                kind: .down,
+                inputSourceID: inputSourceID)
         case .otherMouseUp:
             let n = event.getIntegerValueField(.mouseEventButtonNumber)
             let btn = MouseButton(rawValue: Int(n)) ?? .middle
-            return InputEvent(trigger: .mouseButton(btn),
-                              modifiers: mods,
-                              frontmostBundleID: frontmost,
-                              kind: .up,
-                              inputSourceID: inputSourceID)
+            return InputEvent(
+                trigger: .mouseButton(btn),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                kind: .up,
+                inputSourceID: inputSourceID)
 
         case .scrollWheel:
             // Wheel deltas: positive Y = up, positive X = right
@@ -234,10 +244,11 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
                 if dx == 0 { return nil }
                 dir = dx > 0 ? .right : .left
             }
-            return InputEvent(trigger: .scroll(dir),
-                              modifiers: mods,
-                              frontmostBundleID: frontmost,
-                              inputSourceID: inputSourceID)
+            return InputEvent(
+                trigger: .scroll(dir),
+                modifiers: mods,
+                frontmostBundleID: frontmost,
+                inputSourceID: inputSourceID)
 
         default:
             return nil
@@ -261,8 +272,8 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
         // left bit so the binding's any-side match still works
         // without spuriously matching `lcmd` strict-left bindings.
         for cat in SideMaskTable.categories
-            where flags.contains(cat.mask)
-                && !m.contains(cat.left) && !m.contains(cat.right)
+        where flags.contains(cat.mask)
+            && !m.contains(cat.left) && !m.contains(cat.right)
         {
             m.insert(cat.left)
         }

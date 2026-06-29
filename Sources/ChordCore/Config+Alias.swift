@@ -34,8 +34,10 @@ extension Config {
     /// `@name` (no parens) still works for unparameterised aliases.
     /// Mixing — a body with `{{N}}` but the call site uses bare
     /// `@name`, or vice versa — surfaces a structured `.callError`.
-    static func resolveAlias(_ raw: String,
-                                     actionAliases: [String: String])
+    static func resolveAlias(
+        _ raw: String,
+        actionAliases: [String: String]
+    )
         -> AliasResolution
     {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
@@ -50,7 +52,9 @@ extension Config {
             let c = afterAt[nameEnd]
             if c.isLetter || c.isNumber || c == "_" || c == "-" {
                 nameEnd = afterAt.index(after: nameEnd)
-            } else { break }
+            } else {
+                break
+            }
         }
         let name = String(afterAt[..<nameEnd])
         if name.isEmpty {
@@ -73,8 +77,9 @@ extension Config {
             }
             let inner = String(rest.dropFirst().dropLast())
             let args = parseAliasCallArgs(inner)
-            return resolveCallAlias(name: name, args: args,
-                                    actionAliases: actionAliases)
+            return resolveCallAlias(
+                name: name, args: args,
+                actionAliases: actionAliases)
         }
         // `@name arg` (no parens, trailing text). Treat as literal —
         // the v1 spec carve-out, kept so users with whitespace-quoted
@@ -99,9 +104,8 @@ extension Config {
             return .callError(
                 aliasName: name,
                 message:
-                    "alias '\(name)' uses {{1}}..{{\(needed)}} " +
-                    "placeholders — call it as @\(name)(arg, …) " +
-                    "with arguments")
+                    "alias '\(name)' uses {{1}}..{{\(needed)}} "
+                    + "placeholders — call it as @\(name)(arg, …) " + "with arguments")
         }
         return .body(body, aliasName: name)
     }
@@ -118,8 +122,8 @@ extension Config {
             return .callError(
                 aliasName: name,
                 message:
-                    "alias '\(name)' needs {{\(needed)}} but only " +
-                    "\(args.count) argument(s) supplied at call site")
+                    "alias '\(name)' needs {{\(needed)}} but only "
+                    + "\(args.count) argument(s) supplied at call site")
         }
         // Substitute {{1}}…{{N}} in the body. Literal substitution —
         // see resolveAlias docstring for the escape contract.
@@ -145,9 +149,9 @@ extension Config {
         var i = 0
         while i + 4 < chars.count {
             if chars[i] == "{" && chars[i + 1] == "{",
-               let d = chars[i + 2].wholeNumberValue,
-               chars[i + 3] == "}", chars[i + 4] == "}",
-               d > 0
+                let d = chars[i + 2].wholeNumberValue,
+                chars[i + 3] == "}", chars[i + 4] == "}",
+                d > 0
             {
                 if d > maxN { maxN = d }
                 i += 5
@@ -169,8 +173,7 @@ extension Config {
         var quote: Character = "\""
         for c in inner {
             if inStr {
-                if c == quote { inStr = false }
-                else { current.append(c) }
+                if c == quote { inStr = false } else { current.append(c) }
             } else if c == "\"" || c == "'" {
                 inStr = true
                 quote = c

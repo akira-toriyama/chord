@@ -30,8 +30,10 @@ import Testing
         private(set) var scheduleCount = 0
         private(set) var cancelCount = 0
 
-        func schedule(afterMs: Int,
-                      _ fire: @escaping @Sendable () -> Void) -> StateSchedulerToken {
+        func schedule(
+            afterMs: Int,
+            _ fire: @escaping @Sendable () -> Void
+        ) -> StateSchedulerToken {
             lock.lock(); defer { lock.unlock() }
             let id = nextID; nextID += 1
             pending[id] = fire
@@ -146,7 +148,7 @@ import Testing
     @Test func extendTimerNoOpWhenNoTimer() {
         let (store, sched) = makeStore()
         store.set(name: "x", value: 1, holdWhile: nil, timeoutMs: nil)
-        store.extendTimer(name: "x")       // no timer attached
+        store.extendTimer(name: "x")  // no timer attached
         store.extendTimer(name: "absent")  // unset variable
         #expect(sched.scheduleCount == 0)
     }

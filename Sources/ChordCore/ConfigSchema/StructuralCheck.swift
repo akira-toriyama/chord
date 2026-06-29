@@ -52,15 +52,17 @@ public extension ChordConfigSchema {
             default:
                 line = nil; label = "'\(key)'"; noun = "key"
             }
-            out.append(ConfigWarning(
-                kind: .unknownKey,
-                message: "\(label): unknown top-level \(noun) — ignored "
-                    + "(known: \(knownList))",
-                sourceLine: line))
+            out.append(
+                ConfigWarning(
+                    kind: .unknownKey,
+                    message: "\(label): unknown top-level \(noun) — ignored "
+                        + "(known: \(knownList))",
+                    sourceLine: line))
         }
         for section in sections {
             guard case .arrayOfTables(let shape) = section.kind,
-                  case .arrayOfTables(let rows)? = root[section.name] else { continue }
+                case .arrayOfTables(let rows)? = root[section.name]
+            else { continue }
             for row in rows {
                 checkRow(row, shape: shape, path: section.name, into: &out)
             }
@@ -71,10 +73,12 @@ public extension ChordConfigSchema {
     /// Validate one row against `shape.keySet`, then recurse into the
     /// shape's nested array-of-tables (per-app / sequence.bindings). `path`
     /// is the dotted TOML section path, rendered as `[[path]]` in messages.
-    private static func checkRow(_ row: TOML.Row,
-                                 shape: ObjectShape,
-                                 path: String,
-                                 into out: inout [ConfigWarning]) {
+    private static func checkRow(
+        _ row: TOML.Row,
+        shape: ObjectShape,
+        path: String,
+        into out: inout [ConfigWarning]
+    ) {
         let known = shape.keySet
         // A per-app row identifies by bundle-id rather than name.
         let name = row["name"]?.asString ?? row["bundle-id"]?.asString
@@ -82,17 +86,19 @@ public extension ChordConfigSchema {
         let who = name.map { " '\($0)'" } ?? ""
         // Sorted for deterministic warning order (TOML tables are unordered).
         for key in row.fields.keys.sorted() where !known.contains(key) {
-            out.append(ConfigWarning(
-                kind: .unknownKey,
-                message: "[[\(path)]]\(who): unknown key '\(key)' — ignored",
-                sourceLine: line,
-                bindingName: name))
+            out.append(
+                ConfigWarning(
+                    kind: .unknownKey,
+                    message: "[[\(path)]]\(who): unknown key '\(key)' — ignored",
+                    sourceLine: line,
+                    bindingName: name))
         }
         for nested in shape.nested {
             guard case .arrayOfTables(let subRows)? = row[nested.key] else { continue }
             for sub in subRows {
-                checkRow(sub, shape: nested.item,
-                         path: "\(path).\(nested.key)", into: &out)
+                checkRow(
+                    sub, shape: nested.item,
+                    path: "\(path).\(nested.key)", into: &out)
             }
         }
     }

@@ -30,10 +30,10 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
     /// value is a breaking change for consumers — bump the schema
     /// major (`chord.bindings.v3` → `v4`) instead.
     public enum Kind: String, Sendable, Codable, CaseIterable {
-        case configNotFound       = "config-not-found"
-        case missingInput         = "missing-input"
-        case missingAction        = "missing-action"
-        case unknownInputToken    = "unknown-input-token"
+        case configNotFound = "config-not-found"
+        case missingInput = "missing-input"
+        case missingAction = "missing-action"
+        case unknownInputToken = "unknown-input-token"
         case actionKeysParseError = "action-keys-parse-error"
         /// `action-keys-delay-ms` is present but not a positive integer
         /// (inter-key delay for a multi-key `action-keys` array).
@@ -46,7 +46,7 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// (was `undefinedAlias` / `undefined-alias` before the split)
         case undefinedActionAlias = "undefined-action-alias"
         /// `[input-aliases]` entry whose value isn't a string.
-        case inputAliasNonString  = "input-alias-non-string"
+        case inputAliasNonString = "input-alias-non-string"
         /// `[input-aliases]` name collides with a built-in modifier
         /// token (cmd/ctrl/shift/…). The alias is rejected to keep
         /// `parse("cmd - a")` deterministic.
@@ -59,30 +59,30 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// A binding's `input = "..."` contains a `$name` reference
         /// whose `name` is not in `[input-aliases]`. Parallel to
         /// `undefinedAlias` for shell-action `@name` references.
-        case undefinedInputAlias  = "undefined-input-alias"
+        case undefinedInputAlias = "undefined-input-alias"
         /// `[v-key-aliases]` entry is malformed: value not an integer,
         /// id out of 1–255, name shadows a real key / modifier / the
         /// `v-key` wildcard, or a duplicate name. The entry is ignored.
-        case vkeyAliasInvalid     = "v-key-alias-invalid"
+        case vkeyAliasInvalid = "v-key-alias-invalid"
         /// v2: `when-var` / `when-var-value` malformed or orphan.
-        case conditionParseError  = "condition-parse-error"
+        case conditionParseError = "condition-parse-error"
         /// v2: `hold-while = "…"` fails to parse as a modifier mask.
-        case holdWhileParseError  = "hold-while-parse-error"
+        case holdWhileParseError = "hold-while-parse-error"
         /// v2: `action-set-var` / `action-set-value` malformed.
-        case actionSetParseError  = "action-set-parse-error"
+        case actionSetParseError = "action-set-parse-error"
         /// v0.7.0: `[[sequence]]` row malformed (missing prefix /
         /// timeout-ms / bindings, duplicate sequence name, prefix
         /// without modifier, etc.) or a regular `[[bindings]]` row
         /// collides with a sequence prefix.
-        case sequenceParseError   = "sequence-parse-error"
+        case sequenceParseError = "sequence-parse-error"
         /// v0.8.0: `[[remap]]` row malformed (missing modifiers / map,
         /// modifiers without any modifier token, non-string map value,
         /// etc.).
-        case remapParseError      = "remap-parse-error"
+        case remapParseError = "remap-parse-error"
         /// v0.8.0: `[[bindings.per-app]]` sub-row malformed (missing
         /// bundle-id, empty per-app array, `apps` and `per-app`
         /// simultaneously set).
-        case perAppParseError     = "per-app-parse-error"
+        case perAppParseError = "per-app-parse-error"
         /// v0.9.0: `@name(args)` call-site error — alias body has
         /// `{{N}}` placeholder but the call doesn't supply enough
         /// args, or the parenthesised arg list is malformed.
@@ -93,7 +93,7 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// ignored at runtime, so without this warning a typo would
         /// look like "the option doesn't work". --strict turns it
         /// into a hard exit 1.
-        case unknownOptionKey     = "unknown-option-key"
+        case unknownOptionKey = "unknown-option-key"
         /// #52-bounded: a `[[bindings]]` / `[[fallbacks]]` / `[[sequence]]`
         /// / `[[remap]]` row (or a nested `per-app` / `sequence.bindings`
         /// row) contains a key the descriptor doesn't recognise (a typo:
@@ -105,7 +105,7 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// into exit 1. The known inventory (section names + each section's
         /// keys) is the same `ChordConfigSchema` descriptor that drives
         /// `--emit-schema`, so the two can't drift.
-        case unknownKey           = "unknown-key"
+        case unknownKey = "unknown-key"
         /// Two or more user-named `[[bindings]]` rows share the same
         /// `name`. Both still load (chord doesn't enforce unique
         /// names) but `config --show --json` consumers and the `daemon
@@ -123,11 +123,11 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// field-level miss fires once; an array field with non-string
         /// elements (silently dropped by `compactMap`) fires once too.
         /// --strict turns it into a hard exit 1.
-        case fieldTypeMismatch    = "field-type-mismatch"
+        case fieldTypeMismatch = "field-type-mismatch"
         /// Reserved for future surface-area expansion (e.g.
         /// `[include]` cycles). Kept as a catch-all so a downstream
         /// consumer's match-exhaustion never breaks.
-        case other                = "other"
+        case other = "other"
     }
 
     public let kind: Kind
@@ -135,9 +135,11 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
     public let sourceLine: Int?
     public let bindingName: String?
 
-    public init(kind: Kind, message: String,
-                sourceLine: Int? = nil,
-                bindingName: String? = nil) {
+    public init(
+        kind: Kind, message: String,
+        sourceLine: Int? = nil,
+        bindingName: String? = nil
+    ) {
         self.kind = kind
         self.message = message
         self.sourceLine = sourceLine

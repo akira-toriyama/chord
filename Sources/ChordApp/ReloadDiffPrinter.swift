@@ -58,13 +58,16 @@ extension ChordApp {
     /// diff can never render as empty (the bug fixed here: an
     /// `[input-aliases]`-only edit used to flip `isClean` while
     /// printing nothing).
-    static func renderReloadDiff(_ diff: BindingsSchema.Diff,
-                                 snapshotPresent: Bool) -> String {
+    static func renderReloadDiff(
+        _ diff: BindingsSchema.Diff,
+        snapshotPresent: Bool
+    ) -> String {
         var out: [String] = []
         if !snapshotPresent {
-            out.append("note: no snapshot at \(BindingsSchema.snapshotPath) " +
-                       "— treating every binding as added (start the " +
-                       "daemon once to populate the snapshot for future dry-runs).")
+            out.append(
+                "note: no snapshot at \(BindingsSchema.snapshotPath) "
+                    + "— treating every binding as added (start the "
+                    + "daemon once to populate the snapshot for future dry-runs).")
             out.append("")
         }
         if diff.isClean {
@@ -72,22 +75,26 @@ extension ChordApp {
             return out.joined(separator: "\n")
         }
 
-        out.append(renderDiffBucket(label: "bindings",
-                                    added: diff.addedBindings,
-                                    removed: diff.removedBindings,
-                                    changed: diff.changedBindings,
-                                    unchanged: diff.unchangedBindingCount))
+        out.append(
+            renderDiffBucket(
+                label: "bindings",
+                added: diff.addedBindings,
+                removed: diff.removedBindings,
+                changed: diff.changedBindings,
+                unchanged: diff.unchangedBindingCount))
         if !diff.addedFallbacks.isEmpty
             || !diff.removedFallbacks.isEmpty
             || !diff.changedFallbacks.isEmpty
             || diff.unchangedFallbackCount > 0
         {
             out.append("")
-            out.append(renderDiffBucket(label: "fallbacks",
-                                        added: diff.addedFallbacks,
-                                        removed: diff.removedFallbacks,
-                                        changed: diff.changedFallbacks,
-                                        unchanged: diff.unchangedFallbackCount))
+            out.append(
+                renderDiffBucket(
+                    label: "fallbacks",
+                    added: diff.addedFallbacks,
+                    removed: diff.removedFallbacks,
+                    changed: diff.changedFallbacks,
+                    unchanged: diff.unchangedFallbackCount))
         }
         if let block = renderAliasBucket(
             "action-aliases", prefix: "@",
@@ -144,8 +151,7 @@ extension ChordApp {
         unchanged: Int
     ) -> String {
         var out: [String] = []
-        let totals = "+\(added.count) / -\(removed.count) / " +
-                     "~\(changed.count) / =\(unchanged)"
+        let totals = "+\(added.count) / -\(removed.count) / " + "~\(changed.count) / =\(unchanged)"
         out.append("\(label) (\(totals)):")
         for b in added {
             out.append("  + \(b.name)")
@@ -164,48 +170,57 @@ extension ChordApp {
                 out.append("      input:  \(c.old.input.raw) → \(c.new.input.raw)")
             }
             if c.old.action != c.new.action {
-                out.append("      action: \(describe(c.old.action)) → " +
-                           "\(describe(c.new.action))")
+                out.append(
+                    "      action: \(describe(c.old.action)) → " + "\(describe(c.new.action))")
             }
             if c.old.extraActions != c.new.extraActions {
-                out.append("      +also:  \(describeActions(c.old.extraActions)) → " +
-                           "\(describeActions(c.new.extraActions))")
+                out.append(
+                    "      +also:  \(describeActions(c.old.extraActions)) → "
+                        + "\(describeActions(c.new.extraActions))")
             }
             // Below were silently dropped: a changed binding that only
             // toggled a when-var / hold-while / on-up / etc. rendered as
             // a bare `~ <name>` with no reason. Each dimension that
             // semanticallyEqual compares now has a matching diff line.
             if c.old.condition != c.new.condition {
-                out.append("      when:   \(describeCondition(c.old.condition)) → " +
-                           "\(describeCondition(c.new.condition))")
+                out.append(
+                    "      when:   \(describeCondition(c.old.condition)) → "
+                        + "\(describeCondition(c.new.condition))")
             }
             if c.old.holdWhile != c.new.holdWhile {
-                out.append("      hold-while: \(describeMods(c.old.holdWhile)) → " +
-                           "\(describeMods(c.new.holdWhile))")
+                out.append(
+                    "      hold-while: \(describeMods(c.old.holdWhile)) → "
+                        + "\(describeMods(c.new.holdWhile))")
             }
             if c.old.holdWhileTimeoutMs != c.new.holdWhileTimeoutMs {
-                out.append("      hold-while-timeout: \(describeMs(c.old.holdWhileTimeoutMs)) → " +
-                           "\(describeMs(c.new.holdWhileTimeoutMs))")
+                out.append(
+                    "      hold-while-timeout: \(describeMs(c.old.holdWhileTimeoutMs)) → "
+                        + "\(describeMs(c.new.holdWhileTimeoutMs))")
             }
             if c.old.actionOnUp != c.new.actionOnUp {
-                out.append("      on-up:  \(describeOptAction(c.old.actionOnUp)) → " +
-                           "\(describeOptAction(c.new.actionOnUp))")
+                out.append(
+                    "      on-up:  \(describeOptAction(c.old.actionOnUp)) → "
+                        + "\(describeOptAction(c.new.actionOnUp))")
             }
             if c.old.passthrough != c.new.passthrough {
-                out.append("      passthrough: \(c.old.passthrough ?? false) → " +
-                           "\(c.new.passthrough ?? false)")
+                out.append(
+                    "      passthrough: \(c.old.passthrough ?? false) → "
+                        + "\(c.new.passthrough ?? false)")
             }
             if c.old.repeatStrategy != c.new.repeatStrategy {
-                out.append("      repeat: \(c.old.repeatStrategy ?? "fire-each") → " +
-                           "\(c.new.repeatStrategy ?? "fire-each")")
+                out.append(
+                    "      repeat: \(c.old.repeatStrategy ?? "fire-each") → "
+                        + "\(c.new.repeatStrategy ?? "fire-each")")
             }
             if c.old.inputSource != c.new.inputSource {
-                out.append("      input-source: \(describeList(c.old.inputSource)) → " +
-                           "\(describeList(c.new.inputSource))")
+                out.append(
+                    "      input-source: \(describeList(c.old.inputSource)) → "
+                        + "\(describeList(c.new.inputSource))")
             }
             if c.old.actionKeysDelayMs != c.new.actionKeysDelayMs {
-                out.append("      action-keys-delay-ms: \(describeMs(c.old.actionKeysDelayMs)) → " +
-                           "\(describeMs(c.new.actionKeysDelayMs))")
+                out.append(
+                    "      action-keys-delay-ms: \(describeMs(c.old.actionKeysDelayMs)) → "
+                        + "\(describeMs(c.new.actionKeysDelayMs))")
             }
             if c.old.apps != c.new.apps {
                 let oldApps = c.old.apps.map { "\($0)" } ?? "nil"
@@ -228,7 +243,7 @@ extension ChordApp {
         case "shell":
             let aliasTag = action.alias.map { " (alias @\($0))" } ?? ""
             return "shell \(action.command ?? "")\(aliasTag)"
-        case "noop":  return "noop"
+        case "noop": return "noop"
         // set-variable / toggle-variable used to fall through to the
         // bare kind string, dropping the variable name + value that
         // `config --show` (Main.swift) prints. Surface them here too.
@@ -236,7 +251,7 @@ extension ChordApp {
             return "set-variable \(action.variable ?? "")=\(action.value ?? 0)"
         case "toggle-variable":
             return "toggle-variable \(action.variable ?? "")"
-        default:      return action.kind
+        default: return action.kind
         }
     }
 

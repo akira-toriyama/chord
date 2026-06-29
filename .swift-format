@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "indentation": { "spaces": 4 },
+  "multiElementCollectionTrailingCommas": false,
+  "rules": {
+    "DoNotUseSemicolons": false,
+    "OrderedImports": false,
+    "GroupNumericLiterals": false,
+    "ReplaceForEachWithForLoop": false,
+    "OneVariableDeclarationPerLine": false,
+    "NoAccessLevelOnExtensionDeclaration": false
+  }
+}

@@ -42,10 +42,10 @@ public enum KeyCodes {
     /// is skipped for these keys so users don't have to write
     /// `ctrl + fn - right` in place of the natural `ctrl - right`.
     public static let fnAutoNavKeycodes: Set<UInt16> = [
-        0x7B, 0x7C, 0x7D, 0x7E,   // arrow_left, arrow_right, arrow_down, arrow_up
-        0x73, 0x77,               // home, end
-        0x74, 0x79,               // page_up, page_down
-        0x75,                     // forward_delete (fn+delete on laptops)
+        0x7B, 0x7C, 0x7D, 0x7E,  // arrow_left, arrow_right, arrow_down, arrow_up
+        0x73, 0x77,  // home, end
+        0x74, 0x79,  // page_up, page_down
+        0x75  // forward_delete (fn+delete on laptops)
     ]
 
     /// `true` when the trigger is one of the keys macOS always
@@ -80,19 +80,19 @@ public enum KeyCodes {
             "escape": 0x35, "esc": 0x35,
 
             // Arrows + nav cluster.
-            "arrow_left":  0x7B, "left":  0x7B,
+            "arrow_left": 0x7B, "left": 0x7B,
             "arrow_right": 0x7C, "right": 0x7C,
-            "arrow_down":  0x7D, "down":  0x7D,
-            "arrow_up":    0x7E, "up":    0x7E,
+            "arrow_down": 0x7D, "down": 0x7D,
+            "arrow_up": 0x7E, "up": 0x7E,
             "home": 0x73, "end": 0x77, "page_up": 0x74,
             "pageup": 0x74, "page_down": 0x79, "pagedown": 0x79,
             "forward_delete": 0x75, "fwd_delete": 0x75, "del": 0x75,
             "help": 0x72,
 
             // F-row (F1–F20 use Apple's documented kVK_* constants).
-            "f1":  0x7A, "f2":  0x78, "f3":  0x63, "f4":  0x76,
-            "f5":  0x60, "f6":  0x61, "f7":  0x62, "f8":  0x64,
-            "f9":  0x65, "f10": 0x6D, "f11": 0x67, "f12": 0x6F,
+            "f1": 0x7A, "f2": 0x78, "f3": 0x63, "f4": 0x76,
+            "f5": 0x60, "f6": 0x61, "f7": 0x62, "f8": 0x64,
+            "f9": 0x65, "f10": 0x6D, "f11": 0x67, "f12": 0x6F,
             "f13": 0x69, "f14": 0x6B, "f15": 0x71, "f16": 0x6A,
             "f17": 0x40, "f18": 0x4F, "f19": 0x50, "f20": 0x5A,
 
@@ -107,15 +107,15 @@ public enum KeyCodes {
             "kp_minus": 0x4E, "kp_equal": 0x51, "kp_0": 0x52,
             "kp_1": 0x53, "kp_2": 0x54, "kp_3": 0x55, "kp_4": 0x56,
             "kp_5": 0x57, "kp_6": 0x58, "kp_7": 0x59, "kp_8": 0x5B,
-            "kp_9": 0x5C,
+            "kp_9": 0x5C
         ]
         // International / multimedia keys appear on some hardware
         // via these slots; expose them by both human aliases.
-        t["section"]      = 0x0A
-        t["caps_lock"]    = 0x39
-        t["mute"]         = 0x4A
-        t["volume_up"]    = 0x48
-        t["volume_down"]  = 0x49
+        t["section"] = 0x0A
+        t["caps_lock"] = 0x39
+        t["mute"] = 0x4A
+        t["volume_up"] = 0x48
+        t["volume_down"] = 0x49
         return t
     }()
 
@@ -131,7 +131,7 @@ public enum KeyCodes {
             "help", "equal", "minus", "lbracket", "rbracket",
             "quote", "semicolon", "backslash", "comma", "slash",
             "period", "grave", "section", "caps_lock",
-            "mute", "volume_up", "volume_down",
+            "mute", "volume_up", "volume_down"
         ]
         // F1–F24 stay as f1…f24, and a–z, 0–9 stay literal.
         for (name, code) in table {
@@ -144,7 +144,8 @@ public enum KeyCodes {
             if preferred.contains(name) && !preferred.contains(existing) {
                 r[code] = name
             } else if name.hasPrefix("f"),
-                      name.dropFirst().allSatisfy(\.isNumber) {
+                name.dropFirst().allSatisfy(\.isNumber)
+            {
                 r[code] = name
             }
         }

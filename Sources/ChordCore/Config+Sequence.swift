@@ -63,10 +63,11 @@ extension Config {
             let seqName = rawName ?? "sequence-\(i + 1)"
 
             func failSeq(_ msg: String) {
-                warnings.append(ConfigWarning(
-                    kind: .sequenceParseError,
-                    message: "[[sequence]] '\(seqName)'\(source): \(msg)",
-                    sourceLine: line, bindingName: seqName))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .sequenceParseError,
+                        message: "[[sequence]] '\(seqName)'\(source): \(msg)",
+                        sourceLine: line, bindingName: seqName))
                 dropped += 1
             }
 
@@ -79,9 +80,9 @@ extension Config {
             }
 
             if seenNames.contains(seqName) {
-                failSeq("duplicate sequence name (each sequence " +
-                        "owns variable '_seq_\(seqName)' — names " +
-                        "must be unique)")
+                failSeq(
+                    "duplicate sequence name (each sequence "
+                        + "owns variable '_seq_\(seqName)' — names " + "must be unique)")
                 continue
             }
             seenNames.insert(seqName)
@@ -117,8 +118,9 @@ extension Config {
                 continue
             }
             guard prefixParsed.modifiers.rawValue != 0 else {
-                failSeq("prefix must include at least one modifier " +
-                        "(a bare-key leader would swallow every press)")
+                failSeq(
+                    "prefix must include at least one modifier "
+                        + "(a bare-key leader would swallow every press)")
                 continue
             }
 
@@ -151,15 +153,16 @@ extension Config {
                 "name": .string("\(seqName) [enter]"),
                 "input": .string(prefixRaw),
                 "action-set-var": .string(varName),
-                "hold-while-timeout": .int(Int64(timeoutMs)),
+                "hold-while-timeout": .int(Int64(timeoutMs))
             ]
-            guard let prefixBinding = makeBinding(
-                from: prefixRow, sourceLine: line, index: i, isFallback: false,
-                actionAliases: actionAliases,
-                inputAliases: inputAliases,
-                vkeyAliases: vkeyAliases,
-                allowReservedVarNames: true,
-                warnings: &warnings)
+            guard
+                let prefixBinding = makeBinding(
+                    from: prefixRow, sourceLine: line, index: i, isFallback: false,
+                    actionAliases: actionAliases,
+                    inputAliases: inputAliases,
+                    vkeyAliases: vkeyAliases,
+                    allowReservedVarNames: true,
+                    warnings: &warnings)
             else {
                 // makeBinding already appended its own warning.
                 dropped += 1
@@ -172,16 +175,18 @@ extension Config {
             for (ci, child) in childRows.enumerated() {
                 let childLine = child.span?.line ?? line
                 let childSrc = sourceTag(line: childLine)
-                let childName = child["name"]?.asString
+                let childName =
+                    child["name"]?.asString
                     ?? "\(seqName).\(ci + 1)"
 
                 guard let childInputRaw = child["input"]?.asString else {
-                    warnings.append(ConfigWarning(
-                        kind: .missingInput,
-                        message:
-                            "[[sequence.bindings]] '\(childName)'\(childSrc): " +
-                            "missing 'input'",
-                        sourceLine: childLine, bindingName: childName))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .missingInput,
+                            message:
+                                "[[sequence.bindings]] '\(childName)'\(childSrc): "
+                                + "missing 'input'",
+                            sourceLine: childLine, bindingName: childName))
                     dropped += 1
                     continue
                 }
@@ -194,17 +199,20 @@ extension Config {
                 // "<mods> - <alias>" surface a confusing unknown-token
                 // error. (Need a vkey gated on a mode? Use a plain
                 // [[bindings]] with when-var.)
-                let childLower = childInputRaw
+                let childLower =
+                    childInputRaw
                     .trimmingCharacters(in: .whitespaces).lowercased()
                 if vkeyAliases[childLower] != nil
-                    || InputParser.vkeyWildcardNames.contains(childLower) {
-                    warnings.append(ConfigWarning(
-                        kind: .sequenceParseError,
-                        message:
-                            "[[sequence.bindings]] '\(childName)'\(childSrc): " +
-                            "v-key triggers are not supported in sequences " +
-                            "(vkeys carry no modifiers) — child dropped",
-                        sourceLine: childLine, bindingName: childName))
+                    || InputParser.vkeyWildcardNames.contains(childLower)
+                {
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .sequenceParseError,
+                            message:
+                                "[[sequence.bindings]] '\(childName)'\(childSrc): "
+                                + "v-key triggers are not supported in sequences "
+                                + "(vkeys carry no modifiers) — child dropped",
+                            sourceLine: childLine, bindingName: childName))
                     dropped += 1
                     continue
                 }
@@ -235,7 +243,8 @@ extension Config {
             }
         }
 
-        return SequenceParse(expanded: expanded, prefixes: prefixes,
-                             dropped: dropped)
+        return SequenceParse(
+            expanded: expanded, prefixes: prefixes,
+            dropped: dropped)
     }
 }

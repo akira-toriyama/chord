@@ -32,33 +32,33 @@ import Testing
     /// no row is over-constrained (and a dropped row trips the presence
     /// asserts below rather than silently shrinking coverage).
     private static let kitchenSink = """
-    [v-key-aliases]
-    TU_LL_C = 0x26
+        [v-key-aliases]
+        TU_LL_C = 0x26
 
-    [[bindings]]
-    name = "wire-shell-passthrough"
-    input = "cmd - x"
-    action-shell = "echo hi"
-    passthrough = true
-    repeat = "ignore"
-    input-source = ["com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"]
+        [[bindings]]
+        name = "wire-shell-passthrough"
+        input = "cmd - x"
+        action-shell = "echo hi"
+        passthrough = true
+        repeat = "ignore"
+        input-source = ["com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"]
 
-    [[bindings]]
-    name = "wire-toggle"
-    input = "cmd - y"
-    action-toggle-var = "wm"
+        [[bindings]]
+        name = "wire-toggle"
+        input = "cmd - y"
+        action-toggle-var = "wm"
 
-    [[bindings]]
-    name = "wire-multigate"
-    input = "cmd - z"
-    when-vars = { a = 1, b = 2 }
-    action-noop = true
+        [[bindings]]
+        name = "wire-multigate"
+        input = "cmd - z"
+        when-vars = { a = 1, b = 2 }
+        action-noop = true
 
-    [[bindings]]
-    name = "wire-vkey"
-    input = "TU_LL_C"
-    action-noop = true
-    """
+        [[bindings]]
+        name = "wire-vkey"
+        input = "TU_LL_C"
+        action-noop = true
+        """
 
     // MARK: - the lockstep test
 
@@ -79,12 +79,13 @@ import Testing
         do {
             try validator.validate(node: doc, schema: schema, path: "$")
         } catch let v as StructuralSchemaValidator.Violation {
-            Issue.record("""
-            Emitted wire JSON violates docs/schema/chord.bindings.v3.json — \
-            the emitter shipped a field the published schema does not \
-            describe (the #45/#46/#47 drift class). \
-            \(v.path): \(v.reason)
-            """)
+            Issue.record(
+                """
+                Emitted wire JSON violates docs/schema/chord.bindings.v3.json — \
+                the emitter shipped a field the published schema does not \
+                describe (the #45/#46/#47 drift class). \
+                \(v.path): \(v.reason)
+                """)
         }
     }
 
@@ -95,30 +96,36 @@ import Testing
     /// producing the feature), which would otherwise let the conformance
     /// check pass without testing anything.
     private func assertCoversYoungerFeatures(_ doc: [String: Any]) throws {
-        let bindings = try #require(doc["bindings"] as? [[String: Any]],
-                                    "no bindings[] in emitted document")
+        let bindings = try #require(
+            doc["bindings"] as? [[String: Any]],
+            "no bindings[] in emitted document")
         let byName = Dictionary(
             uniqueKeysWithValues: bindings.compactMap { b -> (String, [String: Any])? in
                 (b["name"] as? String).map { ($0, b) }
             })
 
         // passthrough + repeat + input_source on one binding object.
-        let shell = try #require(byName["wire-shell-passthrough"],
-                                 "passthrough binding was dropped")
+        let shell = try #require(
+            byName["wire-shell-passthrough"],
+            "passthrough binding was dropped")
         #expect(shell["passthrough"] as? Bool == true)
         #expect(shell["repeat"] as? String == "ignore")
-        #expect(shell["input_source"] as? [String] ==
-                ["com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"])
+        #expect(
+            shell["input_source"] as? [String] == [
+                "com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"
+            ])
 
         // action kind "toggle-variable".
-        let toggle = try #require(byName["wire-toggle"],
-                                  "toggle binding was dropped")
+        let toggle = try #require(
+            byName["wire-toggle"],
+            "toggle binding was dropped")
         let toggleAction = try #require(toggle["action"] as? [String: Any])
         #expect(toggleAction["kind"] as? String == "toggle-variable")
 
         // condition kind "all" with two nested conditions.
-        let gate = try #require(byName["wire-multigate"],
-                                "multi-gate binding was dropped")
+        let gate = try #require(
+            byName["wire-multigate"],
+            "multi-gate binding was dropped")
         let cond = try #require(gate["condition"] as? [String: Any])
         #expect(cond["kind"] as? String == "all")
         #expect((cond["conditions"] as? [[String: Any]])?.count == 2)
@@ -131,8 +138,9 @@ import Testing
 
         // The whole config must parse clean — a stray warning would add a
         // dropped[] row and muddy the conformance walk.
-        #expect((doc["dropped"] as? [Any])?.count == 0,
-                "kitchen-sink config produced unexpected warnings")
+        #expect(
+            (doc["dropped"] as? [Any])?.count == 0,
+            "kitchen-sink config produced unexpected warnings")
     }
 
     // MARK: - schema loading
@@ -141,9 +149,9 @@ import Testing
     /// resource — same `#filePath`-relative walk as ConfigSchemaDriftTests).
     private func loadPublishedSchema() throws -> [String: Any] {
         let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Tests/ChordCoreTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // <repo root>
+            .deletingLastPathComponent()  // Tests/ChordCoreTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // <repo root>
             .appendingPathComponent("docs/schema/chord.bindings.v3.json")
         let data = try Data(contentsOf: url)
         return try #require(
@@ -189,16 +197,18 @@ struct StructuralSchemaValidator {
         // const / enum — leaf discriminators (always strings in this schema).
         if let c = schema["const"] {
             guard stringsEqual(node, c) else {
-                throw Violation(path: path,
-                                reason: "const mismatch: expected \(c), got \(node)")
+                throw Violation(
+                    path: path,
+                    reason: "const mismatch: expected \(c), got \(node)")
             }
             return
         }
         if let e = schema["enum"] as? [Any] {
             let allowed = e.compactMap { $0 as? String }
             guard let s = node as? String, allowed.contains(s) else {
-                throw Violation(path: path,
-                                reason: "enum mismatch: \(node) not in \(allowed)")
+                throw Violation(
+                    path: path,
+                    reason: "enum mismatch: \(node) not in \(allowed)")
             }
             return
         }
@@ -221,8 +231,10 @@ struct StructuralSchemaValidator {
 
     // MARK: -
 
-    private func validateOneOf(node: Any, branches: [[String: Any]],
-                               path: String) throws {
+    private func validateOneOf(
+        node: Any, branches: [[String: Any]],
+        path: String
+    ) throws {
         var matched = 0
         var reasons: [String] = []
         for (i, branch) in branches.enumerated() {
@@ -239,12 +251,15 @@ struct StructuralSchemaValidator {
                 path: path,
                 reason: "matched no oneOf branch:\n" + reasons.joined(separator: "\n"))
         }
-        throw Violation(path: path,
-                        reason: "ambiguous: matched \(matched) oneOf branches")
+        throw Violation(
+            path: path,
+            reason: "ambiguous: matched \(matched) oneOf branches")
     }
 
-    private func validateObject(node: Any, schema: [String: Any],
-                                path: String) throws {
+    private func validateObject(
+        node: Any, schema: [String: Any],
+        path: String
+    ) throws {
         guard let obj = node as? [String: Any] else {
             throw Violation(path: path, reason: "expected object, got \(type(of: node))")
         }
@@ -275,8 +290,10 @@ struct StructuralSchemaValidator {
         }
     }
 
-    private func validateArray(node: Any, schema: [String: Any],
-                               path: String) throws {
+    private func validateArray(
+        node: Any, schema: [String: Any],
+        path: String
+    ) throws {
         guard let arr = node as? [Any] else {
             throw Violation(path: path, reason: "expected array, got \(type(of: node))")
         }

@@ -11,17 +11,20 @@ import Testing
     // MARK: - Single-string form (regression)
 
     @Test func singleStringActionKeysUnchanged() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "single"
-        input = "cmd - x"
-        action-keys = "cmd - c"
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "single"
+            input = "cmd - x"
+            action-keys = "cmd - c"
+            """)
         #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         if case .keys(_, let kc) = b.action {
-            #expect(kc == 0x08)   // 'c'
-        } else { Issue.record("expected .keys primary") }
+            #expect(kc == 0x08)  // 'c'
+        } else {
+            Issue.record("expected .keys primary")
+        }
         #expect(b.extraDownActions.isEmpty)
         #expect(b.actionRaw == "cmd - c")
     }
@@ -29,55 +32,67 @@ import Testing
     // MARK: - Array form
 
     @Test func arrayFormBuildsPrimaryPlusExtras() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "copy-switch-paste"
-        input = "cmd - p"
-        action-keys = ["cmd - c", "cmd - tab", "cmd - v"]
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "copy-switch-paste"
+            input = "cmd - p"
+            action-keys = ["cmd - c", "cmd - tab", "cmd - v"]
+            """)
         #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         // Primary = first element ('c').
         if case .keys(_, let kc) = b.action {
             #expect(kc == 0x08)
-        } else { Issue.record("expected .keys primary") }
+        } else {
+            Issue.record("expected .keys primary")
+        }
         // Extras = rest of array.
         #expect(b.extraDownActions.count == 2)
         if case .keys(_, let kc) = b.extraDownActions[0] {
-            #expect(kc == 0x30)    // 'tab'
-        } else { Issue.record("extras[0] should be .keys") }
+            #expect(kc == 0x30)  // 'tab'
+        } else {
+            Issue.record("extras[0] should be .keys")
+        }
         if case .keys(_, let kc) = b.extraDownActions[1] {
-            #expect(kc == 0x09)    // 'v'
-        } else { Issue.record("extras[1] should be .keys") }
+            #expect(kc == 0x09)  // 'v'
+        } else {
+            Issue.record("extras[1] should be .keys")
+        }
     }
 
     @Test func singleElementArrayBehavesLikeString() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "single-array"
-        input = "cmd - x"
-        action-keys = ["cmd - c"]
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "single-array"
+            input = "cmd - x"
+            action-keys = ["cmd - c"]
+            """)
         #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         if case .keys(_, let kc) = b.action {
             #expect(kc == 0x08)
-        } else { Issue.record("expected .keys") }
-        #expect(b.extraDownActions.isEmpty,
-                "1-element array → primary only, no extras")
+        } else {
+            Issue.record("expected .keys")
+        }
+        #expect(
+            b.extraDownActions.isEmpty,
+            "1-element array → primary only, no extras")
     }
 
     // MARK: - Combined with action-shell (v0.4.0 multi-action extended)
 
     @Test func shellPlusKeysArrayLayersAsExtras() throws {
         // action-shell is primary, every array element is an extra.
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "shell-plus-arr"
-        input = "cmd - x"
-        action-shell = "echo hi"
-        action-keys = ["cmd - c", "cmd - v"]
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "shell-plus-arr"
+            input = "cmd - x"
+            action-shell = "echo hi"
+            action-keys = ["cmd - c", "cmd - v"]
+            """)
         #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         if case .shell = b.action {} else { Issue.record("expected .shell primary") }
@@ -86,13 +101,14 @@ import Testing
 
     @Test func shellPlusKeysStringStillWorks() throws {
         // Regression for v0.4.0 single-string multi-action form.
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "v04-style"
-        input = "cmd - x"
-        action-shell = "echo hi"
-        action-keys = "cmd - c"
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "v04-style"
+            input = "cmd - x"
+            action-shell = "echo hi"
+            action-keys = "cmd - c"
+            """)
         #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         if case .shell = b.action {} else { Issue.record("expected .shell") }
@@ -102,37 +118,40 @@ import Testing
     // MARK: - Validation
 
     @Test func emptyArrayRejected() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "empty"
-        input = "cmd - x"
-        action-keys = []
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "empty"
+            input = "cmd - x"
+            action-keys = []
+            """)
         #expect(res.config.bindings.count == 0)
-        #expect(res.warnings.contains {
-            $0.kind == .actionKeysParseError &&
-            $0.message.contains("at least one")
-        })
+        #expect(
+            res.warnings.contains {
+                $0.kind == .actionKeysParseError && $0.message.contains("at least one")
+            })
     }
 
     @Test func nonStringElementRejected() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "bad-element"
-        input = "cmd - x"
-        action-keys = ["cmd - c", 42]
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "bad-element"
+            input = "cmd - x"
+            action-keys = ["cmd - c", 42]
+            """)
         #expect(res.config.bindings.count == 0)
         #expect(res.warnings.contains { $0.kind == .actionKeysParseError })
     }
 
     @Test func unparseableElementRejected() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "bad-token"
-        input = "cmd - x"
-        action-keys = ["cmd - c", "not-a-key"]
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "bad-token"
+            input = "cmd - x"
+            action-keys = ["cmd - c", "not-a-key"]
+            """)
         #expect(res.config.bindings.count == 0)
         #expect(res.warnings.contains { $0.kind == .actionKeysParseError })
     }
@@ -141,30 +160,33 @@ import Testing
         // Binding.onUpAction is a single Action; on-up array would
         // silently drop extras. Reject at parse to keep the user
         // honest.
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "onup-array"
-        input = "cmd - x"
-        action-shell = "echo down"
-        action-keys-on-up = ["cmd - c", "cmd - v"]
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "onup-array"
+            input = "cmd - x"
+            action-shell = "echo down"
+            action-keys-on-up = ["cmd - c", "cmd - v"]
+            """)
         #expect(res.config.bindings.count == 0)
-        #expect(res.warnings.contains {
-            $0.kind == .actionKeysParseError &&
-            $0.message.contains("on-up")
-        })
+        #expect(
+            res.warnings.contains {
+                $0.kind == .actionKeysParseError && $0.message.contains("on-up")
+            })
     }
 
     @Test func onUpSingleStringStillWorks() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "onup-single"
-        input = "cmd - x"
-        action-shell = "echo down"
-        action-keys-on-up = "cmd - c"
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "onup-single"
+            input = "cmd - x"
+            action-shell = "echo down"
+            action-keys-on-up = "cmd - c"
+            """)
         #expect(res.droppedBindings == 0)
-        if case .keys = res.config.bindings[0].onUpAction {} else {
+        if case .keys = res.config.bindings[0].onUpAction {
+        } else {
             Issue.record("expected .keys onUp")
         }
     }
@@ -172,54 +194,58 @@ import Testing
     // MARK: - action-keys-delay-ms (chord 0.10.0+ inter-key pacing)
 
     @Test func delayMsParsedOntoArray() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "paced"
-        input = "cmd - p"
-        action-keys = ["cmd - a", "cmd - c"]
-        action-keys-delay-ms = 20
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "paced"
+            input = "cmd - p"
+            action-keys = ["cmd - a", "cmd - c"]
+            action-keys-delay-ms = 20
+            """)
         #expect(res.droppedBindings == 0)
         #expect(res.config.bindings[0].actionKeysDelayMs == 20)
     }
 
     @Test func delayMsAbsentIsNil() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "no-delay"
-        input = "cmd - p"
-        action-keys = ["cmd - a", "cmd - c"]
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "no-delay"
+            input = "cmd - p"
+            action-keys = ["cmd - a", "cmd - c"]
+            """)
         #expect(res.droppedBindings == 0)
         #expect(res.config.bindings[0].actionKeysDelayMs == nil)
     }
 
     @Test func delayMsNonIntegerDropsBinding() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "bad-delay"
-        input = "cmd - p"
-        action-keys = ["cmd - a", "cmd - c"]
-        action-keys-delay-ms = "soon"
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "bad-delay"
+            input = "cmd - p"
+            action-keys = ["cmd - a", "cmd - c"]
+            action-keys-delay-ms = "soon"
+            """)
         #expect(res.config.bindings.count == 0)
         #expect(res.warnings.contains { $0.kind == .actionKeysDelayParseError })
     }
 
     @Test func delayMsZeroOrNegativeDropsBinding() throws {
         for bad in ["0", "-5"] {
-            let res = try Config.parse("""
-            [[bindings]]
-            name = "nonpositive"
-            input = "cmd - p"
-            action-keys = ["cmd - a", "cmd - c"]
-            action-keys-delay-ms = \(bad)
-            """)
+            let res = try Config.parse(
+                """
+                [[bindings]]
+                name = "nonpositive"
+                input = "cmd - p"
+                action-keys = ["cmd - a", "cmd - c"]
+                action-keys-delay-ms = \(bad)
+                """)
             #expect(res.config.bindings.count == 0)
-            #expect(res.warnings.contains {
-                $0.kind == .actionKeysDelayParseError &&
-                $0.message.contains("> 0")
-            }, "delay \(bad) must drop with a '> 0' warning")
+            #expect(
+                res.warnings.contains {
+                    $0.kind == .actionKeysDelayParseError && $0.message.contains("> 0")
+                }, "delay \(bad) must drop with a '> 0' warning")
         }
     }
 
@@ -227,13 +253,14 @@ import Testing
         // A single keystroke has no inter-key gap, so the delay is a
         // runtime no-op — but it parses and is stored without dropping
         // the binding (the keystroke still fires).
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "single-with-delay"
-        input = "cmd - x"
-        action-keys = "cmd - c"
-        action-keys-delay-ms = 50
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "single-with-delay"
+            input = "cmd - x"
+            action-keys = "cmd - c"
+            action-keys-delay-ms = 50
+            """)
         #expect(res.droppedBindings == 0)
         let b = res.config.bindings[0]
         #expect(b.actionKeysDelayMs == 50)
@@ -243,33 +270,36 @@ import Testing
     // MARK: - Schema round-trip
 
     @Test func schemaEmitsActionKeysDelayMs() throws {
-        let b = try firstBinding("""
-        [[bindings]]
-        name = "paced"
-        input = "cmd - p"
-        action-keys = ["cmd - a", "cmd - c"]
-        action-keys-delay-ms = 20
-        """)
+        let b = try firstBinding(
+            """
+            [[bindings]]
+            name = "paced"
+            input = "cmd - p"
+            action-keys = ["cmd - a", "cmd - c"]
+            action-keys-delay-ms = 20
+            """)
         #expect(b["action_keys_delay_ms"] as? Int == 20)
     }
 
     @Test func schemaOmitsActionKeysDelayMsWhenUnset() throws {
-        let b = try firstBinding("""
-        [[bindings]]
-        name = "no-delay"
-        input = "cmd - p"
-        action-keys = ["cmd - a", "cmd - c"]
-        """)
+        let b = try firstBinding(
+            """
+            [[bindings]]
+            name = "no-delay"
+            input = "cmd - p"
+            action-keys = ["cmd - a", "cmd - c"]
+            """)
         #expect(b["action_keys_delay_ms"] == nil)
     }
 
     @Test func schemaEmitsExtraActionsForKeysArray() throws {
-        let b = try firstBinding("""
-        [[bindings]]
-        name = "seq"
-        input = "cmd - p"
-        action-keys = ["cmd - c", "cmd - v"]
-        """)
+        let b = try firstBinding(
+            """
+            [[bindings]]
+            name = "seq"
+            input = "cmd - p"
+            action-keys = ["cmd - c", "cmd - v"]
+            """)
         // Primary is keys.
         let action = try #require(b["action"] as? [String: Any])
         #expect(action["kind"] as? String == "keys")

@@ -9,8 +9,10 @@ public protocol StateScheduler: Sendable {
     /// Run `fire` once after `afterMs` milliseconds. The returned token
     /// cancels the pending fire when `cancel()` is called; cancelling
     /// after the fire has already run is a no-op.
-    func schedule(afterMs: Int,
-                  _ fire: @escaping @Sendable () -> Void) -> StateSchedulerToken
+    func schedule(
+        afterMs: Int,
+        _ fire: @escaping @Sendable () -> Void
+    ) -> StateSchedulerToken
 }
 
 /// Handle to a scheduled [StateScheduler] fire.
@@ -71,8 +73,10 @@ public final class VariableStore: @unchecked Sendable {
     /// matcher's "unset == 0" reading and keeps zeroed keys from
     /// accumulating). `timeoutMs` schedules a B-α inactivity timer;
     /// `nil` (or `value == 0`) cancels any prior timer.
-    public func set(name: String, value: Int,
-                    holdWhile: Modifiers?, timeoutMs: Int?) {
+    public func set(
+        name: String, value: Int,
+        holdWhile: Modifiers?, timeoutMs: Int?
+    ) {
         lock.lock(); defer { lock.unlock() }
         // Always cancel a pre-existing timer — we are either replacing
         // it (new lifecycle) or clearing the entry.
@@ -80,8 +84,9 @@ public final class VariableStore: @unchecked Sendable {
         if value == 0 {
             state.removeValue(forKey: name)
         } else {
-            state[name] = Entry(value: value, holdWhile: holdWhile,
-                                timeoutMs: timeoutMs)
+            state[name] = Entry(
+                value: value, holdWhile: holdWhile,
+                timeoutMs: timeoutMs)
             if let ms = timeoutMs { scheduleTimerLocked(name: name, ms: ms) }
         }
     }

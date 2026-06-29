@@ -37,15 +37,16 @@ extension Config {
             let baseName = row["name"]?.asString ?? "remap-\(ri + 1)"
 
             func failRemap(_ msg: String) {
-                warnings.append(ConfigWarning(
-                    kind: .remapParseError,
-                    message: "[[remap]] '\(baseName)'\(source): \(msg)",
-                    sourceLine: line, bindingName: baseName))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .remapParseError,
+                        message: "[[remap]] '\(baseName)'\(source): \(msg)",
+                        sourceLine: line, bindingName: baseName))
                 dropped += 1
             }
 
             guard let modsRaw = row["modifiers"]?.asString,
-                  !modsRaw.trimmingCharacters(in: .whitespaces).isEmpty
+                !modsRaw.trimmingCharacters(in: .whitespaces).isEmpty
             else {
                 failRemap("missing 'modifiers' (bare-key remap is not allowed)")
                 continue
@@ -54,8 +55,8 @@ extension Config {
                 let mask = try InputParser.parseModifiersOnly(
                     modsRaw, inputAliases: inputAliases)
                 guard mask.rawValue != 0 else {
-                    failRemap("modifiers resolved to an empty mask " +
-                              "(at least one modifier required)")
+                    failRemap(
+                        "modifiers resolved to an empty mask " + "(at least one modifier required)")
                     continue
                 }
             } catch {
@@ -68,8 +69,7 @@ extension Config {
                 continue
             }
             guard case .table(let mapTable) = mapValue else {
-                failRemap("'map' must be an inline table " +
-                          "(`{ b = \"left\", … }`)")
+                failRemap("'map' must be an inline table " + "(`{ b = \"left\", … }`)")
                 continue
             }
             if mapTable.isEmpty {
@@ -83,13 +83,14 @@ extension Config {
             for key in mapTable.keys.sorted() {
                 let entryName = "\(baseName).\(key)"
                 guard let valueStr = mapTable[key]?.asString else {
-                    warnings.append(ConfigWarning(
-                        kind: .remapParseError,
-                        message:
-                            "[[remap]] '\(baseName)'\(source): " +
-                            "map['\(key)']: value must be a string " +
-                            "(interpreted as action-keys)",
-                        sourceLine: line, bindingName: entryName))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .remapParseError,
+                            message:
+                                "[[remap]] '\(baseName)'\(source): "
+                                + "map['\(key)']: value must be a string "
+                                + "(interpreted as action-keys)",
+                            sourceLine: line, bindingName: entryName))
                     dropped += 1
                     continue
                 }
@@ -99,14 +100,16 @@ extension Config {
                 // confusing composed-string unknown-token error.
                 let keyLower = key.lowercased()
                 if vkeyAliases[keyLower] != nil
-                    || InputParser.vkeyWildcardNames.contains(keyLower) {
-                    warnings.append(ConfigWarning(
-                        kind: .remapParseError,
-                        message:
-                            "[[remap]] '\(baseName)'\(source): map key '\(key)' " +
-                            "is a v-key — v-keys are not supported in remaps " +
-                            "(they carry no modifiers); entry dropped",
-                        sourceLine: line, bindingName: entryName))
+                    || InputParser.vkeyWildcardNames.contains(keyLower)
+                {
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .remapParseError,
+                            message:
+                                "[[remap]] '\(baseName)'\(source): map key '\(key)' "
+                                + "is a v-key — v-keys are not supported in remaps "
+                                + "(they carry no modifiers); entry dropped",
+                            sourceLine: line, bindingName: entryName))
                     dropped += 1
                     continue
                 }
@@ -114,15 +117,17 @@ extension Config {
                 var synth: [String: TOML.Value] = [
                     "name": .string(entryName),
                     "input": .string(composedInput),
-                    "action-keys": .string(valueStr),
+                    "action-keys": .string(valueStr)
                 ]
                 if let apps = row["apps"] { synth["apps"] = apps }
-                if let b = makeBinding(from: synth, sourceLine: line, index: ri,
-                                       isFallback: false,
-                                       actionAliases: actionAliases,
-                                       inputAliases: inputAliases,
-                                       vkeyAliases: vkeyAliases,
-                                       warnings: &warnings) {
+                if let b = makeBinding(
+                    from: synth, sourceLine: line, index: ri,
+                    isFallback: false,
+                    actionAliases: actionAliases,
+                    inputAliases: inputAliases,
+                    vkeyAliases: vkeyAliases,
+                    warnings: &warnings)
+                {
                     expanded.append(b)
                 } else {
                     dropped += 1

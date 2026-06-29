@@ -12,11 +12,11 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
     // key. Used by the legacy `cmd` / `opt` / `ctrl` / `shift` tokens
     // and by every event when the binding does not care about the
     // side (the common case).
-    public static let cmd   = Modifiers(rawValue: 1 << 0)
-    public static let opt   = Modifiers(rawValue: 1 << 1)
-    public static let ctrl  = Modifiers(rawValue: 1 << 2)
+    public static let cmd = Modifiers(rawValue: 1 << 0)
+    public static let opt = Modifiers(rawValue: 1 << 1)
+    public static let ctrl = Modifiers(rawValue: 1 << 2)
     public static let shift = Modifiers(rawValue: 1 << 3)
-    public static let fn    = Modifiers(rawValue: 1 << 4)
+    public static let fn = Modifiers(rawValue: 1 << 4)
 
     // Side-specific modifiers. Required to express ZMK-style
     // `ULTRA_LL = rctrl + ralt + rshift` patterns, where the
@@ -24,12 +24,12 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
     // that sets, say, `.rctrl` matches when the right Control key
     // is held AND the left one is NOT. A binding that sets both
     // `.lctrl` and `.rctrl` matches when both are held.
-    public static let lcmd   = Modifiers(rawValue: 1 << 5)
-    public static let rcmd   = Modifiers(rawValue: 1 << 6)
-    public static let lopt   = Modifiers(rawValue: 1 << 7)
-    public static let ropt   = Modifiers(rawValue: 1 << 8)
-    public static let lctrl  = Modifiers(rawValue: 1 << 9)
-    public static let rctrl  = Modifiers(rawValue: 1 << 10)
+    public static let lcmd = Modifiers(rawValue: 1 << 5)
+    public static let rcmd = Modifiers(rawValue: 1 << 6)
+    public static let lopt = Modifiers(rawValue: 1 << 7)
+    public static let ropt = Modifiers(rawValue: 1 << 8)
+    public static let lctrl = Modifiers(rawValue: 1 << 9)
+    public static let rctrl = Modifiers(rawValue: 1 << 10)
     public static let lshift = Modifiers(rawValue: 1 << 11)
     public static let rshift = Modifiers(rawValue: 1 << 12)
 
@@ -45,12 +45,11 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
     /// [isStillHeld], and `Schema.modifierSides` so the per-category
     /// side logic can never drift between them. (`fn` is symmetric —
     /// no L/R split — and is handled separately by each caller.)
-    public static let sideCategories:
-        [(any: Modifiers, left: Modifiers, right: Modifiers)] = [
-        (.cmd,   .lcmd,   .rcmd),
-        (.opt,   .lopt,   .ropt),
-        (.ctrl,  .lctrl,  .rctrl),
-        (.shift, .lshift, .rshift),
+    public static let sideCategories: [(any: Modifiers, left: Modifiers, right: Modifiers)] = [
+        (.cmd, .lcmd, .rcmd),
+        (.opt, .lopt, .ropt),
+        (.ctrl, .lctrl, .rctrl),
+        (.shift, .lshift, .rshift)
     ]
 
     /// Does this BINDING constraint accept the given EVENT modifier
@@ -106,17 +105,19 @@ public struct Modifiers: OptionSet, Hashable, Sendable, Codable {
         return true
     }
 
-    private func matchCategory(any: Modifiers, l: Modifiers, r: Modifiers,
-                               event: Modifiers) -> Bool {
+    private func matchCategory(
+        any: Modifiers, l: Modifiers, r: Modifiers,
+        event: Modifiers
+    ) -> Bool {
         let eL = event.contains(l)
         let eR = event.contains(r)
         let bAny = self.contains(any)
         let bL = self.contains(l)
         let bR = self.contains(r)
         if bL && bR { return eL && eR }
-        if bL       { return eL && !eR }
-        if bR       { return eR && !eL }
-        if bAny     { return eL || eR }
+        if bL { return eL && !eR }
+        if bR { return eR && !eL }
+        if bAny { return eL || eR }
         return !eL && !eR
     }
 }
@@ -165,8 +166,8 @@ public enum MouseButton: Int, Hashable, Sendable, Codable {
     case left = 0
     case right = 1
     case middle = 2
-    case side1 = 3       // commonly the "back" button
-    case side2 = 4       // commonly the "forward" button
+    case side1 = 3  // commonly the "back" button
+    case side2 = 4  // commonly the "forward" button
     case other5 = 5
     case other6 = 6
     case other7 = 7
@@ -231,10 +232,10 @@ public enum Action: Hashable, Sendable {
     /// compile error here until its string is assigned.
     public var kindString: String {
         switch self {
-        case .keys:           return "keys"
-        case .shell:          return "shell"
-        case .noop:           return "noop"
-        case .setVariable:    return "set-variable"
+        case .keys: return "keys"
+        case .shell: return "shell"
+        case .noop: return "noop"
+        case .setVariable: return "set-variable"
         case .toggleVariable: return "toggle-variable"
         }
     }
@@ -371,21 +372,23 @@ public struct Binding: Hashable, Sendable {
     /// it. `nil` if unavailable.
     public var sourceLine: Int?
 
-    public init(name: String, trigger: Trigger, modifiers: Modifiers,
-                apps: [String]?, action: Action,
-                extraDownActions: [Action] = [],
-                condition: Condition? = nil,
-                onUpAction: Action? = nil,
-                holdWhile: Modifiers? = nil,
-                holdWhileTimeoutMs: Int? = nil,
-                passthrough: Bool = false,
-                repeatStrategy: RepeatStrategy = .fireEach,
-                actionKeysDelayMs: Int? = nil,
-                inputSource: [String]? = nil,
-                inputRaw: String = "",
-                actionRaw: String? = nil,
-                aliasName: String? = nil,
-                sourceLine: Int? = nil) {
+    public init(
+        name: String, trigger: Trigger, modifiers: Modifiers,
+        apps: [String]?, action: Action,
+        extraDownActions: [Action] = [],
+        condition: Condition? = nil,
+        onUpAction: Action? = nil,
+        holdWhile: Modifiers? = nil,
+        holdWhileTimeoutMs: Int? = nil,
+        passthrough: Bool = false,
+        repeatStrategy: RepeatStrategy = .fireEach,
+        actionKeysDelayMs: Int? = nil,
+        inputSource: [String]? = nil,
+        inputRaw: String = "",
+        actionRaw: String? = nil,
+        aliasName: String? = nil,
+        sourceLine: Int? = nil
+    ) {
         self.name = name
         self.trigger = trigger
         self.modifiers = modifiers
@@ -422,7 +425,6 @@ public struct StateSnapshot: Hashable, Sendable {
     public func value(_ name: String) -> Int { variables[name] ?? 0 }
 }
 
-
 /// Whole-program configuration. The TOML file lands here.
 public struct ChordConfig: Sendable {
     public struct Options: Sendable {
@@ -436,9 +438,11 @@ public struct ChordConfig: Sendable {
         /// `ctrl + fn - right` for every arrow binding.
         public var fnAutoArrows: Bool
 
-        public init(passthroughUnmatched: Bool = true,
-                    excludeApps: [String] = [],
-                    fnAutoArrows: Bool = true) {
+        public init(
+            passthroughUnmatched: Bool = true,
+            excludeApps: [String] = [],
+            fnAutoArrows: Bool = true
+        ) {
             self.passthroughUnmatched = passthroughUnmatched
             self.excludeApps = excludeApps
             self.fnAutoArrows = fnAutoArrows
@@ -474,11 +478,13 @@ public struct ChordConfig: Sendable {
     /// stays a single source of truth.
     public var inputAliases: [String: String]
 
-    public init(options: Options = .init(),
-                bindings: [Binding] = [],
-                fallbacks: [Binding] = [],
-                actionAliases: [String: String] = [:],
-                inputAliases: [String: String] = [:]) {
+    public init(
+        options: Options = .init(),
+        bindings: [Binding] = [],
+        fallbacks: [Binding] = [],
+        actionAliases: [String: String] = [:],
+        inputAliases: [String: String] = [:]
+    ) {
         self.options = options
         self.bindings = bindings
         self.fallbacks = fallbacks
@@ -490,7 +496,8 @@ public struct ChordConfig: Sendable {
     /// or `~/.config/chord/config.toml`.
     public static var path: String {
         let env = ProcessInfo.processInfo.environment
-        let base = env["XDG_CONFIG_HOME"]
+        let base =
+            env["XDG_CONFIG_HOME"]
             ?? (NSHomeDirectory() + "/.config")
         return base + "/chord/config.toml"
     }

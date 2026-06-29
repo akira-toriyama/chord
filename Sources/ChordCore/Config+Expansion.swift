@@ -64,22 +64,24 @@ extension Config {
         let source = sourceTag(line: line)
 
         if row["apps"] != nil {
-            warnings.append(ConfigWarning(
-                kind: .perAppParseError,
-                message:
-                    "[[bindings]] '\(displayName)'\(source): " +
-                    "'apps' and 'per-app' are mutually exclusive — " +
-                    "per-app entries provide their own bundle id",
-                sourceLine: line, bindingName: baseName))
+            warnings.append(
+                ConfigWarning(
+                    kind: .perAppParseError,
+                    message:
+                        "[[bindings]] '\(displayName)'\(source): "
+                        + "'apps' and 'per-app' are mutually exclusive — "
+                        + "per-app entries provide their own bundle id",
+                    sourceLine: line, bindingName: baseName))
             return .invalid
         }
         if perApp.isEmpty {
-            warnings.append(ConfigWarning(
-                kind: .perAppParseError,
-                message:
-                    "[[bindings]] '\(displayName)'\(source): " +
-                    "per-app must contain at least one [[bindings.per-app]] entry",
-                sourceLine: line, bindingName: baseName))
+            warnings.append(
+                ConfigWarning(
+                    kind: .perAppParseError,
+                    message:
+                        "[[bindings]] '\(displayName)'\(source): "
+                        + "per-app must contain at least one [[bindings.per-app]] entry",
+                    sourceLine: line, bindingName: baseName))
             return .invalid
         }
 
@@ -105,14 +107,15 @@ extension Config {
             let entryLine = entry.span?.line ?? line
             let entrySource = sourceTag(line: entryLine)
             guard let bundleID = entry["bundle-id"]?.asString,
-                  !bundleID.isEmpty
+                !bundleID.isEmpty
             else {
-                warnings.append(ConfigWarning(
-                    kind: .perAppParseError,
-                    message:
-                        "[[bindings.per-app]] for '\(displayName)'" +
-                        "\(entrySource): missing or empty 'bundle-id'",
-                    sourceLine: entryLine, bindingName: baseName))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .perAppParseError,
+                        message:
+                            "[[bindings.per-app]] for '\(displayName)'"
+                            + "\(entrySource): missing or empty 'bundle-id'",
+                        sourceLine: entryLine, bindingName: baseName))
                 return .invalid
             }
 
@@ -155,40 +158,44 @@ extension Config {
         let source = sourceTag(line: line)
 
         guard case .array(let arr) = inputsRaw else {
-            warnings.append(ConfigWarning(
-                kind: .missingInput,
-                message:
-                    "[[fallbacks]] '\(displayName)'\(source): " +
-                    "inputs must be an array of strings",
-                sourceLine: line, bindingName: baseName))
+            warnings.append(
+                ConfigWarning(
+                    kind: .missingInput,
+                    message:
+                        "[[fallbacks]] '\(displayName)'\(source): "
+                        + "inputs must be an array of strings",
+                    sourceLine: line, bindingName: baseName))
             return .invalid
         }
         if row["input"] != nil {
-            warnings.append(ConfigWarning(
-                kind: .missingInput,
-                message:
-                    "[[fallbacks]] '\(displayName)'\(source): " +
-                    "'input' and 'inputs' are mutually exclusive — pick one",
-                sourceLine: line, bindingName: baseName))
+            warnings.append(
+                ConfigWarning(
+                    kind: .missingInput,
+                    message:
+                        "[[fallbacks]] '\(displayName)'\(source): "
+                        + "'input' and 'inputs' are mutually exclusive — pick one",
+                    sourceLine: line, bindingName: baseName))
             return .invalid
         }
         if arr.isEmpty {
-            warnings.append(ConfigWarning(
-                kind: .missingInput,
-                message:
-                    "[[fallbacks]] '\(displayName)'\(source): " +
-                    "inputs[] must contain at least one entry",
-                sourceLine: line, bindingName: baseName))
+            warnings.append(
+                ConfigWarning(
+                    kind: .missingInput,
+                    message:
+                        "[[fallbacks]] '\(displayName)'\(source): "
+                        + "inputs[] must contain at least one entry",
+                    sourceLine: line, bindingName: baseName))
             return .invalid
         }
         let inputStrings = arr.compactMap(\.asString)
         if inputStrings.count != arr.count {
-            warnings.append(ConfigWarning(
-                kind: .missingInput,
-                message:
-                    "[[fallbacks]] '\(displayName)'\(source): " +
-                    "every inputs[] element must be a string",
-                sourceLine: line, bindingName: baseName))
+            warnings.append(
+                ConfigWarning(
+                    kind: .missingInput,
+                    message:
+                        "[[fallbacks]] '\(displayName)'\(source): "
+                        + "every inputs[] element must be a string",
+                    sourceLine: line, bindingName: baseName))
             return .invalid
         }
 

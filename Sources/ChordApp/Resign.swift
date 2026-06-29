@@ -28,20 +28,20 @@ extension ChordApp {
     ///       (user needs to run setup-signing-cert.sh once)
     static func runResign() -> Int32 {
         guard let appPath = findChordApp() else {
-            fputs("chord: no Chord.app found at /opt/homebrew/Cellar/chord/*/, " +
-                  "/Applications, or ~/Applications.\n" +
-                  "       install via `brew install akira-toriyama/tap/chord` " +
-                  "or `./scripts/install-launchagent.sh`.\n", stderr)
+            fputs(
+                "chord: no Chord.app found at /opt/homebrew/Cellar/chord/*/, "
+                    + "/Applications, or ~/Applications.\n"
+                    + "       install via `brew install akira-toriyama/tap/chord` "
+                    + "or `./scripts/install-launchagent.sh`.\n", stderr)
             return 2
         }
         print("chord: detected Chord.app at \(appPath)")
 
         let identity = "chord-dev"
         guard hasSigningIdentity(identity) else {
-            fputs("chord: no '\(identity)' identity in your login keychain.\n" +
-                  "       run once:\n" +
-                  "         \(setupCertHint())\n" +
-                  "         chord daemon --resign\n", stderr)
+            fputs(
+                "chord: no '\(identity)' identity in your login keychain.\n" + "       run once:\n"
+                    + "         \(setupCertHint())\n" + "         chord daemon --resign\n", stderr)
             return 3
         }
 
@@ -77,8 +77,9 @@ extension ChordApp {
                 return 0
             }
         }
-        fputs("chord: re-signed, but couldn't restart the daemon — start it manually.\n",
-              stderr)
+        fputs(
+            "chord: re-signed, but couldn't restart the daemon — start it manually.\n",
+            stderr)
         return 0
     }
 
@@ -101,7 +102,7 @@ extension ChordApp {
         }
         for candidate in [
             "/Applications/Chord.app",
-            "\(NSHomeDirectory())/Applications/Chord.app",
+            "\(NSHomeDirectory())/Applications/Chord.app"
         ] {
             if FileManager.default.fileExists(atPath: candidate) {
                 return candidate
@@ -116,8 +117,10 @@ extension ChordApp {
     private static func hasSigningIdentity(_ name: String) -> Bool {
         runProcess(
             "/usr/bin/security",
-            args: ["find-certificate", "-c", name,
-                   "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"],
+            args: [
+                "find-certificate", "-c", name,
+                "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"
+            ],
             captureOutput: true
         ) == 0
     }
@@ -139,15 +142,17 @@ extension ChordApp {
     /// a stderr line so the caller's generic "exit -1" message
     /// isn't the only signal.
     @discardableResult
-    private static func runProcess(_ executable: String,
-                                   args: [String],
-                                   captureOutput: Bool = false) -> Int32 {
+    private static func runProcess(
+        _ executable: String,
+        args: [String],
+        captureOutput: Bool = false
+    ) -> Int32 {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: executable)
         p.arguments = args
         if captureOutput {
             p.standardOutput = FileHandle.nullDevice
-            p.standardError  = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
         }
         do {
             try p.run()

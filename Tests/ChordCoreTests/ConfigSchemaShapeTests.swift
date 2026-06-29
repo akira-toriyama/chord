@@ -22,10 +22,12 @@ import Testing
         #expect(root["$schema"] as? String == "http://json-schema.org/draft-07/schema#")
         #expect(root["additionalProperties"] as? Bool == false)
         let props = try #require(root["properties"] as? [String: Any])
-        #expect(Set(props.keys) ==
-                       ["options", "action-aliases", "input-aliases",
-                        "v-key-aliases", "bindings", "fallbacks",
-                        "sequence", "remap"])
+        #expect(
+            Set(props.keys) == [
+                "options", "action-aliases", "input-aliases",
+                "v-key-aliases", "bindings", "fallbacks",
+                "sequence", "remap"
+            ])
     }
 
     /// Every action-* union member the parser reads must appear in the binding
@@ -38,8 +40,10 @@ import Testing
             #expect(props[key] != nil, "binding schema missing action key \(key)")
         }
         // on-up mirror + gate + lifecycle + scope present too.
-        for key in ["action-shell-on-up", "when-var", "when-vars",
-                    "hold-while", "hold-while-timeout", "apps", "repeat", "per-app"] {
+        for key in [
+            "action-shell-on-up", "when-var", "when-vars",
+            "hold-while", "hold-while-timeout", "apps", "repeat", "per-app"
+        ] {
             #expect(props[key] != nil, "binding schema missing \(key)")
         }
     }
@@ -49,8 +53,7 @@ import Testing
         let item = try bindingItem(try emitted())
         let props = try #require(item["properties"] as? [String: Any])
         let repeatField = try #require(props["repeat"] as? [String: Any])
-        #expect(repeatField["enum"] as? [String] ==
-                       RepeatStrategy.allCases.map(\.rawValue))
+        #expect(repeatField["enum"] as? [String] == RepeatStrategy.allCases.map(\.rawValue))
     }
 
     /// action-* is required via an `anyOf` clause (≥1), NOT a `oneOf` — so the
@@ -87,8 +90,10 @@ import Testing
         let xtaplo = try #require(repeatField["x-taplo"] as? [String: Any])
         let docs = try #require(xtaplo["docs"] as? [String: Any])
         let enumDocs = try #require(docs["enumValues"] as? [Any])
-        #expect(enumDocs.count == enumVals.count,
-                "x-taplo.docs.enumValues must be index-aligned to enum (\(enumDocs.count) vs \(enumVals.count))")
+        #expect(
+            enumDocs.count == enumVals.count,
+            "x-taplo.docs.enumValues must be index-aligned to enum (\(enumDocs.count) vs \(enumVals.count))"
+        )
     }
 
     /// #138-B: array-of-tables items carry `x-taplo.initKeys` (autocomplete

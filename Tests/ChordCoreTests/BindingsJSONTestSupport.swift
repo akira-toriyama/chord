@@ -30,8 +30,9 @@ func parseToBindingsJSON(
     validationStrict: Bool? = nil
 ) throws -> [String: Any] {
     let res = try Config.parse(source)
-    let doc = BindingsSchema.makeDocument(from: res,
-                                          validationStrict: validationStrict)
+    let doc = BindingsSchema.makeDocument(
+        from: res,
+        validationStrict: validationStrict)
     let data = try BindingsSchema.encodeJSON(doc)
     return try #require(
         JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -45,7 +46,8 @@ func firstBinding(
     validationStrict: Bool? = nil
 ) throws -> [String: Any] {
     let json = try parseToBindingsJSON(source, validationStrict: validationStrict)
-    let bindings = try #require(json["bindings"] as? [[String: Any]],
-                                "no bindings[] in emitted JSON")
+    let bindings = try #require(
+        json["bindings"] as? [[String: Any]],
+        "no bindings[] in emitted JSON")
     return try #require(bindings.first, "bindings[] was empty")
 }

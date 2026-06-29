@@ -57,7 +57,7 @@ public enum QuerySchema {
         case status
         case vars
         case loadedBindings = "loaded-bindings"
-        case recentFires    = "recent-fires"
+        case recentFires = "recent-fires"
     }
 
     /// One query. `limit` is only meaningful for `.recentFires` (the
@@ -90,7 +90,8 @@ public enum QuerySchema {
             // Strict grammar: `<endpoint>` or `<endpoint> <limit>`. Reject
             // trailing junk rather than silently ignoring it.
             guard parts.count >= 1, parts.count <= 2,
-                  let ep = Endpoint(rawValue: String(parts[0])) else { return nil }
+                let ep = Endpoint(rawValue: String(parts[0]))
+            else { return nil }
             var lim: Int? = nil
             if parts.count == 2 {
                 guard let n = Int(parts[1]), n > 0 else { return nil }
@@ -137,9 +138,11 @@ public enum QuerySchema {
         public let uptimeS: Int
         public let configLoadedAt: String?
 
-        public init(queriedAt: String, paused: Bool, axGranted: Bool,
-                    version: String, uptimeS: Int, configLoadedAt: String?,
-                    inputMonitoringGranted: Bool = false) {
+        public init(
+            queriedAt: String, paused: Bool, axGranted: Bool,
+            version: String, uptimeS: Int, configLoadedAt: String?,
+            inputMonitoringGranted: Bool = false
+        ) {
             self.schema = QuerySchema.version
             self.queriedAt = queriedAt
             self.endpoint = Endpoint.status.rawValue
@@ -153,11 +156,11 @@ public enum QuerySchema {
 
         enum CodingKeys: String, CodingKey {
             case schema, endpoint, paused, version
-            case queriedAt              = "queried_at"
-            case axGranted              = "ax_granted"
+            case queriedAt = "queried_at"
+            case axGranted = "ax_granted"
             case inputMonitoringGranted = "input_monitoring_granted"
-            case uptimeS                = "uptime_s"
-            case configLoadedAt         = "config_loaded_at"
+            case uptimeS = "uptime_s"
+            case configLoadedAt = "config_loaded_at"
         }
     }
 
@@ -189,8 +192,10 @@ public enum QuerySchema {
         public let actionAliases: Int
         public let inputAliases: Int
 
-        public init(queriedAt: String, bindings: Int, fallbacks: Int,
-                    actionAliases: Int, inputAliases: Int) {
+        public init(
+            queriedAt: String, bindings: Int, fallbacks: Int,
+            actionAliases: Int, inputAliases: Int
+        ) {
             self.schema = QuerySchema.version
             self.queriedAt = queriedAt
             self.endpoint = Endpoint.loadedBindings.rawValue
@@ -202,9 +207,9 @@ public enum QuerySchema {
 
         enum CodingKeys: String, CodingKey {
             case schema, endpoint, bindings, fallbacks
-            case queriedAt     = "queried_at"
+            case queriedAt = "queried_at"
             case actionAliases = "action_aliases"
-            case inputAliases  = "input_aliases"
+            case inputAliases = "input_aliases"
         }
     }
 
