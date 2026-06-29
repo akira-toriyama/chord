@@ -4,7 +4,7 @@
 # Install:
 #   git config core.hooksPath scripts/hooks
 #
-# See docs/commit-convention.md for the grammar.
+# See https://github.com/akira-toriyama/.github/blob/main/CONTRIBUTING.md for the grammar.
 
 set -euo pipefail
 
@@ -24,7 +24,7 @@ re='^:[a-z0-9_+-]+:[[:space:]]+(feat|fix|docs|test|refactor|perf|build|ci|chore|
 if [[ ! "$first_line" =~ $re ]]; then
   cat <<EOF >&2
 chord: commit message does not match the gitmoji + Conventional Commits
-       convention. See docs/commit-convention.md.
+       convention. See https://github.com/akira-toriyama/.github/blob/main/CONTRIBUTING.md.
 
 Got:    $first_line
 Expect: :sparkles: feat(core): your subject here

@@ -1,5 +1,5 @@
 <!--
-Title: gitmoji + Conventional Commits (see docs/commit-convention.md):
+Title: gitmoji + Conventional Commits (see https://github.com/akira-toriyama/.github/blob/main/CONTRIBUTING.md):
   :sparkles: feat(core): add hyper modifier sugar
 
 If this is a single-commit PR, squashing into main will use the
