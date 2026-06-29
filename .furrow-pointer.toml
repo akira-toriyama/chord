@@ -1,2 +1,0 @@
-board = "../projects/.furrow"   # relative to this file's dir (chord/) → akira-toriyama/projects/.furrow
-default_label = "chord"
