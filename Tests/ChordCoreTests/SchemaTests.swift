@@ -10,12 +10,13 @@ import Testing
     }
 
     @Test func schemaIdentifierAndTopLevelShape() throws {
-        let json = try parseAndEncode("""
-        [[bindings]]
-        name = "x"
-        input = "f13"
-        action-noop = true
-        """)
+        let json = try parseAndEncode(
+            """
+            [[bindings]]
+            name = "x"
+            input = "f13"
+            action-noop = true
+            """)
         #expect(json["schema"] as? String == "chord.bindings.v3")
         #expect(json["generated_at"] != nil)
         #expect(json["options"] != nil)
@@ -28,13 +29,14 @@ import Testing
     /// #52-bounded: an unknown binding key surfaces in dropped[] with the
     /// stable kind "unknown-key" — and the binding still loads (lenient).
     @Test func unknownKeySurfacesInDropped() throws {
-        let json = try parseAndEncode("""
-        [[bindings]]
-        name = "typo"
-        input = "f13"
-        action-noop = true
-        bogus-key = 1
-        """)
+        let json = try parseAndEncode(
+            """
+            [[bindings]]
+            name = "typo"
+            input = "f13"
+            action-noop = true
+            bogus-key = 1
+            """)
         let bindings = try #require(json["bindings"] as? [[String: Any]])
         #expect(bindings.count == 1, "binding still loads")
         let dropped = try #require(json["dropped"] as? [[String: Any]])
@@ -45,12 +47,13 @@ import Testing
     }
 
     @Test func keyBindingShape() throws {
-        let json = try parseAndEncode("""
-        [[bindings]]
-        name = "screenshot"
-        input = "cmd + shift - 4"
-        action-keys = "cmd + shift - 4"
-        """)
+        let json = try parseAndEncode(
+            """
+            [[bindings]]
+            name = "screenshot"
+            input = "cmd + shift - 4"
+            action-keys = "cmd + shift - 4"
+            """)
         let bindings = try #require(json["bindings"] as? [[String: Any]])
         #expect(bindings.count == 1)
         let b = bindings[0]
@@ -77,12 +80,13 @@ import Testing
     }
 
     @Test func rightSideOnlyEmitsAbsentForOthers() throws {
-        let json = try parseAndEncode("""
-        [[bindings]]
-        name = "ultra"
-        input = "rctrl + ralt + rshift - c"
-        action-noop = true
-        """)
+        let json = try parseAndEncode(
+            """
+            [[bindings]]
+            name = "ultra"
+            input = "rctrl + ralt + rshift - c"
+            action-noop = true
+            """)
         let bindings = try #require(json["bindings"] as? [[String: Any]])
         let b = bindings[0]
         let input = try #require(b["input"] as? [String: Any])
@@ -94,12 +98,13 @@ import Testing
     }
 
     @Test func anyKeyTrigger() throws {
-        let json = try parseAndEncode("""
-        [[fallbacks]]
-        name = "any"
-        input = "rctrl - *"
-        action-shell = "true"
-        """)
+        let json = try parseAndEncode(
+            """
+            [[fallbacks]]
+            name = "any"
+            input = "rctrl - *"
+            action-shell = "true"
+            """)
         let fallbacks = try #require(json["fallbacks"] as? [[String: Any]])
         let fb = fallbacks[0]
         let input = try #require(fb["input"] as? [String: Any])
@@ -115,18 +120,19 @@ import Testing
     }
 
     @Test func appsNullVsEmpty() throws {
-        let json = try parseAndEncode("""
-        [[bindings]]
-        name = "unscoped"
-        input = "f13"
-        action-noop = true
+        let json = try parseAndEncode(
+            """
+            [[bindings]]
+            name = "unscoped"
+            input = "f13"
+            action-noop = true
 
-        [[bindings]]
-        name = "scoped"
-        input = "f14"
-        apps = ["com.example.app"]
-        action-noop = true
-        """)
+            [[bindings]]
+            name = "scoped"
+            input = "f14"
+            apps = ["com.example.app"]
+            action-noop = true
+            """)
         let bindings = try #require(json["bindings"] as? [[String: Any]])
         // Unscoped binding omits `apps`; scoped binding emits the
         // array. Test the contract: unscoped → absent, scoped →
@@ -136,15 +142,16 @@ import Testing
     }
 
     @Test func shellWithAliasExposesBothCommandAndAlias() throws {
-        let json = try parseAndEncode("""
-        [action-aliases]
-        say_hi = "echo hi"
+        let json = try parseAndEncode(
+            """
+            [action-aliases]
+            say_hi = "echo hi"
 
-        [[bindings]]
-        name = "aliased"
-        input = "f13"
-        action-shell = "@say_hi"
-        """)
+            [[bindings]]
+            name = "aliased"
+            input = "f13"
+            action-shell = "@say_hi"
+            """)
         let bindings = try #require(json["bindings"] as? [[String: Any]])
         let b = bindings[0]
         let action = try #require(b["action"] as? [String: Any])
@@ -155,12 +162,13 @@ import Testing
     }
 
     @Test func droppedCarriesStructuredKindAndLine() throws {
-        let json = try parseAndEncode("""
-        [[bindings]]
-        name = "bad"
-        input = "ctlr - a"
-        action-shell = "true"
-        """)
+        let json = try parseAndEncode(
+            """
+            [[bindings]]
+            name = "bad"
+            input = "ctlr - a"
+            action-shell = "true"
+            """)
         let dropped = try #require(json["dropped"] as? [[String: Any]])
         #expect(dropped.count == 1)
         let d = dropped[0]
@@ -173,23 +181,25 @@ import Testing
     // MARK: - validation block
 
     @Test func validationBlockAbsentWhenNotRequested() throws {
-        let json = try parseToBindingsJSON("[[bindings]]\nname=\"x\"\ninput=\"f13\"\naction-noop=true")
+        let json = try parseToBindingsJSON(
+            "[[bindings]]\nname=\"x\"\ninput=\"f13\"\naction-noop=true")
         #expect(json["validation"] ?? nil == nil)
     }
 
     @Test func validationBlockLenientPass() throws {
         // Lenient mode: a dropped binding doesn't fail (ok=true)
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "ok"
-        input = "f13"
-        action-noop = true
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "ok"
+            input = "f13"
+            action-noop = true
 
-        [[bindings]]
-        name = "bad"
-        input = "ctlr - a"
-        action-noop = true
-        """)
+            [[bindings]]
+            name = "bad"
+            input = "ctlr - a"
+            action-noop = true
+            """)
         let doc = BindingsSchema.makeDocument(from: res, validationStrict: false)
         #expect(doc.validation != nil)
         #expect(doc.validation?.ok == true)
@@ -201,12 +211,13 @@ import Testing
 
     @Test func validationBlockStrictFails() throws {
         // Strict mode: any warning or drop → ok=false
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "bad"
-        input = "ctlr - a"
-        action-noop = true
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "bad"
+            input = "ctlr - a"
+            action-noop = true
+            """)
         let doc = BindingsSchema.makeDocument(from: res, validationStrict: true)
         #expect(doc.validation?.ok == false)
         #expect(doc.validation?.strict == true)
@@ -214,12 +225,13 @@ import Testing
     }
 
     @Test func validationBlockStrictCleanPasses() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "ok"
-        input = "f13"
-        action-noop = true
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "ok"
+            input = "f13"
+            action-noop = true
+            """)
         let doc = BindingsSchema.makeDocument(from: res, validationStrict: true)
         #expect(doc.validation?.ok == true)
         #expect(doc.validation?.strict == true)
@@ -228,12 +240,13 @@ import Testing
     }
 
     @Test func validationUndefinedAliasCounted() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "needs alias"
-        input = "f13"
-        action-shell = "@nope"
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "needs alias"
+            input = "f13"
+            action-shell = "@nope"
+            """)
         let doc = BindingsSchema.makeDocument(from: res, validationStrict: false)
         #expect(doc.validation?.undefinedActionAliases == 1)
     }
@@ -242,12 +255,13 @@ import Testing
         // JSONEncoder uses .sortedKeys → top-level keys appear in
         // alphabetical order. Stable diffs / golden tests rely on
         // this; pin it.
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "x"
-        input = "f13"
-        action-noop = true
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "x"
+            input = "f13"
+            action-noop = true
+            """)
         let data = try BindingsSchema.encodeJSON(
             BindingsSchema.makeDocument(from: res))
         let str = String(data: data, encoding: .utf8) ?? ""

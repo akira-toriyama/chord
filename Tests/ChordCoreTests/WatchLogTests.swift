@@ -16,7 +16,8 @@ import Testing
 /// (not a struct) so `deinit` can run the post-test cleanup.
 @Suite final class WatchLogTests {
 
-    private let path = NSTemporaryDirectory()
+    private let path =
+        NSTemporaryDirectory()
         + "chord-watch-test-\(UUID().uuidString).log"
 
     // Fresh instance per test: nothing to set up (the unique path starts
@@ -36,8 +37,9 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: path))
         Log.watch("hello", to: path)
         // Still gone — Log.watch must not create the file itself.
-        #expect(!FileManager.default.fileExists(atPath: path),
-                "Log.watch must not create the watch file when no subscriber has touched it")
+        #expect(
+            !FileManager.default.fileExists(atPath: path),
+            "Log.watch must not create the watch file when no subscriber has touched it")
     }
 
     @Test func watchAppendsWhenFileExists() throws {

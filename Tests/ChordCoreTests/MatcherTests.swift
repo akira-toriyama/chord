@@ -3,65 +3,84 @@ import Testing
 @testable import ChordCore
 
 @Suite struct MatcherTests {
-    private func b(_ name: String, trigger: Trigger, mods: Modifiers = [],
-                   apps: [String]? = nil) -> Binding {
-        Binding(name: name, trigger: trigger, modifiers: mods,
-                apps: apps, action: .noop)
+    private func b(
+        _ name: String, trigger: Trigger, mods: Modifiers = [],
+        apps: [String]? = nil
+    ) -> Binding {
+        Binding(
+            name: name, trigger: trigger, modifiers: mods,
+            apps: apps, action: .noop)
     }
 
     @Test func firstMatchWins() {
         let m = Matcher(bindings: [
             b("a", trigger: .key(0x69)),
-            b("b", trigger: .key(0x69)),
+            b("b", trigger: .key(0x69))
         ])
-        let hit = m.find(.init(trigger: .key(0x69),
-                               modifiers: [], bundleID: nil))
+        let hit = m.find(
+            .init(
+                trigger: .key(0x69),
+                modifiers: [], bundleID: nil))
         #expect(hit?.name == "a")
     }
 
     @Test func appAllowAndExcludeGlobs() {
         let m = Matcher(bindings: [
-            b("only-chrome", trigger: .mouseButton(.side1),
-              apps: ["*chrome*"]),
+            b(
+                "only-chrome", trigger: .mouseButton(.side1),
+                apps: ["*chrome*"])
         ])
-        let chrome = m.find(.init(trigger: .mouseButton(.side1),
-                                  modifiers: [],
-                                  bundleID: "com.google.Chrome"))
+        let chrome = m.find(
+            .init(
+                trigger: .mouseButton(.side1),
+                modifiers: [],
+                bundleID: "com.google.Chrome"))
         #expect(chrome?.name == "only-chrome")
-        let safari = m.find(.init(trigger: .mouseButton(.side1),
-                                  modifiers: [],
-                                  bundleID: "com.apple.Safari"))
+        let safari = m.find(
+            .init(
+                trigger: .mouseButton(.side1),
+                modifiers: [],
+                bundleID: "com.apple.Safari"))
         #expect(safari == nil)
     }
 
     @Test func globalExcludeApps() {
-        let m = Matcher(bindings: [
-            b("any", trigger: .key(0x69)),
-        ], excludeApps: ["com.apple.dt.Xcode"])
-        let xcode = m.find(.init(trigger: .key(0x69),
-                                 modifiers: [],
-                                 bundleID: "com.apple.dt.Xcode"))
+        let m = Matcher(
+            bindings: [
+                b("any", trigger: .key(0x69))
+            ], excludeApps: ["com.apple.dt.Xcode"])
+        let xcode = m.find(
+            .init(
+                trigger: .key(0x69),
+                modifiers: [],
+                bundleID: "com.apple.dt.Xcode"))
         #expect(xcode == nil)
     }
 
     @Test func exclusionWins() {
         let m = Matcher(bindings: [
-            b("almost-any", trigger: .mouseButton(.side2),
-              apps: ["*", "!com.apple.dt.Xcode"]),
+            b(
+                "almost-any", trigger: .mouseButton(.side2),
+                apps: ["*", "!com.apple.dt.Xcode"])
         ])
         // The TOML loader turns ["*"] into nil; pretend the user
         // wrote a more interesting mix manually:
         let mix = Matcher(bindings: [
-            b("allow-and-block", trigger: .mouseButton(.side2),
-              apps: ["*chrome*", "!com.google.Chrome.beta"]),
+            b(
+                "allow-and-block", trigger: .mouseButton(.side2),
+                apps: ["*chrome*", "!com.google.Chrome.beta"])
         ])
-        let main = mix.find(.init(trigger: .mouseButton(.side2),
-                                  modifiers: [],
-                                  bundleID: "com.google.Chrome"))
+        let main = mix.find(
+            .init(
+                trigger: .mouseButton(.side2),
+                modifiers: [],
+                bundleID: "com.google.Chrome"))
         #expect(main?.name == "allow-and-block")
-        let beta = mix.find(.init(trigger: .mouseButton(.side2),
-                                  modifiers: [],
-                                  bundleID: "com.google.Chrome.beta"))
+        let beta = mix.find(
+            .init(
+                trigger: .mouseButton(.side2),
+                modifiers: [],
+                bundleID: "com.google.Chrome.beta"))
         #expect(beta == nil)
         _ = m  // silence unused
     }
@@ -71,12 +90,16 @@ import Testing
     /// `ctrl - x` (any-side) accepts both lctrl-x and rctrl-x.
     @Test func anySideAcceptsBothPhysicalSides() {
         let m = Matcher(bindings: [
-            b("any", trigger: .key(0x07), mods: .ctrl),  // x
+            b("any", trigger: .key(0x07), mods: .ctrl)  // x
         ])
-        let left = m.find(.init(trigger: .key(0x07),
-                                modifiers: .lctrl, bundleID: nil))
-        let right = m.find(.init(trigger: .key(0x07),
-                                 modifiers: .rctrl, bundleID: nil))
+        let left = m.find(
+            .init(
+                trigger: .key(0x07),
+                modifiers: .lctrl, bundleID: nil))
+        let right = m.find(
+            .init(
+                trigger: .key(0x07),
+                modifiers: .rctrl, bundleID: nil))
         #expect(left?.name == "any")
         #expect(right?.name == "any")
     }
@@ -84,30 +107,38 @@ import Testing
     /// `rctrl - x` requires the right side, rejects the left.
     @Test func strictRightRejectsLeft() {
         let m = Matcher(bindings: [
-            b("strict-r", trigger: .key(0x07), mods: .rctrl),
+            b("strict-r", trigger: .key(0x07), mods: .rctrl)
         ])
         #expect(
-            m.find(.init(trigger: .key(0x07),
-                         modifiers: .rctrl, bundleID: nil))?.name == "strict-r"
+            m.find(
+                .init(
+                    trigger: .key(0x07),
+                    modifiers: .rctrl, bundleID: nil))?.name == "strict-r"
         )
         #expect(
-            m.find(.init(trigger: .key(0x07),
-                         modifiers: .lctrl, bundleID: nil)) == nil
+            m.find(
+                .init(
+                    trigger: .key(0x07),
+                    modifiers: .lctrl, bundleID: nil)) == nil
         )
     }
 
     /// `lctrl + rctrl - x` requires both sides held.
     @Test func requireBothSides() {
         let m = Matcher(bindings: [
-            b("both", trigger: .key(0x07), mods: [.lctrl, .rctrl]),
+            b("both", trigger: .key(0x07), mods: [.lctrl, .rctrl])
         ])
         #expect(
-            m.find(.init(trigger: .key(0x07),
-                         modifiers: .lctrl, bundleID: nil)) == nil
+            m.find(
+                .init(
+                    trigger: .key(0x07),
+                    modifiers: .lctrl, bundleID: nil)) == nil
         )
         #expect(
-            m.find(.init(trigger: .key(0x07),
-                         modifiers: [.lctrl, .rctrl], bundleID: nil))?.name == "both"
+            m.find(
+                .init(
+                    trigger: .key(0x07),
+                    modifiers: [.lctrl, .rctrl], bundleID: nil))?.name == "both"
         )
     }
 
@@ -115,27 +146,34 @@ import Testing
     /// when those three right-side keys are held *and no left ones*.
     @Test func ultraLLPattern() {
         let m = Matcher(bindings: [
-            b("ultra_ll", trigger: .key(0x08),  // c
-              mods: [.rctrl, .ropt, .rshift]),
+            b(
+                "ultra_ll", trigger: .key(0x08),  // c
+                mods: [.rctrl, .ropt, .rshift])
         ])
         // Exactly right-side trio → fires.
         #expect(
-            m.find(.init(trigger: .key(0x08),
-                         modifiers: [.rctrl, .ropt, .rshift],
-                         bundleID: nil))?.name == "ultra_ll"
+            m.find(
+                .init(
+                    trigger: .key(0x08),
+                    modifiers: [.rctrl, .ropt, .rshift],
+                    bundleID: nil))?.name == "ultra_ll"
         )
         // One left modifier present → does NOT fire (the bug the
         // canon migration is fixing).
         #expect(
-            m.find(.init(trigger: .key(0x08),
-                         modifiers: [.lctrl, .ropt, .rshift],
-                         bundleID: nil)) == nil
+            m.find(
+                .init(
+                    trigger: .key(0x08),
+                    modifiers: [.lctrl, .ropt, .rshift],
+                    bundleID: nil)) == nil
         )
         // Plain left-side ctrl+opt+shift → does NOT fire either.
         #expect(
-            m.find(.init(trigger: .key(0x08),
-                         modifiers: [.lctrl, .lopt, .lshift],
-                         bundleID: nil)) == nil
+            m.find(
+                .init(
+                    trigger: .key(0x08),
+                    modifiers: [.lctrl, .lopt, .lshift],
+                    bundleID: nil)) == nil
         )
     }
 
@@ -143,15 +181,19 @@ import Testing
     /// are held — the existing exact-match contract holds.
     @Test func noModifierBindingRejectsHeldModifiers() {
         let m = Matcher(bindings: [
-            b("bare", trigger: .key(0x07)),  // no mods
+            b("bare", trigger: .key(0x07))  // no mods
         ])
         #expect(
-            m.find(.init(trigger: .key(0x07),
-                         modifiers: [], bundleID: nil))?.name == "bare"
+            m.find(
+                .init(
+                    trigger: .key(0x07),
+                    modifiers: [], bundleID: nil))?.name == "bare"
         )
         #expect(
-            m.find(.init(trigger: .key(0x07),
-                         modifiers: .lctrl, bundleID: nil)) == nil
+            m.find(
+                .init(
+                    trigger: .key(0x07),
+                    modifiers: .lctrl, bundleID: nil)) == nil
         )
     }
 
@@ -172,24 +214,32 @@ import Testing
     /// "?" matches exactly one character.
     @Test func globQuestionMark() {
         #expect(Matcher.globMatch("ab", pattern: "?b"))
-        #expect(!Matcher.globMatch("b",  pattern: "?b"))
+        #expect(!Matcher.globMatch("b", pattern: "?b"))
         #expect(!Matcher.globMatch("abb", pattern: "?b"))
     }
 
     /// Multiple "*" segments collapse correctly.
     @Test func globMultipleStars() {
-        #expect(Matcher.globMatch("com.google.Chrome",
-                                  pattern: "*goog*chrome*"))
-        #expect(Matcher.globMatch("com.google.Chrome",
-                                  pattern: "*.*.*"))
-        #expect(!Matcher.globMatch("com.google.Chrome",
-                                   pattern: "*xyz*"))
+        #expect(
+            Matcher.globMatch(
+                "com.google.Chrome",
+                pattern: "*goog*chrome*"))
+        #expect(
+            Matcher.globMatch(
+                "com.google.Chrome",
+                pattern: "*.*.*"))
+        #expect(
+            !Matcher.globMatch(
+                "com.google.Chrome",
+                pattern: "*xyz*"))
     }
 
     /// Case-insensitive (bundle ids are reverse-DNS).
     @Test func globCaseInsensitive() {
-        #expect(Matcher.globMatch("Com.Apple.Safari",
-                                  pattern: "*safari*"))
+        #expect(
+            Matcher.globMatch(
+                "Com.Apple.Safari",
+                pattern: "*safari*"))
     }
 
     /// Adversarial: prior recursive impl was exponential on `*a*a*…*b`
@@ -201,7 +251,8 @@ import Testing
         let p = String(repeating: "a*", count: 40) + "b"
         let start = Date()
         #expect(!Matcher.globMatch(s, pattern: p))
-        #expect(Date().timeIntervalSince(start) < 1.0,
-                "globMatch took too long — exponential regression")
+        #expect(
+            Date().timeIntervalSince(start) < 1.0,
+            "globMatch took too long — exponential regression")
     }
 }

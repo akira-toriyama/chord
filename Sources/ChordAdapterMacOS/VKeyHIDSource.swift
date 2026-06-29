@@ -78,7 +78,7 @@ public final class VKeyHIDSource: @unchecked Sendable {
             kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         let match: [String: Any] = [
             kIOHIDVendorIDKey as String: VKeyHIDSource.vendorID,
-            kIOHIDProductIDKey as String: VKeyHIDSource.productID,
+            kIOHIDProductIDKey as String: VKeyHIDSource.productID
         ]
         IOHIDManagerSetDeviceMatching(mgr, match as CFDictionary)
 
@@ -100,17 +100,19 @@ public final class VKeyHIDSource: @unchecked Sendable {
             reportBuffer?.deallocate()
             reportBuffer = nil
             self.handler = nil
-            Log.line(String(
-                format: "vkey-hid: IOHIDManagerOpen failed (0x%08X) — "
-                    + "Input Monitoring denied?", UInt32(bitPattern: r)))
+            Log.line(
+                String(
+                    format: "vkey-hid: IOHIDManagerOpen failed (0x%08X) — "
+                        + "Input Monitoring denied?", UInt32(bitPattern: r)))
             throw VKeyHIDError.openFailed(r)
         }
         self.manager = mgr
-        Log.line(String(
-            format: "vkey-hid: installed (matching VID=0x%04X PID=0x%04X, "
-                + "reportID=0x%02X)",
-            VKeyHIDSource.vendorID, VKeyHIDSource.productID,
-            Int(VKeyHIDSource.reportID)))
+        Log.line(
+            String(
+                format: "vkey-hid: installed (matching VID=0x%04X PID=0x%04X, "
+                    + "reportID=0x%02X)",
+                VKeyHIDSource.vendorID, VKeyHIDSource.productID,
+                Int(VKeyHIDSource.reportID)))
     }
 
     @MainActor
@@ -152,7 +154,7 @@ public final class VKeyHIDSource: @unchecked Sendable {
     private static let inputReportCallback: IOHIDReportCallback = {
         ctx, result, _, _, reportID, report, reportLength in
         guard let ctx, result == kIOReturnSuccess,
-              reportID == UInt32(VKeyHIDSource.reportID), reportLength >= 1
+            reportID == UInt32(VKeyHIDSource.reportID), reportLength >= 1
         else { return }
         let me = Unmanaged<VKeyHIDSource>.fromOpaque(ctx).takeUnretainedValue()
         // IOHIDDeviceRegisterInputReportCallback delivers the report-ID

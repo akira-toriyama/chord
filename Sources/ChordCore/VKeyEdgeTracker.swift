@@ -23,7 +23,7 @@ public struct VKeyEdgeTracker: Sendable {
     /// An edge to feed downstream as an `InputEvent` of `.vkey(id)`.
     public struct Edge: Sendable, Equatable {
         public let id: UInt8
-        public let kind: EventKind   // .down or .up
+        public let kind: EventKind  // .down or .up
         public init(id: UInt8, kind: EventKind) {
             self.id = id
             self.kind = kind
@@ -42,10 +42,10 @@ public struct VKeyEdgeTracker: Sendable {
     /// Translate a raw selector report into ordered press/release edges,
     /// advancing the latch. See the type doc for the full contract.
     public mutating func events(for selector: UInt8) -> [Edge] {
-        if selector == held { return [] }              // duplicate / autorepeat
+        if selector == held { return [] }  // duplicate / autorepeat
         var edges: [Edge] = []
         if held != 0 { edges.append(Edge(id: held, kind: .up)) }
-        held = selector                                // advance unconditionally
+        held = selector  // advance unconditionally
         if selector != 0 { edges.append(Edge(id: selector, kind: .down)) }
         return edges
     }

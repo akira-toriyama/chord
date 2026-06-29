@@ -14,8 +14,7 @@ import Testing
     // MARK: item a — the modifier-token table is the single source
 
     @Test func reservedModifierTokensDerivedFromTable() {
-        #expect(InputParser.reservedModifierTokens ==
-                       Set(InputParser.modifierTokenMasks.keys))
+        #expect(InputParser.reservedModifierTokens == Set(InputParser.modifierTokenMasks.keys))
         // Vocabulary is locked: a drift in either side would change this.
         #expect(InputParser.reservedModifierTokens.count == 30)
     }
@@ -32,8 +31,9 @@ import Testing
         // parser lookup share one source (none reserved-but-unparseable),
         // and that the union matches the table value.
         for (tok, mask) in InputParser.modifierTokenMasks {
-            #expect(try InputParser.parseModifiersOnly(tok) == mask,
-                           "token '\(tok)' parsed to the wrong mask")
+            #expect(
+                try InputParser.parseModifiersOnly(tok) == mask,
+                "token '\(tok)' parsed to the wrong mask")
         }
     }
 
@@ -43,19 +43,18 @@ import Testing
         #expect(Action.keys([], 0).kindString == "keys")
         #expect(Action.shell("x").kindString == "shell")
         #expect(Action.noop.kindString == "noop")
-        #expect(Action.setVariable(name: "v", value: 1).kindString ==
-                       "set-variable")
-        #expect(Action.toggleVariable(name: "v").kindString ==
-                       "toggle-variable")
+        #expect(Action.setVariable(name: "v", value: 1).kindString == "set-variable")
+        #expect(Action.toggleVariable(name: "v").kindString == "toggle-variable")
     }
 
     @Test func wireSchemaKindIsSourcedFromKindString() throws {
-        let json = try parseBindings("""
-        [[bindings]]
-        name = "x"
-        input = "f13"
-        action-noop = true
-        """)
+        let json = try parseBindings(
+            """
+            [[bindings]]
+            name = "x"
+            input = "f13"
+            action-noop = true
+            """)
         let bindings = try #require(json["bindings"] as? [[String: Any]])
         let action = try #require(bindings.first?["action"] as? [String: Any])
         #expect(action["kind"] as? String == Action.noop.kindString)
@@ -66,9 +65,9 @@ import Testing
     @Test func sideCategoriesOrderAndContents() {
         let c = Modifiers.sideCategories
         #expect(c.count == 4)
-        #expect(c[0].any == .cmd);   #expect(c[0].left == .lcmd);   #expect(c[0].right == .rcmd)
-        #expect(c[1].any == .opt);   #expect(c[1].left == .lopt);   #expect(c[1].right == .ropt)
-        #expect(c[2].any == .ctrl);  #expect(c[2].left == .lctrl);  #expect(c[2].right == .rctrl)
+        #expect(c[0].any == .cmd); #expect(c[0].left == .lcmd); #expect(c[0].right == .rcmd)
+        #expect(c[1].any == .opt); #expect(c[1].left == .lopt); #expect(c[1].right == .ropt)
+        #expect(c[2].any == .ctrl); #expect(c[2].left == .lctrl); #expect(c[2].right == .rctrl)
         #expect(c[3].any == .shift); #expect(c[3].left == .lshift); #expect(c[3].right == .rshift)
     }
 
@@ -119,16 +118,17 @@ import Testing
         // the `Toml.Row.span` line is resolved at parse time and threaded
         // through makeBinding into the warning (#148; replaced the old
         // synthetic `__line__` dict key).
-        let json = try parseBindings("""
-        [[bindings]]
-        name = "ok"
-        input = "f13"
-        action-noop = true
+        let json = try parseBindings(
+            """
+            [[bindings]]
+            name = "ok"
+            input = "f13"
+            action-noop = true
 
-        [[bindings]]
-        name = "bad"
-        action-noop = true
-        """)
+            [[bindings]]
+            name = "bad"
+            action-noop = true
+            """)
         let dropped = try #require(json["dropped"] as? [[String: Any]])
         let bad = try #require(dropped.first { ($0["name"] as? String) == "bad" })
         // The accessor threaded a real `__line__` through to the warning.

@@ -43,17 +43,19 @@ public enum InputParser {
                 return "no key / mouse / scroll token in \"\(ctx)\""
             case .undefinedInputAlias(let name, let ctx):
                 return
-                    "undefined input-alias '$\(name)' in \"\(ctx)\" " +
-                    "— declare it in [input-aliases] or fix the typo"
+                    "undefined input-alias '$\(name)' in \"\(ctx)\" "
+                    + "— declare it in [input-aliases] or fix the typo"
             }
         }
     }
 
-    public static func parse(_ raw: String,
-                             allowWildcard: Bool = false,
-                             allowModifiersOnly: Bool = false,
-                             inputAliases: [String: Modifiers] = [:],
-                             vkeyAliases: [String: UInt8] = [:])
+    public static func parse(
+        _ raw: String,
+        allowWildcard: Bool = false,
+        allowModifiersOnly: Bool = false,
+        inputAliases: [String: Modifiers] = [:],
+        vkeyAliases: [String: UInt8] = [:]
+    )
         throws -> Parsed
     {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
@@ -84,9 +86,10 @@ public enum InputParser {
         // `keycode-200` from a `keycode - 200` split that would
         // mistake the prefix for a modifier — `-` is overloaded as
         // both a separator and an in-token character.
-        if let trigger = try? parsePrimary(trimmed,
-                                           context: raw,
-                                           allowWildcard: allowWildcard)
+        if let trigger = try? parsePrimary(
+            trimmed,
+            context: raw,
+            allowWildcard: allowWildcard)
         {
             return Parsed(modifiers: [], trigger: trigger)
         }
@@ -96,9 +99,10 @@ public enum InputParser {
         // in via `allowModifiersOnly: true` — falls through to the
         // legacy "missing primary" error path otherwise.
         if allowModifiersOnly {
-            if let mods = try? parseModifiers(trimmed, context: raw,
-                                              inputAliases: inputAliases),
-               mods.rawValue != 0
+            if let mods = try? parseModifiers(
+                trimmed, context: raw,
+                inputAliases: inputAliases),
+                mods.rawValue != 0
             {
                 return Parsed(modifiers: mods, trigger: .modifiersOnly)
             }
@@ -127,10 +131,12 @@ public enum InputParser {
             primaryPart = last
         }
 
-        let mods = try parseModifiers(modPart, context: raw,
-                                      inputAliases: inputAliases)
-        let trigger = try parsePrimary(primaryPart, context: raw,
-                                       allowWildcard: allowWildcard)
+        let mods = try parseModifiers(
+            modPart, context: raw,
+            inputAliases: inputAliases)
+        let trigger = try parsePrimary(
+            primaryPart, context: raw,
+            allowWildcard: allowWildcard)
         return Parsed(modifiers: mods, trigger: trigger)
     }
 
@@ -156,7 +162,7 @@ public enum InputParser {
         "lctrl": .lctrl, "lcontrol": .lctrl,
         "rctrl": .rctrl, "rcontrol": .rctrl,
         "lshift": .lshift,
-        "rshift": .rshift,
+        "rshift": .rshift
     ]
 
     /// Built-in modifier tokens. Used by `Config` to reject
@@ -191,11 +197,13 @@ public enum InputParser {
         // `-` if present (lets users write `"cmd + opt -"` or
         // `"cmd + opt"` interchangeably — same dash convention as the
         // primary-key form).
-        let body = trimmed.hasSuffix("-")
+        let body =
+            trimmed.hasSuffix("-")
             ? String(trimmed.dropLast()).trimmingCharacters(in: .whitespaces)
             : trimmed
-        return try parseModifiers(body, context: raw,
-                                  inputAliases: inputAliases)
+        return try parseModifiers(
+            body, context: raw,
+            inputAliases: inputAliases)
     }
 
     /// Subset of `parse` that returns the keys form only (for
@@ -213,8 +221,10 @@ public enum InputParser {
         return (p.modifiers, kc)
     }
 
-    private static func parseModifiers(_ raw: String, context: String,
-                                       inputAliases: [String: Modifiers] = [:])
+    private static func parseModifiers(
+        _ raw: String, context: String,
+        inputAliases: [String: Modifiers] = [:]
+    )
         throws -> Modifiers
     {
         guard !raw.isEmpty else { return [] }
@@ -254,8 +264,10 @@ public enum InputParser {
         return out
     }
 
-    private static func parsePrimary(_ raw: String, context: String,
-                                     allowWildcard: Bool = false)
+    private static func parsePrimary(
+        _ raw: String, context: String,
+        allowWildcard: Bool = false
+    )
         throws -> Trigger
     {
         let t = raw.lowercased()
@@ -275,10 +287,10 @@ public enum InputParser {
         if t.hasPrefix("mouse.") {
             let name = String(t.dropFirst("mouse.".count))
             switch name {
-            case "left":   return .mouseButton(.left)
-            case "right":  return .mouseButton(.right)
+            case "left": return .mouseButton(.left)
+            case "right": return .mouseButton(.right)
             case "middle": return .mouseButton(.middle)
-            case "side1", "back":    return .mouseButton(.side1)
+            case "side1", "back": return .mouseButton(.side1)
             case "side2", "forward": return .mouseButton(.side2)
             default:
                 if let n = Int(name), let mb = MouseButton(rawValue: n) {

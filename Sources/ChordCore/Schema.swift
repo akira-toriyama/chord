@@ -78,10 +78,10 @@ public enum BindingsSchema {
 
         enum CodingKeys: String, CodingKey {
             case schema, options, bindings, fallbacks, dropped, validation
-            case generatedAt   = "generated_at"
-            case sourcePath    = "source_path"
+            case generatedAt = "generated_at"
+            case sourcePath = "source_path"
             case actionAliases = "action_aliases"
-            case inputAliases  = "input_aliases"
+            case inputAliases = "input_aliases"
         }
     }
 
@@ -102,9 +102,9 @@ public enum BindingsSchema {
 
         enum CodingKeys: String, CodingKey {
             case ok, strict
-            case parsedCounts     = "parsed_counts"
-            case droppedCount     = "dropped_count"
-            case warningCount     = "warning_count"
+            case parsedCounts = "parsed_counts"
+            case droppedCount = "dropped_count"
+            case warningCount = "warning_count"
             case undefinedActionAliases = "undefined_action_aliases"
         }
     }
@@ -132,8 +132,8 @@ public enum BindingsSchema {
 
         enum CodingKeys: String, CodingKey {
             case passthroughUnmatched = "passthrough_unmatched"
-            case excludeApps          = "exclude_apps"
-            case fnAutoArrows         = "fn_auto_arrows"
+            case excludeApps = "exclude_apps"
+            case fnAutoArrows = "fn_auto_arrows"
         }
     }
 
@@ -179,15 +179,15 @@ public enum BindingsSchema {
 
         enum CodingKeys: String, CodingKey {
             case index, name, input, apps, action, condition
-            case sourceLine         = "source_line"
-            case holdWhile          = "hold_while"
+            case sourceLine = "source_line"
+            case holdWhile = "hold_while"
             case holdWhileTimeoutMs = "hold_while_timeout"
-            case actionOnUp         = "action_on_up"
-            case extraActions       = "extra_actions"
+            case actionOnUp = "action_on_up"
+            case extraActions = "extra_actions"
             case passthrough
-            case repeatStrategy     = "repeat"
-            case inputSource        = "input_source"
-            case actionKeysDelayMs  = "action_keys_delay_ms"
+            case repeatStrategy = "repeat"
+            case inputSource = "input_source"
+            case actionKeysDelayMs = "action_keys_delay_ms"
         }
     }
 
@@ -264,14 +264,16 @@ public enum BindingsSchema {
         /// `kind` is always present; every other field is per-kind and
         /// defaults to `nil` so each [wireAction] case names only the
         /// fields it populates. Codable/JSON shape is unchanged.
-        public init(kind: String,
-                    raw: String? = nil,
-                    modifiers: [String]? = nil,
-                    key: WireKey? = nil,
-                    command: String? = nil,
-                    alias: String? = nil,
-                    variable: String? = nil,
-                    value: Int? = nil) {
+        public init(
+            kind: String,
+            raw: String? = nil,
+            modifiers: [String]? = nil,
+            key: WireKey? = nil,
+            command: String? = nil,
+            alias: String? = nil,
+            variable: String? = nil,
+            value: Int? = nil
+        ) {
             self.kind = kind
             self.raw = raw
             self.modifiers = modifiers
@@ -318,18 +320,18 @@ public enum BindingsSchema {
             public let old: WireBinding
             public let new: WireBinding
         }
-        public var addedBindings:    [WireBinding] = []
-        public var removedBindings:  [WireBinding] = []
-        public var changedBindings:  [Change]      = []
-        public var unchangedBindingCount: Int      = 0
-        public var addedFallbacks:   [WireBinding] = []
+        public var addedBindings: [WireBinding] = []
+        public var removedBindings: [WireBinding] = []
+        public var changedBindings: [Change] = []
+        public var unchangedBindingCount: Int = 0
+        public var addedFallbacks: [WireBinding] = []
         public var removedFallbacks: [WireBinding] = []
-        public var changedFallbacks: [Change]      = []
-        public var unchangedFallbackCount: Int     = 0
-        public var actionAliasesAdded:   [String: String] = [:]
+        public var changedFallbacks: [Change] = []
+        public var unchangedFallbackCount: Int = 0
+        public var actionAliasesAdded: [String: String] = [:]
         public var actionAliasesRemoved: [String: String] = [:]
         public var actionAliasesChanged: [(name: String, oldBody: String, newBody: String)] = []
-        public var inputAliasesAdded:   [String: String] = [:]
+        public var inputAliasesAdded: [String: String] = [:]
         public var inputAliasesRemoved: [String: String] = [:]
         public var inputAliasesChanged: [(name: String, oldBody: String, newBody: String)] = []
 
@@ -349,16 +351,18 @@ public enum BindingsSchema {
     /// snapshot was found — every binding then surfaces as added.
     public static func diff(old: Document?, new: Document) -> Diff {
         var d = Diff()
-        diffBucket(old: old?.bindings ?? [], new: new.bindings,
-                   added: &d.addedBindings,
-                   removed: &d.removedBindings,
-                   changed: &d.changedBindings,
-                   unchanged: &d.unchangedBindingCount)
-        diffBucket(old: old?.fallbacks ?? [], new: new.fallbacks,
-                   added: &d.addedFallbacks,
-                   removed: &d.removedFallbacks,
-                   changed: &d.changedFallbacks,
-                   unchanged: &d.unchangedFallbackCount)
+        diffBucket(
+            old: old?.bindings ?? [], new: new.bindings,
+            added: &d.addedBindings,
+            removed: &d.removedBindings,
+            changed: &d.changedBindings,
+            unchanged: &d.unchangedBindingCount)
+        diffBucket(
+            old: old?.fallbacks ?? [], new: new.fallbacks,
+            added: &d.addedFallbacks,
+            removed: &d.removedFallbacks,
+            changed: &d.changedFallbacks,
+            unchanged: &d.unchangedFallbackCount)
         let oldActionAliases = old?.actionAliases ?? [:]
         for (k, v) in new.actionAliases where oldActionAliases[k] == nil {
             d.actionAliasesAdded[k] = v
@@ -393,10 +397,12 @@ public enum BindingsSchema {
         changed: inout [Diff.Change],
         unchanged: inout Int
     ) {
-        let oldByName = Dictionary(uniqueKeysWithValues:
-            old.map { ($0.name, $0) })
-        let newByName = Dictionary(uniqueKeysWithValues:
-            new.map { ($0.name, $0) })
+        let oldByName = Dictionary(
+            uniqueKeysWithValues:
+                old.map { ($0.name, $0) })
+        let newByName = Dictionary(
+            uniqueKeysWithValues:
+                new.map { ($0.name, $0) })
         for (name, n) in newByName.sorted(by: { $0.key < $1.key }) {
             if let o = oldByName[name] {
                 if semanticallyEqual(o, n) {
@@ -409,8 +415,7 @@ public enum BindingsSchema {
             }
         }
         for (name, o) in oldByName.sorted(by: { $0.key < $1.key })
-            where newByName[name] == nil
-        {
+        where newByName[name] == nil {
             removed.append(o)
         }
     }
@@ -419,8 +424,10 @@ public enum BindingsSchema {
     /// reordering / re-numbering must NOT show up in the diff or
     /// the user gets noise every time they insert a row above an
     /// existing binding.
-    static func semanticallyEqual(_ a: WireBinding,
-                                  _ b: WireBinding) -> Bool {
+    static func semanticallyEqual(
+        _ a: WireBinding,
+        _ b: WireBinding
+    ) -> Bool {
         return a.name == b.name
             && a.input == b.input
             && a.apps == b.apps
@@ -452,8 +459,10 @@ public enum BindingsSchema {
         generatedAt: Date = Date()
     ) -> Document {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime,
-                                   .withFractionalSeconds]
+        formatter.formatOptions = [
+            .withInternetDateTime,
+            .withFractionalSeconds
+        ]
         let opts = WireOptions(
             passthroughUnmatched: result.config.options.passthroughUnmatched,
             excludeApps: result.config.options.excludeApps,
@@ -469,7 +478,8 @@ public enum BindingsSchema {
             let undef = result.warnings.lazy
                 .filter { $0.kind == .undefinedActionAlias }
                 .count
-            let ok = strict
+            let ok =
+                strict
                 ? (result.warnings.isEmpty && result.droppedBindings == 0)
                 : true
             return WireValidation(
@@ -511,16 +521,18 @@ public enum BindingsSchema {
             sourceLine: b.sourceLine,
             input: wireInput(b: b),
             apps: b.apps,
-            action: wireAction(action: b.action,
-                               raw: b.actionRaw,
-                               aliasName: b.aliasName),
+            action: wireAction(
+                action: b.action,
+                raw: b.actionRaw,
+                aliasName: b.aliasName),
             condition: b.condition.map(wireCondition),
             holdWhile: b.holdWhile.map { modifierTokens($0) },
             holdWhileTimeoutMs: b.holdWhileTimeoutMs,
             actionOnUp: b.onUpAction.map {
                 wireAction(action: $0, raw: nil, aliasName: nil)
             },
-            extraActions: b.extraDownActions.isEmpty ? nil
+            extraActions: b.extraDownActions.isEmpty
+                ? nil
                 : b.extraDownActions.map {
                     wireAction(action: $0, raw: nil, aliasName: nil)
                 },
@@ -535,13 +547,15 @@ public enum BindingsSchema {
     private static func wireCondition(_ c: Condition) -> WireCondition {
         switch c {
         case .variable(let name, let equals):
-            return WireCondition(kind: "variable",
-                                 variable: name, equals: equals,
-                                 conditions: nil)
+            return WireCondition(
+                kind: "variable",
+                variable: name, equals: equals,
+                conditions: nil)
         case .conjunction(let parts):
-            return WireCondition(kind: "all",
-                                 variable: nil, equals: nil,
-                                 conditions: parts.map(wireCondition))
+            return WireCondition(
+                kind: "all",
+                variable: nil, equals: nil,
+                conditions: parts.map(wireCondition))
         }
     }
 
@@ -559,17 +573,17 @@ public enum BindingsSchema {
     /// are set on the binding.
     static func modifierTokens(_ m: Modifiers) -> [String] {
         var out: [String] = []
-        if m.contains(.cmd)    { out.append("cmd") }
-        if m.contains(.opt)    { out.append("opt") }
-        if m.contains(.ctrl)   { out.append("ctrl") }
-        if m.contains(.shift)  { out.append("shift") }
-        if m.contains(.fn)     { out.append("fn") }
-        if m.contains(.lcmd)   { out.append("lcmd") }
-        if m.contains(.rcmd)   { out.append("rcmd") }
-        if m.contains(.lopt)   { out.append("lopt") }
-        if m.contains(.ropt)   { out.append("ropt") }
-        if m.contains(.lctrl)  { out.append("lctrl") }
-        if m.contains(.rctrl)  { out.append("rctrl") }
+        if m.contains(.cmd) { out.append("cmd") }
+        if m.contains(.opt) { out.append("opt") }
+        if m.contains(.ctrl) { out.append("ctrl") }
+        if m.contains(.shift) { out.append("shift") }
+        if m.contains(.fn) { out.append("fn") }
+        if m.contains(.lcmd) { out.append("lcmd") }
+        if m.contains(.rcmd) { out.append("rcmd") }
+        if m.contains(.lopt) { out.append("lopt") }
+        if m.contains(.ropt) { out.append("ropt") }
+        if m.contains(.lctrl) { out.append("lctrl") }
+        if m.contains(.rctrl) { out.append("rctrl") }
         if m.contains(.lshift) { out.append("lshift") }
         if m.contains(.rshift) { out.append("rshift") }
         return out.sorted()
@@ -583,9 +597,9 @@ public enum BindingsSchema {
             -> String
         {
             let hasL = m.contains(cat.left), hasR = m.contains(cat.right)
-            if hasL && hasR        { return "both" }
-            if hasL                { return "left" }
-            if hasR                { return "right" }
+            if hasL && hasR { return "both" }
+            if hasL { return "left" }
+            if hasR { return "right" }
             if m.contains(cat.any) { return "any" }
             return "absent"
         }
@@ -593,35 +607,41 @@ public enum BindingsSchema {
         // — canonical order [cmd, opt, ctrl, shift], mirrored by
         // ModifierSides' field order below.
         let c = Modifiers.sideCategories
-        return ModifierSides(cmd:   side(c[0]),
-                             opt:   side(c[1]),
-                             ctrl:  side(c[2]),
-                             shift: side(c[3]))
+        return ModifierSides(
+            cmd: side(c[0]),
+            opt: side(c[1]),
+            ctrl: side(c[2]),
+            shift: side(c[3]))
     }
 
     private static func wireTrigger(_ t: Trigger) -> WireTrigger {
         switch t {
         case .key(let code):
-            return WireTrigger(kind: "key",
-                               name: KeyCodes.name(forCode: code),
-                               keycode: code)
+            return WireTrigger(
+                kind: "key",
+                name: KeyCodes.name(forCode: code),
+                keycode: code)
         case .mouseButton(let btn):
-            return WireTrigger(kind: "mouseButton",
-                               name: mouseButtonName(btn),
-                               keycode: nil)
+            return WireTrigger(
+                kind: "mouseButton",
+                name: mouseButtonName(btn),
+                keycode: nil)
         case .scroll(let dir):
-            return WireTrigger(kind: "scroll",
-                               name: dir.rawValue,
-                               keycode: nil)
+            return WireTrigger(
+                kind: "scroll",
+                name: dir.rawValue,
+                keycode: nil)
         case .anyKey:
             return WireTrigger(kind: "anyKey", name: nil, keycode: nil)
         case .modifiersOnly:
-            return WireTrigger(kind: "modifiersOnly",
-                               name: nil, keycode: nil)
+            return WireTrigger(
+                kind: "modifiersOnly",
+                name: nil, keycode: nil)
         case .vkey(let id):
-            return WireTrigger(kind: "vkey",
-                               name: String(format: "0x%02X", Int(id)),
-                               keycode: UInt16(id))
+            return WireTrigger(
+                kind: "vkey",
+                name: String(format: "0x%02X", Int(id)),
+                keycode: UInt16(id))
         case .anyVKey:
             return WireTrigger(kind: "anyVKey", name: nil, keycode: nil)
         }
@@ -629,23 +649,25 @@ public enum BindingsSchema {
 
     private static func mouseButtonName(_ b: MouseButton) -> String {
         switch b {
-        case .left:    return "left"
-        case .right:   return "right"
-        case .middle:  return "middle"
-        case .side1:   return "side1"
-        case .side2:   return "side2"
-        case .other5:  return "other5"
-        case .other6:  return "other6"
-        case .other7:  return "other7"
+        case .left: return "left"
+        case .right: return "right"
+        case .middle: return "middle"
+        case .side1: return "side1"
+        case .side2: return "side2"
+        case .other5: return "other5"
+        case .other6: return "other6"
+        case .other7: return "other7"
         }
     }
 
     /// Map a [Action] → [WireAction]. Caller supplies `raw` /
     /// `aliasName` because they live on Binding (the primary path)
     /// or are absent (the `actionOnUp` path).
-    private static func wireAction(action: Action,
-                                   raw: String?,
-                                   aliasName: String?) -> WireAction {
+    private static func wireAction(
+        action: Action,
+        raw: String?,
+        aliasName: String?
+    ) -> WireAction {
         let kind = action.kindString
         switch action {
         case .keys(let mods, let code):
@@ -653,8 +675,9 @@ public enum BindingsSchema {
                 kind: kind,
                 raw: raw,
                 modifiers: modifierTokens(mods),
-                key: WireKey(name: KeyCodes.name(forCode: code),
-                             keycode: code))
+                key: WireKey(
+                    name: KeyCodes.name(forCode: code),
+                    keycode: code))
         case .shell(let body):
             return WireAction(
                 kind: kind,
@@ -691,8 +714,8 @@ public enum BindingsSchema {
         case .actionAliasNonString:
             section = "[action-aliases]"
         case .inputAliasNonString,
-             .inputAliasShadowsModifier,
-             .inputAliasInvalidBody:
+            .inputAliasShadowsModifier,
+            .inputAliasInvalidBody:
             section = "[input-aliases]"
         case .vkeyAliasInvalid:
             section = "[v-key-aliases]"

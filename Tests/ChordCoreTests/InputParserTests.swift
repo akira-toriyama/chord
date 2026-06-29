@@ -31,9 +31,10 @@ import Testing
         Case(input: "lctrl + rctrl - a", mods: [.lctrl, .rctrl]),
         Case(input: "ralt - a", mods: .ropt),  // ralt is an alias for ropt
         // ZMK ULTRA_LL = right-side ctrl + alt + shift modifier set.
-        Case(input: "rctrl + ralt + rshift - c", mods: [.rctrl, .ropt, .rshift], trigger: .key(0x08)),
+        Case(
+            input: "rctrl + ralt + rshift - c", mods: [.rctrl, .ropt, .rshift], trigger: .key(0x08)),
         // Existing any-side tokens still parse — no breakage of current configs.
-        Case(input: "ctrl + shift - z", mods: [.ctrl, .shift]),
+        Case(input: "ctrl + shift - z", mods: [.ctrl, .shift])
     ])
     func parses(_ c: Case) throws {
         let p = try InputParser.parse(c.input)

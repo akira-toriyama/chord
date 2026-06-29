@@ -14,12 +14,13 @@ import Testing
 
     /// A representative binding built through the real wire path.
     private func sampleBinding() throws -> BindingsSchema.WireBinding {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "x"
-        input = "cmd - x"
-        action-shell = "echo hi"
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "x"
+            input = "cmd - x"
+            action-shell = "echo hi"
+            """)
         return try #require(BindingsSchema.makeDocument(from: res).bindings.first)
     }
 
@@ -33,7 +34,7 @@ import Testing
     private let compared: Set<String> = [
         "name", "input", "apps", "action", "condition", "holdWhile",
         "holdWhileTimeoutMs", "actionOnUp", "extraActions",
-        "passthrough", "repeatStrategy", "inputSource", "actionKeysDelayMs",
+        "passthrough", "repeatStrategy", "inputSource", "actionKeysDelayMs"
     ]
 
     @Test func everyStoredPropertyIsClassified() throws {
@@ -44,7 +45,8 @@ import Testing
         let classified = Set(labels) == ignored.union(compared)
         #expect(
             classified,
-            "WireBinding stored properties drifted from the diff's coverage. A new field must be classified: add it to `compared` AND to BindingsSchema.semanticallyEqual AND to ReloadDiffPrinter.renderDiffBucket — or to `ignored` if it is cosmetic.")
+            "WireBinding stored properties drifted from the diff's coverage. A new field must be classified: add it to `compared` AND to BindingsSchema.semanticallyEqual AND to ReloadDiffPrinter.renderDiffBucket — or to `ignored` if it is cosmetic."
+        )
         // Sanity: reflection saw the full set (no Optional-flattening etc.).
         #expect(labels.count == ignored.count + compared.count)
     }

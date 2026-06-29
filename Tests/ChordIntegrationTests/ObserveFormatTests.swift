@@ -10,10 +10,13 @@ import Testing
 @Suite @MainActor
 struct ObserveFormatTests {
 
-    private func keyDown(_ code: UInt16, _ mods: Modifiers,
-                         repeat isRepeat: Bool = false) -> InputEvent {
-        InputEvent(trigger: .key(code), modifiers: mods,
-                   frontmostBundleID: nil, kind: .down, isRepeat: isRepeat)
+    private func keyDown(
+        _ code: UInt16, _ mods: Modifiers,
+        repeat isRepeat: Bool = false
+    ) -> InputEvent {
+        InputEvent(
+            trigger: .key(code), modifiers: mods,
+            frontmostBundleID: nil, kind: .down, isRepeat: isRepeat)
     }
 
     // MARK: - line(for:)
@@ -41,44 +44,50 @@ struct ObserveFormatTests {
     }
 
     @Test func keyUpIsOmitted() {
-        let up = InputEvent(trigger: .key(38), modifiers: [.rctrl],
-                            frontmostBundleID: nil, kind: .up)
+        let up = InputEvent(
+            trigger: .key(38), modifiers: [.rctrl],
+            frontmostBundleID: nil, kind: .up)
         #expect(ObserveCommand.line(for: up) == nil)
     }
 
     @Test func syntheticEventIsOmitted() {
-        let synth = InputEvent(trigger: .key(38), modifiers: [],
-                               frontmostBundleID: nil, kind: .down,
-                               isSynthetic: true)
+        let synth = InputEvent(
+            trigger: .key(38), modifiers: [],
+            frontmostBundleID: nil, kind: .down,
+            isSynthetic: true)
         #expect(ObserveCommand.line(for: synth) == nil)
     }
 
     @Test func modifiersChangedWithHeldModShown() {
-        let e = InputEvent(trigger: .key(0), modifiers: [.rctrl],
-                           frontmostBundleID: nil, kind: .modifiersChanged)
+        let e = InputEvent(
+            trigger: .key(0), modifiers: [.rctrl],
+            frontmostBundleID: nil, kind: .modifiersChanged)
         let line = ObserveCommand.line(for: e)
         #expect(line?.contains("flags") == true)
         #expect(line?.contains("rctrl") == true)
     }
 
     @Test func modifiersChangedReleaseToEmptyIsOmitted() {
-        let e = InputEvent(trigger: .key(0), modifiers: [],
-                           frontmostBundleID: nil, kind: .modifiersChanged)
+        let e = InputEvent(
+            trigger: .key(0), modifiers: [],
+            frontmostBundleID: nil, kind: .modifiersChanged)
         #expect(ObserveCommand.line(for: e) == nil)
     }
 
     @Test func mouseButtonDownShowsNameAndRawNumber() {
-        let e = InputEvent(trigger: .mouseButton(.side1), modifiers: [.cmd],
-                           frontmostBundleID: nil, kind: .down)
+        let e = InputEvent(
+            trigger: .mouseButton(.side1), modifiers: [.cmd],
+            frontmostBundleID: nil, kind: .down)
         let line = ObserveCommand.line(for: e)
         #expect(line?.contains("mouseDown") == true)
         #expect(line?.contains("side1") == true)
-        #expect(line?.contains("(3)") == true)   // MouseButton.side1.rawValue
+        #expect(line?.contains("(3)") == true)  // MouseButton.side1.rawValue
     }
 
     @Test func scrollShowsDirection() {
-        let e = InputEvent(trigger: .scroll(.up), modifiers: [],
-                           frontmostBundleID: nil, kind: .down)
+        let e = InputEvent(
+            trigger: .scroll(.up), modifiers: [],
+            frontmostBundleID: nil, kind: .down)
         #expect(ObserveCommand.line(for: e)?.contains("dir=up") == true)
     }
 

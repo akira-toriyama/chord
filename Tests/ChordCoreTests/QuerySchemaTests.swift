@@ -14,40 +14,39 @@ import Testing
     @Test func endpointRawValuesAreStable() {
         // These strings are the on-wire request tokens AND the CLI verb
         // stems (`--` + rawValue). A rename is a wire break.
-        #expect(Set(QuerySchema.Endpoint.allCases.map(\.rawValue)) ==
-                       ["status", "vars", "loaded-bindings", "recent-fires"])
+        #expect(
+            Set(QuerySchema.Endpoint.allCases.map(\.rawValue)) == [
+                "status", "vars", "loaded-bindings", "recent-fires"
+            ])
     }
 
     // MARK: - request line round-trip
 
     @Test func requestLineEncoding() {
         #expect(QuerySchema.Request(endpoint: .vars).line == "vars\n")
-        #expect(QuerySchema.Request(endpoint: .recentFires, limit: 10).line ==
-                       "recent-fires 10\n")
-        #expect(QuerySchema.Request(endpoint: .loadedBindings).line ==
-                       "loaded-bindings\n")
+        #expect(QuerySchema.Request(endpoint: .recentFires, limit: 10).line == "recent-fires 10\n")
+        #expect(QuerySchema.Request(endpoint: .loadedBindings).line == "loaded-bindings\n")
     }
 
     @Test func requestLineParsing() {
-        #expect(QuerySchema.Request(line: "status\n") ==
-                       QuerySchema.Request(endpoint: .status))
-        #expect(QuerySchema.Request(line: "recent-fires 10\n") ==
-                       QuerySchema.Request(endpoint: .recentFires, limit: 10))
-        #expect(QuerySchema.Request(line: "loaded-bindings\n")?.endpoint ==
-                       .loadedBindings)
+        #expect(QuerySchema.Request(line: "status\n") == QuerySchema.Request(endpoint: .status))
+        #expect(
+            QuerySchema.Request(line: "recent-fires 10\n")
+                == QuerySchema.Request(endpoint: .recentFires, limit: 10))
+        #expect(QuerySchema.Request(line: "loaded-bindings\n")?.endpoint == .loadedBindings)
         // tolerant of surrounding whitespace, no trailing newline
         #expect(QuerySchema.Request(line: "  vars  ")?.endpoint == .vars)
         #expect(QuerySchema.Request(line: "  vars  ")?.limit == nil)
     }
 
     @Test func requestParsingRejectsBadInput() {
-        #expect(QuerySchema.Request(line: "bogus\n") == nil)         // unknown endpoint
-        #expect(QuerySchema.Request(line: "\n") == nil)              // empty
-        #expect(QuerySchema.Request(line: "recent-fires abc") == nil) // non-int limit
+        #expect(QuerySchema.Request(line: "bogus\n") == nil)  // unknown endpoint
+        #expect(QuerySchema.Request(line: "\n") == nil)  // empty
+        #expect(QuerySchema.Request(line: "recent-fires abc") == nil)  // non-int limit
         #expect(QuerySchema.Request(line: "recent-fires -5") == nil)  // negative
-        #expect(QuerySchema.Request(line: "recent-fires 0") == nil)   // zero
-        #expect(QuerySchema.Request(line: "recent-fires 10 junk") == nil) // trailing junk
-        #expect(QuerySchema.Request(line: "status extra") == nil)         // verb takes no arg
+        #expect(QuerySchema.Request(line: "recent-fires 0") == nil)  // zero
+        #expect(QuerySchema.Request(line: "recent-fires 10 junk") == nil)  // trailing junk
+        #expect(QuerySchema.Request(line: "status extra") == nil)  // verb takes no arg
     }
 
     @Test func requestRoundTrips() {
@@ -65,9 +64,10 @@ import Testing
     }
 
     @Test func statusResponseShape() throws {
-        let data = QuerySchema.encode(QuerySchema.StatusResponse(
-            queriedAt: "2026-06-16T00:00:00.000Z", paused: true, axGranted: false,
-            version: "9.9.9", uptimeS: 42, configLoadedAt: "2026-06-16T00:00:00.000Z"))
+        let data = QuerySchema.encode(
+            QuerySchema.StatusResponse(
+                queriedAt: "2026-06-16T00:00:00.000Z", paused: true, axGranted: false,
+                version: "9.9.9", uptimeS: 42, configLoadedAt: "2026-06-16T00:00:00.000Z"))
         let o = try object(data)
         #expect(o["schema"] as? String == "chord.query.v1")
         #expect(o["endpoint"] as? String == "status")
@@ -81,16 +81,18 @@ import Testing
     }
 
     @Test func statusOmitsConfigLoadedAtWhenNil() throws {
-        let data = QuerySchema.encode(QuerySchema.StatusResponse(
-            queriedAt: "t", paused: false, axGranted: true,
-            version: "1", uptimeS: 0, configLoadedAt: nil))
+        let data = QuerySchema.encode(
+            QuerySchema.StatusResponse(
+                queriedAt: "t", paused: false, axGranted: true,
+                version: "1", uptimeS: 0, configLoadedAt: nil))
         // nil-Optional fields are omitted (Codable default), not null.
         #expect(try object(data)["config_loaded_at"] == nil)
     }
 
     @Test func varsResponseShape() throws {
-        let data = QuerySchema.encode(QuerySchema.VarsResponse(
-            queriedAt: "t", vars: ["jlayer": 0, "ultra": 1]))
+        let data = QuerySchema.encode(
+            QuerySchema.VarsResponse(
+                queriedAt: "t", vars: ["jlayer": 0, "ultra": 1]))
         let o = try object(data)
         #expect(o["endpoint"] as? String == "vars")
         let vars = try #require(o["vars"] as? [String: Int])
@@ -99,9 +101,10 @@ import Testing
     }
 
     @Test func loadedBindingsResponseShape() throws {
-        let data = QuerySchema.encode(QuerySchema.LoadedBindingsResponse(
-            queriedAt: "t", bindings: 21, fallbacks: 4,
-            actionAliases: 1, inputAliases: 4))
+        let data = QuerySchema.encode(
+            QuerySchema.LoadedBindingsResponse(
+                queriedAt: "t", bindings: 21, fallbacks: 4,
+                actionAliases: 1, inputAliases: 4))
         let o = try object(data)
         #expect(o["endpoint"] as? String == "loaded-bindings")
         #expect(o["bindings"] as? Int == 21)
@@ -114,8 +117,9 @@ import Testing
         let fire = QuerySchema.FireRecord(
             ts: "2026-06-16T00:00:00.000Z", name: "tab-left",
             app: "com.apple.Safari", action: "keys")
-        let data = QuerySchema.encode(QuerySchema.RecentFiresResponse(
-            queriedAt: "t", fires: [fire]))
+        let data = QuerySchema.encode(
+            QuerySchema.RecentFiresResponse(
+                queriedAt: "t", fires: [fire]))
         let o = try object(data)
         #expect(o["endpoint"] as? String == "recent-fires")
         let fires = try #require(o["fires"] as? [[String: Any]])
@@ -151,7 +155,7 @@ import Testing
     @Test func ringBufferOverflowKeepsNewestInOrder() {
         var r = RingBuffer<Int>(capacity: 3)
         [1, 2, 3, 4].forEach { r.append($0) }
-        #expect(r.elements() == [2, 3, 4])   // oldest (1) dropped
+        #expect(r.elements() == [2, 3, 4])  // oldest (1) dropped
         [5, 6].forEach { r.append($0) }
         #expect(r.elements() == [4, 5, 6])
         #expect(r.count == 3)

@@ -49,7 +49,7 @@ private func querySocketExists() -> Bool {
 
     @Test func helpShortAliasMatches() {
         // `-h` must trigger the same outcome as `--help` (D7 carve-out).
-        let long  = ChordApp.dispatch(["--help"])
+        let long = ChordApp.dispatch(["--help"])
         let short = ChordApp.dispatch(["-h"])
         #expect(long?.exitCode == short?.exitCode)
         #expect(long?.stdout == short?.stdout)
@@ -63,8 +63,10 @@ private func querySocketExists() -> Bool {
     /// the outcome is exit 3 + "no daemon running" on stderr. Depends
     /// only on "no daemon was running in CI" (true under the GitHub
     /// Actions sandbox — no chord installed).
-    @Test(.disabled(if: daemonStatusFileExists(),
-                    "host has /tmp/chord.status — assume daemon may be live"))
+    @Test(
+        .disabled(
+            if: daemonStatusFileExists(),
+            "host has /tmp/chord.status — assume daemon may be live"))
     func quitWithoutDaemonReportsNoDaemonRunning() {
         let out = ChordApp.dispatch(["daemon", "--quit"])
         #expect(out?.exitCode == 3)
@@ -81,8 +83,10 @@ private func querySocketExists() -> Bool {
     /// exit 0. The `.disabled(if:)` guard already established no REAL daemon at
     /// discovery, so any status file present now is test pollution — safe to
     /// clear. Matches the suite-local "start clean regardless of order" policy.
-    @Test(.disabled(if: daemonStatusFileExists(),
-                    "host has /tmp/chord.status — would consume real status"))
+    @Test(
+        .disabled(
+            if: daemonStatusFileExists(),
+            "host has /tmp/chord.status — would consume real status"))
     func showWithoutFileReportsExit3() {
         try? FileManager.default.removeItem(atPath: Control.statusPath)
         let out = ChordApp.dispatch(["daemon", "--show"])
@@ -146,8 +150,10 @@ private func querySocketExists() -> Bool {
     /// `daemon --quit --json` — `--json` isn't a recognised flag in the
     /// daemon domain at all, so CLIKit rejects it as an unknown flag
     /// (exit 2) before chord's modifier-applicability check.
-    @Test(.disabled(if: daemonStatusFileExists(),
-                    "host has /tmp/chord.status — daemon may swallow --quit"))
+    @Test(
+        .disabled(
+            if: daemonStatusFileExists(),
+            "host has /tmp/chord.status — daemon may swallow --quit"))
     func unknownModifierInDomainRejected() {
         let out = ChordApp.dispatch(["daemon", "--quit", "--json"])
         #expect(out?.exitCode == 2)
@@ -237,8 +243,10 @@ private func querySocketExists() -> Bool {
     /// With no daemon listening, a query exits 3 (same precondition
     /// shape as the daemon control verbs). Skipped on a host where the
     /// query socket exists (a daemon may be live and would answer 0).
-    @Test(.disabled(if: querySocketExists(),
-                    "host has the query socket — a daemon may answer"))
+    @Test(
+        .disabled(
+            if: querySocketExists(),
+            "host has the query socket — a daemon may answer"))
     func queryWithoutDaemonReportsExit3() {
         let out = ChordApp.dispatch(["query", "--status"])
         #expect(out?.exitCode == 3)

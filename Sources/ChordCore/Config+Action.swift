@@ -33,9 +33,9 @@ extension Config {
         warnings: inout [ConfigWarning]
     ) -> ParsedAction? {
         let shellKey = "action-shell\(suffix)"
-        let keysKey  = "action-keys\(suffix)"
-        let noopKey  = "action-noop\(suffix)"
-        let setKey   = "action-set-var\(suffix)"
+        let keysKey = "action-keys\(suffix)"
+        let noopKey = "action-noop\(suffix)"
+        let setKey = "action-set-var\(suffix)"
         let setValKey = "action-set-value\(suffix)"
         let toggleKey = "action-toggle-var\(suffix)"
         let holdVarKey = "action-hold-var\(suffix)"
@@ -50,42 +50,46 @@ extension Config {
         // the action effectively re-binds to whatever they assigned.
         // on-up variants are not supported (suffix must be empty).
         if suffix.isEmpty {
-            switch parseNativeAction(row: row, section: section,
-                                     name: name, source: source,
-                                     sourceLine: sourceLine,
-                                     warnings: &warnings) {
-            case .absent: break          // fall through to other action-*
+            switch parseNativeAction(
+                row: row, section: section,
+                name: name, source: source,
+                sourceLine: sourceLine,
+                warnings: &warnings)
+            {
+            case .absent: break  // fall through to other action-*
             case .ok(let pa): return pa
-            case .invalid:    return nil // warning already emitted
+            case .invalid: return nil  // warning already emitted
             }
         }
 
         if let shell = row[shellKey]?.asString {
             switch resolveAlias(shell, actionAliases: actionAliases) {
             case .body(let body, let aliasName):
-                return ParsedAction(action: .shell(body),
-                                    raw: shell,
-                                    aliasName: aliasName)
+                return ParsedAction(
+                    action: .shell(body),
+                    raw: shell,
+                    aliasName: aliasName)
             case .undefined(let aliasName):
                 // canon-specified warning format — kept
                 // separately from the `[[bindings]] '…' (line): …`
                 // format on purpose. The structured `.undefinedActionAlias`
                 // kind lets machine consumers disambiguate.
-                warnings.append(ConfigWarning(
-                    kind: .undefinedActionAlias,
-                    message:
-                        "binding '\(name)'\(source)\(fieldLabel) " +
-                        "references undefined alias '@\(aliasName)'; " +
-                        "binding dropped",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .undefinedActionAlias,
+                        message:
+                            "binding '\(name)'\(source)\(fieldLabel) "
+                            + "references undefined alias '@\(aliasName)'; " + "binding dropped",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             case .callError(let aliasName, let msg):
-                warnings.append(ConfigWarning(
-                    kind: .actionAliasCallError,
-                    message:
-                        "binding '\(name)'\(source)\(fieldLabel) " +
-                        "@\(aliasName) call error: \(msg); binding dropped",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionAliasCallError,
+                        message:
+                            "binding '\(name)'\(source)\(fieldLabel) "
+                            + "@\(aliasName) call error: \(msg); binding dropped",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
         }
@@ -101,40 +105,43 @@ extension Config {
             do {
                 parsed = try parseKeysListValue(keysVal)
             } catch {
-                warnings.append(ConfigWarning(
-                    kind: .actionKeysParseError,
-                    message:
-                        "\(section) '\(name)'\(source)\(fieldLabel): " +
-                        "\(keysKey): \(error)",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionKeysParseError,
+                        message:
+                            "\(section) '\(name)'\(source)\(fieldLabel): " + "\(keysKey): \(error)",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             if parsed.isEmpty {
-                warnings.append(ConfigWarning(
-                    kind: .actionKeysParseError,
-                    message:
-                        "\(section) '\(name)'\(source)\(fieldLabel): " +
-                        "\(keysKey): must contain at least one keystroke",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionKeysParseError,
+                        message:
+                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            + "\(keysKey): must contain at least one keystroke",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             if !suffix.isEmpty && parsed.count > 1 {
-                warnings.append(ConfigWarning(
-                    kind: .actionKeysParseError,
-                    message:
-                        "\(section) '\(name)'\(source)\(fieldLabel): " +
-                        "\(keysKey): array form is not supported for on-up " +
-                        "(use a single string)",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionKeysParseError,
+                        message:
+                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            + "\(keysKey): array form is not supported for on-up "
+                            + "(use a single string)",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             let (mods, code) = parsed[0]
             let extras = parsed.dropFirst().map { Action.keys($0.0, $0.1) }
             let rawString = keysVal.asString
-            return ParsedAction(action: .keys(mods, code),
-                                extraKeys: Array(extras),
-                                raw: rawString,
-                                aliasName: nil)
+            return ParsedAction(
+                action: .keys(mods, code),
+                extraKeys: Array(extras),
+                raw: rawString,
+                aliasName: nil)
         }
         if row[noopKey]?.asBool == true {
             return ParsedAction(action: .noop, raw: nil, aliasName: nil)
@@ -146,39 +153,43 @@ extension Config {
         // semantics belong on the primary action only.
         if let varName = row[toggleKey]?.asString {
             if !suffix.isEmpty {
-                warnings.append(ConfigWarning(
-                    kind: .actionSetParseError,
-                    message:
-                        "\(section) '\(name)'\(source)\(fieldLabel): " +
-                        "\(toggleKey) is not allowed on -on-up paths",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionSetParseError,
+                        message:
+                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            + "\(toggleKey) is not allowed on -on-up paths",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             if !allowReservedVarNames && varName.hasPrefix("_seq_") {
-                warnings.append(ConfigWarning(
-                    kind: .actionSetParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "\(toggleKey) name '_seq_*' is reserved for " +
-                        "[[sequence]] expansion",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionSetParseError,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "\(toggleKey) name '_seq_*' is reserved for "
+                            + "[[sequence]] expansion",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             if row[setKey] != nil || row[setValKey] != nil
                 || row[holdVarKey] != nil
             {
-                warnings.append(ConfigWarning(
-                    kind: .actionSetParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "\(toggleKey) is mutually exclusive with " +
-                        "action-set-var / action-set-value / action-hold-var",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionSetParseError,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "\(toggleKey) is mutually exclusive with "
+                            + "action-set-var / action-set-value / action-hold-var",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
-            return ParsedAction(action: .toggleVariable(name: varName),
-                                raw: varName,
-                                aliasName: nil)
+            return ParsedAction(
+                action: .toggleVariable(name: varName),
+                raw: varName,
+                aliasName: nil)
         }
 
         // chord 0.9.0+ `action-hold-var` — sugar for setVariable(name, 1)
@@ -188,32 +199,35 @@ extension Config {
         // contract that this sugar owns).
         if let varName = row[holdVarKey]?.asString {
             if !suffix.isEmpty {
-                warnings.append(ConfigWarning(
-                    kind: .actionSetParseError,
-                    message:
-                        "\(section) '\(name)'\(source)\(fieldLabel): " +
-                        "\(holdVarKey) is not allowed on -on-up paths",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionSetParseError,
+                        message:
+                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            + "\(holdVarKey) is not allowed on -on-up paths",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             if !allowReservedVarNames && varName.hasPrefix("_seq_") {
-                warnings.append(ConfigWarning(
-                    kind: .actionSetParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "\(holdVarKey) name '_seq_*' is reserved for " +
-                        "[[sequence]] expansion",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionSetParseError,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "\(holdVarKey) name '_seq_*' is reserved for "
+                            + "[[sequence]] expansion",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             if row[setKey] != nil || row[setValKey] != nil {
-                warnings.append(ConfigWarning(
-                    kind: .actionSetParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "\(holdVarKey) is mutually exclusive with " +
-                        "action-set-var / action-set-value",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionSetParseError,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "\(holdVarKey) is mutually exclusive with "
+                            + "action-set-var / action-set-value",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             return ParsedAction(
@@ -229,13 +243,13 @@ extension Config {
             // writes to that namespace so a typo'd sequence name never
             // looks like a normal binding owning the var.
             if !allowReservedVarNames && varName.hasPrefix("_seq_") {
-                warnings.append(ConfigWarning(
-                    kind: .actionSetParseError,
-                    message:
-                        "\(section) '\(name)'\(source)\(fieldLabel): " +
-                        "\(setKey) name '_seq_*' is reserved for " +
-                        "[[sequence]] expansion",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .actionSetParseError,
+                        message:
+                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            + "\(setKey) name '_seq_*' is reserved for " + "[[sequence]] expansion",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             // `action-set-value` defaults to 1 (the leader-key case).
@@ -244,38 +258,42 @@ extension Config {
             let value: Int
             if let raw = row[setValKey] {
                 guard let v = raw.asInt else {
-                    warnings.append(ConfigWarning(
-                        kind: .actionSetParseError,
-                        message:
-                            "\(section) '\(name)'\(source)\(fieldLabel): " +
-                            "\(setValKey) must be an integer",
-                        sourceLine: sourceLine, bindingName: name))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .actionSetParseError,
+                            message:
+                                "\(section) '\(name)'\(source)\(fieldLabel): "
+                                + "\(setValKey) must be an integer",
+                            sourceLine: sourceLine, bindingName: name))
                     return nil
                 }
                 value = Int(v)
             } else {
                 value = 1
             }
-            return ParsedAction(action: .setVariable(name: varName, value: value),
-                                raw: varName,
-                                aliasName: nil)
+            return ParsedAction(
+                action: .setVariable(name: varName, value: value),
+                raw: varName,
+                aliasName: nil)
         }
         if row[setValKey] != nil {
             // Orphan: action-set-value without action-set-var. Common
             // typo — surfacing it explicitly beats silently ignoring.
-            warnings.append(ConfigWarning(
-                kind: .actionSetParseError,
-                message:
-                    "\(section) '\(name)'\(source)\(fieldLabel): " +
-                    "\(setValKey) present without \(setKey)",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .actionSetParseError,
+                    message:
+                        "\(section) '\(name)'\(source)\(fieldLabel): "
+                        + "\(setValKey) present without \(setKey)",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
         if !required { return nil }
-        warnings.append(ConfigWarning(
-            kind: .missingAction,
-            message: "\(section) '\(name)'\(source): no action-* key provided",
-            sourceLine: sourceLine, bindingName: name))
+        warnings.append(
+            ConfigWarning(
+                kind: .missingAction,
+                message: "\(section) '\(name)'\(source): no action-* key provided",
+                sourceLine: sourceLine, bindingName: name))
         return nil
     }
 
@@ -299,11 +317,13 @@ extension Config {
         let raw: String?
         let aliasName: String?
 
-        init(action: Action,
-             extraKeys: [Action] = [],
-             autoOnUpAction: Action? = nil,
-             raw: String? = nil,
-             aliasName: String? = nil) {
+        init(
+            action: Action,
+            extraKeys: [Action] = [],
+            autoOnUpAction: Action? = nil,
+            raw: String? = nil,
+            aliasName: String? = nil
+        ) {
             self.action = action
             self.extraKeys = extraKeys
             self.autoOnUpAction = autoOnUpAction
@@ -318,7 +338,7 @@ extension Config {
     private enum NativeActionOutcome {
         case absent
         case ok(ParsedAction)
-        case invalid     // warning already appended
+        case invalid  // warning already appended
     }
     private static func parseNativeAction(
         row: [String: TOML.Value],
@@ -327,27 +347,31 @@ extension Config {
         warnings: inout [ConfigWarning]
     ) -> NativeActionOutcome {
         func warn(_ msg: String) {
-            warnings.append(ConfigWarning(
-                kind: .actionKeysParseError,
-                message: "\(section) '\(name)'\(source): \(msg)",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .actionKeysParseError,
+                    message: "\(section) '\(name)'\(source): \(msg)",
+                    sourceLine: sourceLine, bindingName: name))
         }
 
         if let target = row["action-mission-control"]?.asString {
             switch target {
             case "show-all-windows":
                 // ctrl + ↑ — macOS Mission Control default.
-                return .ok(ParsedAction(
-                    action: .keys([.ctrl], 0x7E),
-                    raw: "action-mission-control:show-all-windows"))
+                return .ok(
+                    ParsedAction(
+                        action: .keys([.ctrl], 0x7E),
+                        raw: "action-mission-control:show-all-windows"))
             case "show-app-windows":
                 // ctrl + ↓ — App Exposé default.
-                return .ok(ParsedAction(
-                    action: .keys([.ctrl], 0x7D),
-                    raw: "action-mission-control:show-app-windows"))
+                return .ok(
+                    ParsedAction(
+                        action: .keys([.ctrl], 0x7D),
+                        raw: "action-mission-control:show-app-windows"))
             default:
-                warn("action-mission-control: unknown value '\(target)' " +
-                     "(expected show-all-windows / show-app-windows)")
+                warn(
+                    "action-mission-control: unknown value '\(target)' "
+                        + "(expected show-all-windows / show-app-windows)")
                 return .invalid
             }
         }
@@ -355,25 +379,29 @@ extension Config {
             switch target {
             case "selection":
                 // cmd + shift + 4 (selection-to-file).
-                return .ok(ParsedAction(
-                    action: .keys([.cmd, .shift], 0x15),
-                    raw: "action-screenshot:selection"))
+                return .ok(
+                    ParsedAction(
+                        action: .keys([.cmd, .shift], 0x15),
+                        raw: "action-screenshot:selection"))
             case "screen":
                 // cmd + shift + 3 (full screen-to-file).
-                return .ok(ParsedAction(
-                    action: .keys([.cmd, .shift], 0x14),
-                    raw: "action-screenshot:screen"))
+                return .ok(
+                    ParsedAction(
+                        action: .keys([.cmd, .shift], 0x14),
+                        raw: "action-screenshot:screen"))
             default:
-                warn("action-screenshot: unknown value '\(target)' " +
-                     "(expected selection / screen)")
+                warn(
+                    "action-screenshot: unknown value '\(target)' "
+                        + "(expected selection / screen)")
                 return .invalid
             }
         }
         if row["action-spotlight"]?.asBool == true {
             // cmd + space — Spotlight default.
-            return .ok(ParsedAction(
-                action: .keys([.cmd], 0x31),
-                raw: "action-spotlight:true"))
+            return .ok(
+                ParsedAction(
+                    action: .keys([.cmd], 0x31),
+                    raw: "action-spotlight:true"))
         }
         return .absent
     }

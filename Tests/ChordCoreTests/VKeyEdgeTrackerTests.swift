@@ -1,5 +1,5 @@
 import Testing
-import ChordCore   // the whole VKeyEdgeTracker contract is public — no @testable needed
+import ChordCore  // the whole VKeyEdgeTracker contract is public — no @testable needed
 
 /// Deterministic coverage for the vendor-HID v-key press/release edge math
 /// (`Controller.handleVKey` was the wedge-bug site found by the vkey
@@ -16,8 +16,8 @@ import ChordCore   // the whole VKeyEdgeTracker contract is public — no @testa
     @Test func sameIdIsDedupedToNoEdges() {
         var t = VKeyEdgeTracker()
         _ = t.events(for: 0x1A)
-        #expect(t.events(for: 0x1A) == [])   // duplicate report / autorepeat
-        #expect(t.held == 0x1A)              // latch unchanged
+        #expect(t.events(for: 0x1A) == [])  // duplicate report / autorepeat
+        #expect(t.held == 0x1A)  // latch unchanged
     }
 
     @Test func zeroReleasesHeldKey() {
@@ -31,8 +31,7 @@ import ChordCore   // the whole VKeyEdgeTracker contract is public — no @testa
         var t = VKeyEdgeTracker()
         _ = t.events(for: 0x1A)
         // A fresh id before the 0: release A, then press B, in that order.
-        #expect(t.events(for: 0x1B) ==
-                       [Edge(id: 0x1A, kind: .up), Edge(id: 0x1B, kind: .down)])
+        #expect(t.events(for: 0x1B) == [Edge(id: 0x1A, kind: .up), Edge(id: 0x1B, kind: .down)])
         #expect(t.held == 0x1B)
         // The roll's `held = B` is what the next dedup compares against.
         #expect(t.events(for: 0x1B) == [])
@@ -44,7 +43,7 @@ import ChordCore   // the whole VKeyEdgeTracker contract is public — no @testa
     @Test func rollThenZeroReleasesRolledId() {
         var t = VKeyEdgeTracker()
         _ = t.events(for: 0x1A)
-        _ = t.events(for: 0x1B)                 // roll A→B; held is now B
+        _ = t.events(for: 0x1B)  // roll A→B; held is now B
         #expect(t.events(for: 0) == [Edge(id: 0x1B, kind: .up)])
         #expect(t.held == 0)
     }
@@ -60,7 +59,7 @@ import ChordCore   // the whole VKeyEdgeTracker contract is public — no @testa
         _ = t.events(for: 0x1A)
         t.reset()
         #expect(t.held == 0)
-        #expect(t.events(for: 0) == [])   // release after reset emits nothing
+        #expect(t.events(for: 0) == [])  // release after reset emits nothing
     }
 
     /// Regression for the vkey-roadmap wedge: the latch advances on every
@@ -70,10 +69,10 @@ import ChordCore   // the whole VKeyEdgeTracker contract is public — no @testa
     /// input, so it cannot reintroduce that stick.
     @Test func latchAdvancesIndependentOfDispatch() {
         var t = VKeyEdgeTracker()
-        _ = t.events(for: 0x26)                       // press (caller may be paused)
+        _ = t.events(for: 0x26)  // press (caller may be paused)
         #expect(t.held == 0x26)
         #expect(t.events(for: 0) == [Edge(id: 0x26, kind: .up)])  // release
-        #expect(t.held == 0)                     // not stuck
+        #expect(t.held == 0)  // not stuck
         #expect(t.events(for: 0x27) == [Edge(id: 0x27, kind: .down)])  // next press clean
     }
 

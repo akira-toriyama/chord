@@ -38,15 +38,18 @@ public enum Config {
         guard FileManager.default.fileExists(atPath: path) else {
             return ParseResult(
                 config: .init(),
-                warnings: [ConfigWarning(
-                    kind: .configNotFound,
-                    message: "config not found at \(path)")],
+                warnings: [
+                    ConfigWarning(
+                        kind: .configNotFound,
+                        message: "config not found at \(path)")
+                ],
                 droppedBindings: 0,
                 sourcePath: path)
         }
         let source: String
-        do { source = try String(contentsOf: url, encoding: .utf8) }
-        catch { throw LoadError.ioError("read \(path): \(error)") }
+        do { source = try String(contentsOf: url, encoding: .utf8) } catch {
+            throw LoadError.ioError("read \(path): \(error)")
+        }
         var result = try parse(source)
         result.sourcePath = path
         return result
@@ -54,9 +57,9 @@ public enum Config {
 
     public static func parse(_ source: String) throws -> ParseResult {
         let root: [String: TOML.Value]
-        do { root = try TOML.parse(source) }
-        catch let e as TOML.ParseError { throw LoadError.tomlError(String(describing: e)) }
-        catch { throw LoadError.tomlError(String(describing: error)) }
+        do { root = try TOML.parse(source) } catch let e as TOML.ParseError {
+            throw LoadError.tomlError(String(describing: e))
+        } catch { throw LoadError.tomlError(String(describing: error)) }
 
         var warnings: [ConfigWarning] = []
         var options = ChordConfig.Options()
@@ -66,33 +69,38 @@ public enum Config {
         // [[fallbacks]] / [[sequence]] / [[remap]]) and their nested rows.
         // [options] is checked inline below; open string maps ([action-
         // aliases] / [input-aliases]) accept any key by design.
-        warnings.append(contentsOf:
-            ChordConfigSchema.unknownKeyWarnings(root: root))
+        warnings.append(
+            contentsOf:
+                ChordConfigSchema.unknownKeyWarnings(root: root))
 
         if case .table(let opts)? = root["options"] {
             // t-0055: surface present-but-wrong-type. The reads below keep
             // their `?.asBool` / `?.asArray` guards (which fall through to
             // the default on a type miss); these calls only make that
             // otherwise-silent skip visible. Correct / absent → no warning.
-            warnFieldType(opts, key: "passthrough-unmatched",
-                          accept: ["boolean"],
-                          label: "[options] 'passthrough-unmatched'",
-                          warnings: &warnings)
+            warnFieldType(
+                opts, key: "passthrough-unmatched",
+                accept: ["boolean"],
+                label: "[options] 'passthrough-unmatched'",
+                warnings: &warnings)
             if let b = opts["passthrough-unmatched"]?.asBool {
                 options.passthroughUnmatched = b
             }
-            warnFieldType(opts, key: "exclude-apps", accept: ["array"],
-                          label: "[options] 'exclude-apps'",
-                          warnings: &warnings)
-            warnArrayElementTypes(opts, key: "exclude-apps",
-                                  label: "[options] 'exclude-apps'",
-                                  warnings: &warnings)
+            warnFieldType(
+                opts, key: "exclude-apps", accept: ["array"],
+                label: "[options] 'exclude-apps'",
+                warnings: &warnings)
+            warnArrayElementTypes(
+                opts, key: "exclude-apps",
+                label: "[options] 'exclude-apps'",
+                warnings: &warnings)
             if let arr = opts["exclude-apps"]?.asArray {
                 options.excludeApps = arr.compactMap(\.asString)
             }
-            warnFieldType(opts, key: "fn-auto-arrows", accept: ["boolean"],
-                          label: "[options] 'fn-auto-arrows'",
-                          warnings: &warnings)
+            warnFieldType(
+                opts, key: "fn-auto-arrows", accept: ["boolean"],
+                label: "[options] 'fn-auto-arrows'",
+                warnings: &warnings)
             if let b = opts["fn-auto-arrows"]?.asBool {
                 options.fnAutoArrows = b
             }
@@ -105,11 +113,12 @@ public enum Config {
             // never carried a synthetic line key.
             let known = ChordConfigSchema.optionsShape().keySet
             for key in opts.keys where !known.contains(key) {
-                warnings.append(ConfigWarning(
-                    kind: .unknownOptionKey,
-                    message:
-                        "[options] '\(key)': unknown option key — " +
-                        "ignored (known: \(known.sorted().joined(separator: ", ")))"))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .unknownOptionKey,
+                        message:
+                            "[options] '\(key)': unknown option key — "
+                            + "ignored (known: \(known.sorted().joined(separator: ", ")))"))
             }
         }
 
@@ -122,10 +131,11 @@ public enum Config {
                 if let s = value.asString {
                     actionAliases[key] = s
                 } else {
-                    warnings.append(ConfigWarning(
-                        kind: .actionAliasNonString,
-                        message: "[action-aliases] '\(key)': value must be a string — ignored",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .actionAliasNonString,
+                            message: "[action-aliases] '\(key)': value must be a string — ignored",
+                            bindingName: key))
                 }
             }
         }
@@ -151,43 +161,46 @@ public enum Config {
             for (key, value) in raw {
                 let keyLower = key.lowercased()
                 if InputParser.reservedModifierTokens.contains(keyLower) {
-                    warnings.append(ConfigWarning(
-                        kind: .inputAliasShadowsModifier,
-                        message:
-                            "[input-aliases] '\(key)': name shadows " +
-                            "built-in modifier token — ignored",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .inputAliasShadowsModifier,
+                            message:
+                                "[input-aliases] '\(key)': name shadows "
+                                + "built-in modifier token — ignored",
+                            bindingName: key))
                     continue
                 }
                 guard let s = value.asString else {
-                    warnings.append(ConfigWarning(
-                        kind: .inputAliasNonString,
-                        message:
-                            "[input-aliases] '\(key)': value must be a " +
-                            "string — ignored",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .inputAliasNonString,
+                            message:
+                                "[input-aliases] '\(key)': value must be a " + "string — ignored",
+                            bindingName: key))
                     continue
                 }
                 let mask: Modifiers
                 do {
                     mask = try InputParser.parseModifiersOnly(s)
                 } catch {
-                    warnings.append(ConfigWarning(
-                        kind: .inputAliasInvalidBody,
-                        message:
-                            "[input-aliases] '\(key)': \(error) — ignored",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .inputAliasInvalidBody,
+                            message:
+                                "[input-aliases] '\(key)': \(error) — ignored",
+                            bindingName: key))
                     continue
                 }
                 // Empty body is meaningless — same treatment as
                 // hold-while: caller almost certainly mistyped.
                 if mask.rawValue == 0 {
-                    warnings.append(ConfigWarning(
-                        kind: .inputAliasInvalidBody,
-                        message:
-                            "[input-aliases] '\(key)': must contain at " +
-                            "least one modifier — ignored",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .inputAliasInvalidBody,
+                            message:
+                                "[input-aliases] '\(key)': must contain at "
+                                + "least one modifier — ignored",
+                            bindingName: key))
                     continue
                 }
                 inputAliasesRaw[key] = s
@@ -214,40 +227,44 @@ public enum Config {
                     || InputParser.reservedModifierTokens.contains(keyLower)
                     || KeyCodes.code(forName: keyLower) != nil
                 {
-                    warnings.append(ConfigWarning(
-                        kind: .vkeyAliasInvalid,
-                        message:
-                            "[v-key-aliases] '\(key)': name shadows a built-in " +
-                            "key / modifier / the v-key wildcard — ignored " +
-                            "(rename so `input = \"\(key)\"` stays unambiguous)",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .vkeyAliasInvalid,
+                            message:
+                                "[v-key-aliases] '\(key)': name shadows a built-in "
+                                + "key / modifier / the v-key wildcard — ignored "
+                                + "(rename so `input = \"\(key)\"` stays unambiguous)",
+                            bindingName: key))
                     continue
                 }
                 guard let idRaw = value.asInt.map({ Int($0) }) else {
-                    warnings.append(ConfigWarning(
-                        kind: .vkeyAliasInvalid,
-                        message:
-                            "[v-key-aliases] '\(key)': value must be an " +
-                            "integer 1–255 (the id `&vkey <id>` sends) — ignored",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .vkeyAliasInvalid,
+                            message:
+                                "[v-key-aliases] '\(key)': value must be an "
+                                + "integer 1–255 (the id `&vkey <id>` sends) — ignored",
+                            bindingName: key))
                     continue
                 }
                 guard (1...255).contains(idRaw) else {
-                    warnings.append(ConfigWarning(
-                        kind: .vkeyAliasInvalid,
-                        message:
-                            "[v-key-aliases] '\(key)': id \(idRaw) out of " +
-                            "range 1–255 — ignored",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .vkeyAliasInvalid,
+                            message:
+                                "[v-key-aliases] '\(key)': id \(idRaw) out of "
+                                + "range 1–255 — ignored",
+                            bindingName: key))
                     continue
                 }
                 if let existing = vkeyAliasesParsed[keyLower] {
-                    warnings.append(ConfigWarning(
-                        kind: .vkeyAliasInvalid,
-                        message:
-                            "[v-key-aliases] '\(key)': duplicate name " +
-                            "(already = \(existing)) — first wins, ignored",
-                        bindingName: key))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .vkeyAliasInvalid,
+                            message:
+                                "[v-key-aliases] '\(key)': duplicate name "
+                                + "(already = \(existing)) — first wins, ignored",
+                            bindingName: key))
                     continue
                 }
                 vkeyAliasesParsed[keyLower] = UInt8(idRaw)
@@ -261,11 +278,12 @@ public enum Config {
         // prefix wins over a regular binding with the same trigger
         // (= first-match-wins yields the documented "sequence wins"
         // semantics without needing an extra precedence dimension).
-        let seq = parseSequences(root: root,
-                                 actionAliases: actionAliases,
-                                 inputAliases: inputAliasesParsed,
-                                 vkeyAliases: vkeyAliasesParsed,
-                                 warnings: &warnings)
+        let seq = parseSequences(
+            root: root,
+            actionAliases: actionAliases,
+            inputAliases: inputAliasesParsed,
+            vkeyAliases: vkeyAliasesParsed,
+            warnings: &warnings)
 
         var bindings: [Binding] = seq.expanded
         var dropped = seq.dropped
@@ -281,19 +299,21 @@ public enum Config {
             let synthRows: [(row: [String: TOML.Value], line: Int?)]
             switch expandBindingPerApp(row, warnings: &warnings) {
             case .single(let r, let l): synthRows = [(r, l)]
-            case .many(let rs):         synthRows = rs
-            case .invalid:              dropped += 1; continue
+            case .many(let rs): synthRows = rs
+            case .invalid: dropped += 1; continue
             }
 
             for synth in synthRows {
-                guard let b = makeBinding(from: synth.row,
-                                          sourceLine: synth.line,
-                                          index: bindingIndex,
-                                          isFallback: false,
-                                          actionAliases: actionAliases,
-                                          inputAliases: inputAliasesParsed,
-                                          vkeyAliases: vkeyAliasesParsed,
-                                          warnings: &warnings)
+                guard
+                    let b = makeBinding(
+                        from: synth.row,
+                        sourceLine: synth.line,
+                        index: bindingIndex,
+                        isFallback: false,
+                        actionAliases: actionAliases,
+                        inputAliases: inputAliasesParsed,
+                        vkeyAliases: vkeyAliasesParsed,
+                        warnings: &warnings)
                 else {
                     dropped += 1
                     continue
@@ -307,15 +327,15 @@ public enum Config {
                 if let collision = seq.prefixes.first(where: { p in
                     p.trigger == b.trigger && p.modifiers == b.modifiers
                 }) {
-                    warnings.append(ConfigWarning(
-                        kind: .sequenceParseError,
-                        message:
-                            "[[bindings]] '\(b.name)'" +
-                            sourceTag(line: b.sourceLine) +
-                            ": input '\(b.inputRaw)' collides with " +
-                            "[[sequence]] prefix '\(collision.name)' — " +
-                            "regular binding dropped (sequence wins)",
-                        sourceLine: b.sourceLine, bindingName: b.name))
+                    warnings.append(
+                        ConfigWarning(
+                            kind: .sequenceParseError,
+                            message:
+                                "[[bindings]] '\(b.name)'" + sourceTag(line: b.sourceLine)
+                                + ": input '\(b.inputRaw)' collides with "
+                                + "[[sequence]] prefix '\(collision.name)' — "
+                                + "regular binding dropped (sequence wins)",
+                            sourceLine: b.sourceLine, bindingName: b.name))
                     dropped += 1
                     continue
                 }
@@ -336,24 +356,26 @@ public enum Config {
             seenUserNames[b.name, default: 0] += 1
         }
         for (name, count) in seenUserNames where count > 1 {
-            warnings.append(ConfigWarning(
-                kind: .duplicateBindingName,
-                message:
-                    "duplicate binding name '\(name)' appears \(count) times — " +
-                    "name-keyed tooling (config --show / daemon --reload --dry-run diff) " +
-                    "cannot distinguish them",
-                bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .duplicateBindingName,
+                    message:
+                        "duplicate binding name '\(name)' appears \(count) times — "
+                        + "name-keyed tooling (config --show / daemon --reload --dry-run diff) "
+                        + "cannot distinguish them",
+                    bindingName: name))
         }
 
         // v0.8.0 [[remap]] sugar: expand each row into N action-keys
         // bindings (one per `map` entry). Appended AFTER regular
         // bindings so a specific `[[bindings]]` row can override a
         // bulk remap entry via first-match-wins.
-        let remap = parseRemaps(root: root,
-                                actionAliases: actionAliases,
-                                inputAliases: inputAliasesParsed,
-                                vkeyAliases: vkeyAliasesParsed,
-                                warnings: &warnings)
+        let remap = parseRemaps(
+            root: root,
+            actionAliases: actionAliases,
+            inputAliases: inputAliasesParsed,
+            vkeyAliases: vkeyAliasesParsed,
+            warnings: &warnings)
         bindings.append(contentsOf: remap.expanded)
         dropped += remap.dropped
 
@@ -361,17 +383,19 @@ public enum Config {
         let fbRows = root["fallbacks"]?.asArrayOfTables ?? []
         var fbExpansionIndex = 0
         for row in fbRows {
-            let expanded = expandFallbackRow(row,
-                                             warnings: &warnings)
+            let expanded = expandFallbackRow(
+                row,
+                warnings: &warnings)
             switch expanded {
             case .single(let r, let l):
-                if let b = makeBinding(from: r, sourceLine: l,
-                                       index: fbExpansionIndex,
-                                       isFallback: true,
-                                       actionAliases: actionAliases,
-                                       inputAliases: inputAliasesParsed,
-                                       vkeyAliases: vkeyAliasesParsed,
-                                       warnings: &warnings)
+                if let b = makeBinding(
+                    from: r, sourceLine: l,
+                    index: fbExpansionIndex,
+                    isFallback: true,
+                    actionAliases: actionAliases,
+                    inputAliases: inputAliasesParsed,
+                    vkeyAliases: vkeyAliasesParsed,
+                    warnings: &warnings)
                 {
                     fallbacks.append(b)
                     fbExpansionIndex += 1
@@ -380,13 +404,14 @@ public enum Config {
                 }
             case .many(let rows):
                 for (r, l) in rows {
-                    if let b = makeBinding(from: r, sourceLine: l,
-                                           index: fbExpansionIndex,
-                                           isFallback: true,
-                                           actionAliases: actionAliases,
-                                           inputAliases: inputAliasesParsed,
-                                           vkeyAliases: vkeyAliasesParsed,
-                                           warnings: &warnings)
+                    if let b = makeBinding(
+                        from: r, sourceLine: l,
+                        index: fbExpansionIndex,
+                        isFallback: true,
+                        actionAliases: actionAliases,
+                        inputAliases: inputAliasesParsed,
+                        vkeyAliases: vkeyAliasesParsed,
+                        warnings: &warnings)
                     {
                         fallbacks.append(b)
                         fbExpansionIndex += 1
@@ -399,11 +424,13 @@ public enum Config {
             }
         }
 
-        let cfg = ChordConfig(options: options, bindings: bindings,
-                              fallbacks: fallbacks, actionAliases: actionAliases,
-                              inputAliases: inputAliasesRaw)
-        return ParseResult(config: cfg, warnings: warnings,
-                           droppedBindings: dropped, sourcePath: nil)
+        let cfg = ChordConfig(
+            options: options, bindings: bindings,
+            fallbacks: fallbacks, actionAliases: actionAliases,
+            inputAliases: inputAliasesRaw)
+        return ParseResult(
+            config: cfg, warnings: warnings,
+            droppedBindings: dropped, sourcePath: nil)
     }
 
     // MARK: - Parsers extracted to extension files (#51)
@@ -440,12 +467,12 @@ public enum Config {
     /// Human-readable TOML type name for `field-type-mismatch` warnings.
     static func tomlTypeName(_ v: TOML.Value) -> String {
         switch v {
-        case .string:        return "string"
-        case .int:           return "integer"
-        case .double:        return "float"
-        case .bool:          return "boolean"
-        case .array:         return "array"
-        case .table:         return "table"
+        case .string: return "string"
+        case .int: return "integer"
+        case .double: return "float"
+        case .bool: return "boolean"
+        case .array: return "array"
+        case .table: return "table"
         case .arrayOfTables: return "array-of-tables"
         }
     }
@@ -465,18 +492,19 @@ public enum Config {
         label: String,
         sourceLine: Int? = nil,
         bindingName: String? = nil,
-        warnings: inout [ConfigWarning])
-    {
+        warnings: inout [ConfigWarning]
+    ) {
         guard let value = table[key] else { return }
         let actual = tomlTypeName(value)
         guard !accept.contains(actual) else { return }
         let expected = accept.sorted().joined(separator: " or ")
-        warnings.append(ConfigWarning(
-            kind: .fieldTypeMismatch,
-            message:
-                "\(label): expected \(expected), got \(actual) — " +
-                "ignored (value has no effect)",
-            sourceLine: sourceLine, bindingName: bindingName))
+        warnings.append(
+            ConfigWarning(
+                kind: .fieldTypeMismatch,
+                message:
+                    "\(label): expected \(expected), got \(actual) — "
+                    + "ignored (value has no effect)",
+                sourceLine: sourceLine, bindingName: bindingName))
     }
 
     /// Element-level companion to `warnFieldType` for the string-array
@@ -491,18 +519,18 @@ public enum Config {
         label: String,
         sourceLine: Int? = nil,
         bindingName: String? = nil,
-        warnings: inout [ConfigWarning])
-    {
+        warnings: inout [ConfigWarning]
+    ) {
         guard let arr = table[key]?.asArray else { return }
         let bad = arr.filter { $0.asString == nil }.map(tomlTypeName)
         guard !bad.isEmpty else { return }
-        warnings.append(ConfigWarning(
-            kind: .fieldTypeMismatch,
-            message:
-                "\(label): expected an array of strings, got non-string " +
-                "element(s) [\(bad.joined(separator: ", "))] — " +
-                "dropped (no effect)",
-            sourceLine: sourceLine, bindingName: bindingName))
+        warnings.append(
+            ConfigWarning(
+                kind: .fieldTypeMismatch,
+                message:
+                    "\(label): expected an array of strings, got non-string "
+                    + "element(s) [\(bad.joined(separator: ", "))] — " + "dropped (no effect)",
+                sourceLine: sourceLine, bindingName: bindingName))
     }
 
 }

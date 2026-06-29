@@ -36,9 +36,11 @@ public struct Matcher: Sendable {
     /// `ChordConfig.Options.fnAutoArrows`.
     public let fnAutoArrows: Bool
 
-    public init(bindings: [Binding], fallbacks: [Binding] = [],
-                excludeApps: [String] = [],
-                fnAutoArrows: Bool = true) {
+    public init(
+        bindings: [Binding], fallbacks: [Binding] = [],
+        excludeApps: [String] = [],
+        fnAutoArrows: Bool = true
+    ) {
         self.bindings = bindings
         self.fallbacks = fallbacks
         self.excludeApps = excludeApps
@@ -59,10 +61,12 @@ public struct Matcher: Sendable {
         /// Matched against `Binding.inputSource` glob list.
         public var inputSourceID: String?
 
-        public init(trigger: Trigger, modifiers: Modifiers,
-                    bundleID: String?,
-                    state: StateSnapshot = StateSnapshot(),
-                    inputSourceID: String? = nil) {
+        public init(
+            trigger: Trigger, modifiers: Modifiers,
+            bundleID: String?,
+            state: StateSnapshot = StateSnapshot(),
+            inputSourceID: String? = nil
+        ) {
             self.trigger = trigger
             self.modifiers = modifiers
             self.bundleID = bundleID
@@ -73,7 +77,8 @@ public struct Matcher: Sendable {
 
     public func find(_ event: Event) -> Binding? {
         if let id = event.bundleID,
-           Matcher.matchesGlobs(id, patterns: excludeApps) {
+            Matcher.matchesGlobs(id, patterns: excludeApps)
+        {
             return nil
         }
         // Stage 1: regular bindings, document order, first-match-wins.
@@ -99,11 +104,16 @@ public struct Matcher: Sendable {
             // For the wildcard fallback (`.anyKey`), the event's
             // concrete trigger drives the decision.
             let triggerForFn: Trigger
-            if case .anyKey = b.trigger { triggerForFn = event.trigger }
-            else { triggerForFn = b.trigger }
+            if case .anyKey = b.trigger {
+                triggerForFn = event.trigger
+            } else {
+                triggerForFn = b.trigger
+            }
             let ignoreFn = fnAutoArrows && KeyCodes.isFnAutoNav(triggerForFn)
-            guard b.modifiers.matches(event: event.modifiers,
-                                      ignoreFn: ignoreFn)
+            guard
+                b.modifiers.matches(
+                    event: event.modifiers,
+                    ignoreFn: ignoreFn)
             else { continue }
             if let apps = b.apps {
                 guard let id = event.bundleID else { continue }
@@ -121,7 +131,7 @@ public struct Matcher: Sendable {
             // have `condition == nil` and the modifier / apps tests
             // are cheaper to short-circuit on the hot keystroke path.
             if let cond = b.condition,
-               !Matcher.conditionHolds(cond, state: event.state)
+                !Matcher.conditionHolds(cond, state: event.state)
             {
                 continue
             }
@@ -146,7 +156,8 @@ public struct Matcher: Sendable {
         // user excluded. `find()` honored `excludeApps`; this extracted
         // edge path did not, so the exclusion silently leaked.
         if let id = bundleID,
-           Matcher.matchesGlobs(id, patterns: excludeApps) {
+            Matcher.matchesGlobs(id, patterns: excludeApps)
+        {
             return []
         }
         var out: [(binding: Binding, edge: ModifierEdge)] = []
@@ -156,7 +167,10 @@ public struct Matcher: Sendable {
                 if !Matcher.appsAllow(id, patterns: apps) { continue }
             }
             if let cond = b.condition,
-               !Matcher.conditionHolds(cond, state: state) { continue }
+                !Matcher.conditionHolds(cond, state: state)
+            {
+                continue
+            }
             let prevSat = b.modifiers.matches(event: prev)
             let curSat = b.modifiers.matches(event: curr)
             if !prevSat && curSat {
@@ -177,8 +191,10 @@ public struct Matcher: Sendable {
     /// can apply the same gate semantics without going through
     /// `find(_:)` (which insists on a concrete .key / .mouse / .scroll
     /// event trigger).
-    public static func conditionHolds(_ c: Condition,
-                                      state: StateSnapshot) -> Bool {
+    public static func conditionHolds(
+        _ c: Condition,
+        state: StateSnapshot
+    ) -> Bool {
         switch c {
         case .variable(let name, let expected):
             return state.value(name) == expected
@@ -187,8 +203,10 @@ public struct Matcher: Sendable {
         }
     }
 
-    private func triggerMatches(_ ruleTrigger: Trigger,
-                                event: Trigger) -> Bool {
+    private func triggerMatches(
+        _ ruleTrigger: Trigger,
+        event: Trigger
+    ) -> Bool {
         if case .anyKey = ruleTrigger {
             // The wildcard fires only for keyboard events, not
             // mouse / scroll. Mouse fallbacks were considered for

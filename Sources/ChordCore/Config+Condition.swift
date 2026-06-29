@@ -34,13 +34,14 @@ extension Config {
         // Mutual exclusion: pick the user's intent up front so the
         // error is clear (they wrote both forms).
         if whenVars != nil && (varName != nil || rawValue != nil) {
-            warnings.append(ConfigWarning(
-                kind: .conditionParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "when-var / when-var-value and when-vars are " +
-                    "mutually exclusive — pick one",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .conditionParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "when-var / when-var-value and when-vars are "
+                        + "mutually exclusive — pick one",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
 
@@ -54,24 +55,25 @@ extension Config {
             return OptionalParse(value: nil)
         }
         guard let varName = varName else {
-            warnings.append(ConfigWarning(
-                kind: .conditionParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "when-var-value present without when-var",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .conditionParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "when-var-value present without when-var",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
         // when-var-value defaults to 1 — matches the leader-key idiom.
         let value: Int
         if let raw = rawValue {
             guard let v = raw.asInt else {
-                warnings.append(ConfigWarning(
-                    kind: .conditionParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "when-var-value must be an integer",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .conditionParseError,
+                        message:
+                            "\(section) '\(name)'\(source): " + "when-var-value must be an integer",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             value = Int(v)
@@ -88,21 +90,23 @@ extension Config {
         warnings: inout [ConfigWarning]
     ) -> OptionalParse<Condition>? {
         guard case .table(let table) = raw else {
-            warnings.append(ConfigWarning(
-                kind: .conditionParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "when-vars must be an inline table { var = value, … }",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .conditionParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "when-vars must be an inline table { var = value, … }",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
         if table.isEmpty {
-            warnings.append(ConfigWarning(
-                kind: .conditionParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "when-vars must contain at least one variable",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .conditionParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "when-vars must contain at least one variable",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
         // Sort by key for deterministic ordering — same reason as
@@ -110,12 +114,13 @@ extension Config {
         var parts: [Condition] = []
         for key in table.keys.sorted() {
             guard let v = table[key]?.asInt else {
-                warnings.append(ConfigWarning(
-                    kind: .conditionParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "when-vars['\(key)'] value must be an integer",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .conditionParseError,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "when-vars['\(key)'] value must be an integer",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             parts.append(.variable(name: key, equals: Int(v)))
@@ -142,22 +147,24 @@ extension Config {
             return OptionalParse(value: nil)
         }
         guard let v = raw.asInt else {
-            warnings.append(ConfigWarning(
-                kind: .holdWhileParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "hold-while-timeout must be an integer (ms)",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .holdWhileParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "hold-while-timeout must be an integer (ms)",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
         let ms = Int(v)
         guard ms > 0 else {
-            warnings.append(ConfigWarning(
-                kind: .holdWhileParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "hold-while-timeout must be > 0 (got \(ms))",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .holdWhileParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "hold-while-timeout must be > 0 (got \(ms))",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
         return OptionalParse(value: ms)
@@ -180,22 +187,24 @@ extension Config {
             return OptionalParse(value: nil)
         }
         guard let v = raw.asInt else {
-            warnings.append(ConfigWarning(
-                kind: .actionKeysDelayParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "action-keys-delay-ms must be an integer (ms)",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .actionKeysDelayParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "action-keys-delay-ms must be an integer (ms)",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
         let ms = Int(v)
         guard ms > 0 else {
-            warnings.append(ConfigWarning(
-                kind: .actionKeysDelayParseError,
-                message:
-                    "\(section) '\(name)'\(source): " +
-                    "action-keys-delay-ms must be > 0 (got \(ms))",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .actionKeysDelayParseError,
+                    message:
+                        "\(section) '\(name)'\(source): "
+                        + "action-keys-delay-ms must be > 0 (got \(ms))",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
         return OptionalParse(value: ms)
@@ -217,21 +226,23 @@ extension Config {
             // Empty mask is meaningless for hold-while — surface it
             // as a parse error rather than silently no-op'ing.
             if mask.rawValue == 0 {
-                warnings.append(ConfigWarning(
-                    kind: .holdWhileParseError,
-                    message:
-                        "\(section) '\(name)'\(source): " +
-                        "hold-while must contain at least one modifier",
-                    sourceLine: sourceLine, bindingName: name))
+                warnings.append(
+                    ConfigWarning(
+                        kind: .holdWhileParseError,
+                        message:
+                            "\(section) '\(name)'\(source): "
+                            + "hold-while must contain at least one modifier",
+                        sourceLine: sourceLine, bindingName: name))
                 return nil
             }
             return OptionalParse(value: mask)
         } catch {
-            warnings.append(ConfigWarning(
-                kind: .holdWhileParseError,
-                message:
-                    "\(section) '\(name)'\(source): hold-while: \(error)",
-                sourceLine: sourceLine, bindingName: name))
+            warnings.append(
+                ConfigWarning(
+                    kind: .holdWhileParseError,
+                    message:
+                        "\(section) '\(name)'\(source): hold-while: \(error)",
+                    sourceLine: sourceLine, bindingName: name))
             return nil
         }
     }

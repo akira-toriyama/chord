@@ -4,30 +4,29 @@ import Testing
 @Suite struct ConfigTests {
     @Test func parsesAllActionShapes() throws {
         let source = """
-        [options]
-        passthrough-unmatched = true
-        exclude-apps = ["com.apple.dt.Xcode"]
+            [options]
+            passthrough-unmatched = true
+            exclude-apps = ["com.apple.dt.Xcode"]
 
-        [[bindings]]
-        name = "launch terminal"
-        input = "f13"
-        action-shell = "open -a Terminal"
+            [[bindings]]
+            name = "launch terminal"
+            input = "f13"
+            action-shell = "open -a Terminal"
 
-        [[bindings]]
-        name = "screenshot"
-        input = "mouse.side1"
-        action-keys = "cmd + shift - 4"
+            [[bindings]]
+            name = "screenshot"
+            input = "mouse.side1"
+            action-keys = "cmd + shift - 4"
 
-        [[bindings]]
-        name = "block caps"
-        input = "caps_lock"
-        action-noop = true
-        """
+            [[bindings]]
+            name = "block caps"
+            input = "caps_lock"
+            action-noop = true
+            """
         let r = try Config.parse(source)
         #expect(r.config.bindings.count == 3)
         #expect(r.droppedBindings == 0)
-        #expect(r.config.options.excludeApps ==
-                       ["com.apple.dt.Xcode"])
+        #expect(r.config.options.excludeApps == ["com.apple.dt.Xcode"])
 
         switch r.config.bindings[0].action {
         case .shell(let s): #expect(s == "open -a Terminal")
@@ -44,16 +43,16 @@ import Testing
 
     @Test func badBindingDoesNotBreakOthers() throws {
         let source = """
-        [[bindings]]
-        name = "bad"
-        input = "no-such-key"
-        action-shell = "true"
+            [[bindings]]
+            name = "bad"
+            input = "no-such-key"
+            action-shell = "true"
 
-        [[bindings]]
-        name = "good"
-        input = "f14"
-        action-shell = "true"
-        """
+            [[bindings]]
+            name = "good"
+            input = "f14"
+            action-shell = "true"
+            """
         let r = try Config.parse(source)
         #expect(r.droppedBindings == 1)
         #expect(r.config.bindings.count == 1)
@@ -62,12 +61,12 @@ import Testing
 
     @Test func shellPlusKeysCombineOnDown() throws {
         let source = """
-        [[bindings]]
-        name = "facet then nav"
-        input = "ctrl - right"
-        action-shell = "facet --view=tree --loading=2000"
-        action-keys = "ctrl - right"
-        """
+            [[bindings]]
+            name = "facet then nav"
+            input = "ctrl - right"
+            action-shell = "facet --view=tree --loading=2000"
+            action-keys = "ctrl - right"
+            """
         let r = try Config.parse(source)
         #expect(r.droppedBindings == 0)
         #expect(r.config.bindings.count == 1)
@@ -90,12 +89,12 @@ import Testing
 
     @Test func shellPlusBadKeysDropsBinding() throws {
         let source = """
-        [[bindings]]
-        name = "broken combo"
-        input = "ctrl - right"
-        action-shell = "true"
-        action-keys = "no-such-key"
-        """
+            [[bindings]]
+            name = "broken combo"
+            input = "ctrl - right"
+            action-shell = "true"
+            action-keys = "no-such-key"
+            """
         let r = try Config.parse(source)
         #expect(r.droppedBindings == 1)
         #expect(r.config.bindings.count == 0)
@@ -103,12 +102,12 @@ import Testing
 
     @Test func extraActionsSurfaceInWireSchema() throws {
         let source = """
-        [[bindings]]
-        name = "facet then nav"
-        input = "ctrl - right"
-        action-shell = "facet --view=tree"
-        action-keys = "ctrl - right"
-        """
+            [[bindings]]
+            name = "facet then nav"
+            input = "ctrl - right"
+            action-shell = "facet --view=tree"
+            action-keys = "ctrl - right"
+            """
         let r = try Config.parse(source)
         let doc = BindingsSchema.makeDocument(from: r)
         let extra = doc.bindings[0].extraActions
@@ -126,27 +125,31 @@ import Testing
     /// key so `config --validate --strict` catches it in CI.
     @Test func unknownOptionKeyWarns() throws {
         let source = """
-        [options]
-        passthrough-unmatched = true
-        passthroughUnmatched = false
-        bogus-option = "what"
-        """
+            [options]
+            passthrough-unmatched = true
+            passthroughUnmatched = false
+            bogus-option = "what"
+            """
         let r = try Config.parse(source)
-        #expect(r.config.options.passthroughUnmatched == true,
-                       "the kebab-case key still wins")
+        #expect(
+            r.config.options.passthroughUnmatched == true,
+            "the kebab-case key still wins")
         let kinds = r.warnings.map(\.kind)
         #expect(kinds.filter { $0 == .unknownOptionKey }.count == 2)
         // The kebab-case key is NOT flagged as unknown.
-        #expect(!r.warnings.contains { w in
-            w.kind == .unknownOptionKey && w.message.contains("'passthrough-unmatched'")
-        })
+        #expect(
+            !r.warnings.contains { w in
+                w.kind == .unknownOptionKey && w.message.contains("'passthrough-unmatched'")
+            })
         // The two known-bad keys ARE flagged.
-        #expect(r.warnings.contains { w in
-            w.kind == .unknownOptionKey && w.message.contains("'passthroughUnmatched'")
-        })
-        #expect(r.warnings.contains { w in
-            w.kind == .unknownOptionKey && w.message.contains("'bogus-option'")
-        })
+        #expect(
+            r.warnings.contains { w in
+                w.kind == .unknownOptionKey && w.message.contains("'passthroughUnmatched'")
+            })
+        #expect(
+            r.warnings.contains { w in
+                w.kind == .unknownOptionKey && w.message.contains("'bogus-option'")
+            })
     }
 
     // MARK: - #52-bounded: descriptor-driven unknown-key validation
@@ -155,58 +158,69 @@ import Testing
     /// still loads — the unknown key is lenient, like [options].
     @Test func unknownBindingKeyWarns() throws {
         let source = """
-        [[bindings]]
-        name = "typo"
-        input = "cmd - a"
-        action-shell = "echo hi"
-        passthrouh = true
-        """
+            [[bindings]]
+            name = "typo"
+            input = "cmd - a"
+            action-shell = "echo hi"
+            passthrouh = true
+            """
         let r = try Config.parse(source)
         #expect(r.config.bindings.count == 1, "binding still loads")
         #expect(r.droppedBindings == 0)
         #expect(r.warnings.filter { $0.kind == .unknownKey }.count == 1)
-        #expect(r.warnings.contains {
-            $0.kind == .unknownKey && $0.message.contains("'passthrouh'")
-        })
+        #expect(
+            r.warnings.contains {
+                $0.kind == .unknownKey && $0.message.contains("'passthrouh'")
+            })
     }
 
     /// Unknown keys are caught in every closed shape, including the nested
     /// per-app / sequence.bindings rows, each labelled with its section.
     @Test func unknownKeyAcrossNestedShapes() throws {
         let source = """
-        [[bindings]]
-        input = "cmd - a"
-        action-noop = true
-          [[bindings.per-app]]
-          bundle-id = "com.apple.Terminal"
-          action-keys = "cmd - v"
-          appz = ["x"]
+            [[bindings]]
+            input = "cmd - a"
+            action-noop = true
+              [[bindings.per-app]]
+              bundle-id = "com.apple.Terminal"
+              action-keys = "cmd - v"
+              appz = ["x"]
 
-        [[fallbacks]]
-        input = "*"
-        action-noop = true
-        nope = 1
+            [[fallbacks]]
+            input = "*"
+            action-noop = true
+            nope = 1
 
-        [[sequence]]
-        prefix = "cmd - g"
-        timeout-ms = 800
-          [[sequence.bindings]]
-          input = "h"
-          action-noop = true
-          wat = 2
+            [[sequence]]
+            prefix = "cmd - g"
+            timeout-ms = 800
+              [[sequence.bindings]]
+              input = "h"
+              action-noop = true
+              wat = 2
 
-        [[remap]]
-        modifiers = "cmd"
-        map = { h = "left" }
-        huh = 3
-        """
+            [[remap]]
+            modifiers = "cmd"
+            map = { h = "left" }
+            huh = 3
+            """
         let r = try Config.parse(source)
         let unknown = r.warnings.filter { $0.kind == .unknownKey }
         #expect(unknown.count == 4)
-        #expect(unknown.contains { $0.message.contains("[[bindings.per-app]]") && $0.message.contains("'appz'") })
-        #expect(unknown.contains { $0.message.contains("[[fallbacks]]") && $0.message.contains("'nope'") })
-        #expect(unknown.contains { $0.message.contains("[[sequence.bindings]]") && $0.message.contains("'wat'") })
-        #expect(unknown.contains { $0.message.contains("[[remap]]") && $0.message.contains("'huh'") })
+        #expect(
+            unknown.contains {
+                $0.message.contains("[[bindings.per-app]]") && $0.message.contains("'appz'")
+            })
+        #expect(
+            unknown.contains {
+                $0.message.contains("[[fallbacks]]") && $0.message.contains("'nope'")
+            })
+        #expect(
+            unknown.contains {
+                $0.message.contains("[[sequence.bindings]]") && $0.message.contains("'wat'")
+            })
+        #expect(
+            unknown.contains { $0.message.contains("[[remap]]") && $0.message.contains("'huh'") })
     }
 
     /// A typo'd top-level SECTION header (`[[bindigs]]`, `[optoins]`) used
@@ -216,14 +230,14 @@ import Testing
     /// so the CLI is at least as strict as the schema.
     @Test func unknownTopLevelSectionWarns() throws {
         let source = """
-        [[bindigs]]
-        name = "oops"
-        input = "cmd - a"
-        action-noop = true
+            [[bindigs]]
+            name = "oops"
+            input = "cmd - a"
+            action-noop = true
 
-        [optoins]
-        passthrough-unmatched = false
-        """
+            [optoins]
+            passthrough-unmatched = false
+            """
         let r = try Config.parse(source)
         // The mistyped binding section did NOT load any binding.
         #expect(r.config.bindings.count == 0)
@@ -240,34 +254,35 @@ import Testing
     /// scan mis-flagging a legitimate section name.
     @Test func knownTopLevelSectionsDoNotWarn() throws {
         let source = """
-        [options]
-        passthrough-unmatched = true
-        [action-aliases]
-        hi = "echo hi"
-        [input-aliases]
-        hyper = "cmd + opt + ctrl + shift"
-        [v-key-aliases]
-        vol = 161
-        [[bindings]]
-        input = "cmd - a"
-        action-noop = true
-        [[fallbacks]]
-        input = "*"
-        action-noop = true
-        [[sequence]]
-        prefix = "cmd - g"
-        timeout-ms = 800
-          [[sequence.bindings]]
-          input = "h"
-          action-noop = true
-        [[remap]]
-        modifiers = "cmd"
-        map = { h = "left" }
-        """
+            [options]
+            passthrough-unmatched = true
+            [action-aliases]
+            hi = "echo hi"
+            [input-aliases]
+            hyper = "cmd + opt + ctrl + shift"
+            [v-key-aliases]
+            vol = 161
+            [[bindings]]
+            input = "cmd - a"
+            action-noop = true
+            [[fallbacks]]
+            input = "*"
+            action-noop = true
+            [[sequence]]
+            prefix = "cmd - g"
+            timeout-ms = 800
+              [[sequence.bindings]]
+              input = "h"
+              action-noop = true
+            [[remap]]
+            modifiers = "cmd"
+            map = { h = "left" }
+            """
         let r = try Config.parse(source)
-        #expect(!r.warnings.contains {
-            $0.kind == .unknownKey && $0.message.contains("top-level section")
-        })
+        #expect(
+            !r.warnings.contains {
+                $0.kind == .unknownKey && $0.message.contains("top-level section")
+            })
     }
 
     /// `action-toggle-var-on-up` / `action-hold-var-on-up` are recognised-
@@ -276,15 +291,16 @@ import Testing
     /// so the #52 check stays quiet.
     @Test func rejectedOnUpKeysNotReportedAsUnknown() throws {
         let source = """
-        [[bindings]]
-        name = "toggle-onup"
-        input = "cmd - a"
-        action-toggle-var = "x"
-        action-toggle-var-on-up = "x"
-        """
+            [[bindings]]
+            name = "toggle-onup"
+            input = "cmd - a"
+            action-toggle-var = "x"
+            action-toggle-var-on-up = "x"
+            """
         let r = try Config.parse(source)
-        #expect(!r.warnings.contains { $0.kind == .unknownKey },
-                       "a recognised-to-reject key must not be flagged as unknown")
+        #expect(
+            !r.warnings.contains { $0.kind == .unknownKey },
+            "a recognised-to-reject key must not be flagged as unknown")
         // The binding is dropped via the specific rejection instead.
         #expect(r.config.bindings.count == 0)
     }
@@ -294,32 +310,33 @@ import Testing
     /// Catches a descriptor that drops a key the parser actually consumes.
     @Test func knownBindingKeysProduceNoUnknownWarning() throws {
         let source = """
-        [[bindings]]
-        name = "full"
-        input = "cmd - a"
-        action-shell = "echo hi"
-        action-keys = "cmd - c"
-        action-shell-on-up = "echo bye"
-        when-vars = { layer = 1 }
-        input-source = "com.apple.keylayout.US"
-        passthrough = false
-        repeat = "ignore"
-          [[bindings.per-app]]
-          bundle-id = "com.apple.Terminal"
-          action-keys = "cmd - v"
+            [[bindings]]
+            name = "full"
+            input = "cmd - a"
+            action-shell = "echo hi"
+            action-keys = "cmd - c"
+            action-shell-on-up = "echo bye"
+            when-vars = { layer = 1 }
+            input-source = "com.apple.keylayout.US"
+            passthrough = false
+            repeat = "ignore"
+              [[bindings.per-app]]
+              bundle-id = "com.apple.Terminal"
+              action-keys = "cmd - v"
 
-        [[bindings]]
-        name = "setvar"
-        input = "cmd - b"
-        action-set-var = "layer"
-        action-set-value = 1
-        hold-while = "cmd"
-        apps = ["com.apple.Safari"]
-        """
+            [[bindings]]
+            name = "setvar"
+            input = "cmd - b"
+            action-set-var = "layer"
+            action-set-value = 1
+            hold-while = "cmd"
+            apps = ["com.apple.Safari"]
+            """
         let r = try Config.parse(source)
         let unknown = r.warnings.filter { $0.kind == .unknownKey }
-        #expect(unknown.isEmpty,
-                      "known keys must not be flagged: \(unknown.map { $0.message })")
+        #expect(
+            unknown.isEmpty,
+            "known keys must not be flagged: \(unknown.map { $0.message })")
     }
 
     /// #52-bounded: the per-app layerable set is DERIVED from perAppShape, so
@@ -330,13 +347,13 @@ import Testing
     /// when the base had no action of its own).
     @Test func perAppLayersDescriptorActions() throws {
         let source = """
-        [[bindings]]
-        name = "base"
-        input = "cmd - a"
-          [[bindings.per-app]]
-          bundle-id = "com.apple.Terminal"
-          action-toggle-var = "termlayer"
-        """
+            [[bindings]]
+            name = "base"
+            input = "cmd - a"
+              [[bindings.per-app]]
+              bundle-id = "com.apple.Terminal"
+              action-toggle-var = "termlayer"
+            """
         let r = try Config.parse(source)
         #expect(!r.warnings.contains { $0.kind == .unknownKey })
         #expect(r.config.bindings.count == 1, "the per-app binding loads, not dropped")
@@ -354,19 +371,20 @@ import Testing
     /// degrade the introspection tooling.
     @Test func duplicateBindingNameWarns() throws {
         let source = """
-        [[bindings]]
-        name = "twin"
-        input = "f13"
-        action-noop = true
+            [[bindings]]
+            name = "twin"
+            input = "f13"
+            action-noop = true
 
-        [[bindings]]
-        name = "twin"
-        input = "f14"
-        action-noop = true
-        """
+            [[bindings]]
+            name = "twin"
+            input = "f14"
+            action-noop = true
+            """
         let r = try Config.parse(source)
-        #expect(r.config.bindings.count == 2,
-                       "both still load — uniqueness is not enforced")
+        #expect(
+            r.config.bindings.count == 2,
+            "both still load — uniqueness is not enforced")
         let dups = r.warnings.filter { $0.kind == .duplicateBindingName }
         #expect(dups.count == 1)
         #expect(dups.first?.bindingName == "twin")
@@ -377,18 +395,18 @@ import Testing
     /// construction, and warning on them would produce false positives.
     @Test func syntheticBindingNamesExemptFromDuplicateCheck() throws {
         let source = """
-        [[bindings]]
-        input = "f13"
-        action-noop = true
+            [[bindings]]
+            input = "f13"
+            action-noop = true
 
-        [[bindings]]
-        input = "f14"
-        action-noop = true
+            [[bindings]]
+            input = "f14"
+            action-noop = true
 
-        [[bindings]]
-        input = "f15"
-        action-noop = true
-        """
+            [[bindings]]
+            input = "f15"
+            action-noop = true
+            """
         let r = try Config.parse(source)
         #expect(r.config.bindings.count == 3)
         #expect(!r.warnings.contains { $0.kind == .duplicateBindingName })

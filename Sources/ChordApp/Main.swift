@@ -67,22 +67,22 @@ enum ChordApp {
     /// in sill, policy in the app.
     @MainActor
     private static let configVerbs: [String: [String]] = [
-        "--validate":    ["--strict", "--json"],
-        "--show":        ["--json", "--include-dropped"],   // was --list
-        "--doctor":      [],
+        "--validate": ["--strict", "--json"],
+        "--show": ["--json", "--include-dropped"],  // was --list
+        "--doctor": [],
         "--emit-schema": [],
-        "--observe":     [],
+        "--observe": []
     ]
     @MainActor
     private static let daemonVerbs: [String: [String]] = [
         "--reload": ["--dry-run"],
-        "--show":   [],            // was --status
-        "--quit":   [],
-        "--pause":  [],
+        "--show": [],  // was --status
+        "--quit": [],
+        "--pause": [],
         "--resume": [],
         "--toggle": [],
-        "--watch":  [],
-        "--resign": [],
+        "--watch": [],
+        "--resign": []
     ]
     /// `query` domain — read-only daemon state over the AF_UNIX query
     /// socket (exit 3 if no daemon). Output is always JSON (chord.query.v1);
@@ -92,10 +92,10 @@ enum ChordApp {
     /// bare boolean.
     @MainActor
     private static let queryVerbs: [String: [String]] = [
-        "--status":          [],
-        "--vars":            [],
+        "--status": [],
+        "--vars": [],
         "--loaded-bindings": [],
-        "--recent-fires":    ["--limit"],
+        "--recent-fires": ["--limit"]
     ]
     /// Modifiers that consume a following value (CLIKit `.value` arity)
     /// rather than being bare booleans. Verbatim consumption (signed /
@@ -109,27 +109,33 @@ enum ChordApp {
     /// or a loud usage error). Unit-testable: no exit(), no child spawn.
     @MainActor
     static func dispatch(_ args: [String]) -> SubcommandOutcome? {
-        guard let domain = args.first else { return nil }   // bare chord → server
+        guard let domain = args.first else { return nil }  // bare chord → server
         let rest = Array(args.dropFirst())
         switch domain {
-        case "--help", "-h":    return .ok(helpText())
+        case "--help", "-h": return .ok(helpText())
         case "--version", "-V": return .ok("chord \(ChordVersion.current)")
         case "config": return dispatchDomain("config", rest, configVerbs, runConfig)
         case "daemon": return dispatchDomain("daemon", rest, daemonVerbs, runDaemon)
-        case "query":  return dispatchDomain("query", rest, queryVerbs, runQuery,
-                                             valueFlags: queryValueFlags)
+        case "query":
+            return dispatchDomain(
+                "query", rest, queryVerbs, runQuery,
+                valueFlags: queryValueFlags)
         default:
             // A `-`-leading first token is almost always an old flat flag
             // (`chord --validate`) — point at the new domain home loudly
             // instead of a bare "unknown command".
             if domain.hasPrefix("-") {
-                return .fail(2, stderr: "chord: flags now live under a domain — "
-                    + "e.g. `chord config --validate`, `chord daemon --reload`. "
-                    + "Got '\(domain)'. See --help.")
+                return .fail(
+                    2,
+                    stderr: "chord: flags now live under a domain — "
+                        + "e.g. `chord config --validate`, `chord daemon --reload`. "
+                        + "Got '\(domain)'. See --help.")
             }
-            return .fail(2, stderr: "chord: unknown command '\(domain)'. "
-                + "Domains: config daemon query (or bare `chord` to run the daemon). "
-                + "See --help.")
+            return .fail(
+                2,
+                stderr: "chord: unknown command '\(domain)'. "
+                    + "Domains: config daemon query (or bare `chord` to run the daemon). "
+                    + "See --help.")
         }
     }
 
@@ -157,27 +163,33 @@ enum ChordApp {
             for m in mods { arity[m] = valueFlags.contains(m) ? .value : .flag }
         }
         let inv: CLIKit.Invocation
-        do { inv = try CLIKit.parse(argv, spec: CLIKit.Spec(arity: arity)) }
-        catch let e as CLIKit.ParseError {
+        do { inv = try CLIKit.parse(argv, spec: CLIKit.Spec(arity: arity)) } catch let e
+            as CLIKit.ParseError
+        {
             return .fail(2, stderr: "chord: " + e.usageMessage)
-        }
-        catch { return .fail(2, stderr: "chord: \(error)") }
+        } catch { return .fail(2, stderr: "chord: \(error)") }
 
         let present = inv.names.filter { verbs[$0] != nil }
         guard present.count == 1, let verb = present.first else {
             if present.isEmpty {
-                return .fail(2, stderr: "chord: `chord \(domain)` needs a verb: "
-                    + verbs.keys.sorted().joined(separator: " ") + ". See --help.")
+                return .fail(
+                    2,
+                    stderr: "chord: `chord \(domain)` needs a verb: "
+                        + verbs.keys.sorted().joined(separator: " ") + ". See --help.")
             }
-            return .fail(2, stderr: "chord: `chord \(domain)`: incompatible verbs "
-                + present.sorted().joined(separator: " ") + " — pick one. See --help.")
+            return .fail(
+                2,
+                stderr: "chord: `chord \(domain)`: incompatible verbs "
+                    + present.sorted().joined(separator: " ") + " — pick one. See --help.")
         }
         // Reject a modifier the verb doesn't honour (e.g. `daemon --quit
         // --dry-run`): no silent swallow.
         let allowed = Set([verb] + (verbs[verb] ?? []))
         for name in inv.names where !allowed.contains(name) {
-            return .fail(2, stderr:
-                "chord: '\(name)' has no effect with \(verb). See --help.")
+            return .fail(
+                2,
+                stderr:
+                    "chord: '\(name)' has no effect with \(verb). See --help.")
         }
         return run(verb, inv)
     }
@@ -201,15 +213,21 @@ enum ChordApp {
 
     /// `config` domain — standalone (no daemon contact).
     @MainActor
-    private static func runConfig(_ verb: String,
-                                  _ inv: CLIKit.Invocation) -> SubcommandOutcome {
+    private static func runConfig(
+        _ verb: String,
+        _ inv: CLIKit.Invocation
+    ) -> SubcommandOutcome {
         switch verb {
         case "--validate":
-            return .code(runValidate(strict: inv.has("--strict"),
-                                     json: inv.has("--json")))
-        case "--show":   // was `--list`
-            return .code(runList(json: inv.has("--json"),
-                                 includeDropped: inv.has("--include-dropped")))
+            return .code(
+                runValidate(
+                    strict: inv.has("--strict"),
+                    json: inv.has("--json")))
+        case "--show":  // was `--list`
+            return .code(
+                runList(
+                    json: inv.has("--json"),
+                    includeDropped: inv.has("--include-dropped")))
         case "--doctor":
             return .code(runDoctor())
         case "--emit-schema":
@@ -238,20 +256,22 @@ enum ChordApp {
     /// or read the status file). The `Control.*` wire names are unchanged,
     /// so a new CLI drives an old daemon and vice versa.
     @MainActor
-    private static func runDaemon(_ verb: String,
-                                  _ inv: CLIKit.Invocation) -> SubcommandOutcome {
+    private static func runDaemon(
+        _ verb: String,
+        _ inv: CLIKit.Invocation
+    ) -> SubcommandOutcome {
         switch verb {
         case "--reload":
             if inv.has("--dry-run") { return .code(runReloadDryRun()) }
             return Control.postAndWait(Control.reload)
                 ? .ok("chord: reloaded")
                 : .fail(3, stderr: "chord: no daemon running")
-        case "--quit":   return cmdControl(Control.quit, label: "quit")
-        case "--pause":  return cmdControl(Control.pause, label: "paused")
+        case "--quit": return cmdControl(Control.quit, label: "quit")
+        case "--pause": return cmdControl(Control.pause, label: "paused")
         case "--resume": return cmdControl(Control.resume, label: "resumed")
         case "--toggle": return cmdToggle()
-        case "--show":   return cmdStatus()   // was `--status`
-        case "--watch":  return .code(runWatch())
+        case "--show": return cmdStatus()  // was `--status`
+        case "--watch": return .code(runWatch())
         case "--resign": return .code(runResign())
         default:
             return .fail(2, stderr: "chord: unreachable daemon verb \(verb)")
@@ -262,8 +282,10 @@ enum ChordApp {
     /// `Control` notification name (string constant) to the running
     /// daemon and reports either the labelled success ("chord: \(label)")
     /// or "no daemon running" on stderr with exit 3.
-    private static func cmdControl(_ message: String,
-                                   label: String) -> SubcommandOutcome {
+    private static func cmdControl(
+        _ message: String,
+        label: String
+    ) -> SubcommandOutcome {
         if Control.postAndWait(message) {
             return .ok("chord: \(label)")
         }
@@ -279,8 +301,9 @@ enum ChordApp {
     private static func cmdToggle() -> SubcommandOutcome {
         let status = Control.readStatus() ?? ""
         let isPaused = status.contains("\tpaused ")
-        return cmdControl(isPaused ? Control.resume : Control.pause,
-                          label: isPaused ? "resumed" : "paused")
+        return cmdControl(
+            isPaused ? Control.resume : Control.pause,
+            label: isPaused ? "resumed" : "paused")
     }
 
     /// `daemon --show` (was `--status`) writes the verbatim last status
@@ -301,8 +324,10 @@ enum ChordApp {
     /// status file) and `config --show --json` (the parsed-config
     /// OUTPUT) — this is daemon runtime state.
     @MainActor
-    private static func runQuery(_ verb: String,
-                                 _ inv: CLIKit.Invocation) -> SubcommandOutcome {
+    private static func runQuery(
+        _ verb: String,
+        _ inv: CLIKit.Invocation
+    ) -> SubcommandOutcome {
         guard let endpoint = QuerySchema.Endpoint(rawValue: String(verb.dropFirst(2)))
         else { return .fail(2, stderr: "chord: unreachable query verb \(verb)") }
 
@@ -311,14 +336,17 @@ enum ChordApp {
         var limit: Int? = nil
         if let raw = inv.value("--limit") {
             guard let n = Int(raw), n > 0 else {
-                return .fail(2, stderr:
-                    "chord: --limit needs a positive integer, got '\(raw)'. See --help.")
+                return .fail(
+                    2,
+                    stderr:
+                        "chord: --limit needs a positive integer, got '\(raw)'. See --help.")
             }
             limit = n
         }
 
-        guard let reply = Control.query(
-            QuerySchema.Request(endpoint: endpoint, limit: limit))
+        guard
+            let reply = Control.query(
+                QuerySchema.Request(endpoint: endpoint, limit: limit))
         else { return .fail(3, stderr: "chord: no daemon running") }
         // The daemon's reply already ends with a newline.
         return SubcommandOutcome(exitCode: 0, stdout: reply)
@@ -344,9 +372,9 @@ enum ChordApp {
             Log.line("startup: accessibility not granted — prompting")
             _ = Permissions.promptForAccessibility()
             fputs(
-                "chord: needs Accessibility access. Grant chord in " +
-                "System Settings → Privacy & Security → Accessibility, " +
-                "then relaunch.\n", stderr)
+                "chord: needs Accessibility access. Grant chord in "
+                    + "System Settings → Privacy & Security → Accessibility, " + "then relaunch.\n",
+                stderr)
             exit(1)
         }
 
@@ -397,15 +425,16 @@ enum ChordApp {
             let undef = res.warnings.lazy
                 .filter { $0.kind == .undefinedActionAlias }
                 .count
-            print("parsed: \(res.config.bindings.count) bindings, " +
-                  "\(res.config.fallbacks.count) fallbacks, " +
-                  "\(res.config.actionAliases.count) action-aliases; " +
-                  "dropped: \(res.droppedBindings), " +
-                  "undefined-action-aliases: \(undef), " +
-                  "warnings: \(res.warnings.count)")
+            print(
+                "parsed: \(res.config.bindings.count) bindings, "
+                    + "\(res.config.fallbacks.count) fallbacks, "
+                    + "\(res.config.actionAliases.count) action-aliases; "
+                    + "dropped: \(res.droppedBindings), " + "undefined-action-aliases: \(undef), "
+                    + "warnings: \(res.warnings.count)")
             if strict && (res.warnings.count > 0 || res.droppedBindings > 0) {
-                fputs("chord: --strict: \(res.warnings.count) warnings, " +
-                      "\(res.droppedBindings) dropped — failing.\n", stderr)
+                fputs(
+                    "chord: --strict: \(res.warnings.count) warnings, "
+                        + "\(res.droppedBindings) dropped — failing.\n", stderr)
                 return 1
             }
             return res.droppedBindings == 0 ? 0 : (strict ? 1 : 0)
@@ -415,12 +444,14 @@ enum ChordApp {
                 // don't choke on empty stdout. Use a minimal
                 // error envelope; the full schema-validation path
                 // doesn't fit (we don't have a parse result).
-                let err = ["schema": BindingsSchema.version,
-                           "error": "\(error)"]
+                let err = [
+                    "schema": BindingsSchema.version,
+                    "error": "\(error)"
+                ]
                 if let data = try? JSONSerialization.data(
                     withJSONObject: err,
                     options: [.sortedKeys, .prettyPrinted]),
-                   let s = String(data: data, encoding: .utf8)
+                    let s = String(data: data, encoding: .utf8)
                 {
                     print(s)
                 }
@@ -464,8 +495,10 @@ enum ChordApp {
 
     /// Plain-text rendering of the parse result. Same information
     /// as `config --show --json`, formatted for a human terminal.
-    private static func printListText(_ res: Config.ParseResult,
-                                      includeDropped: Bool) {
+    private static func printListText(
+        _ res: Config.ParseResult,
+        includeDropped: Bool
+    ) {
         if let p = res.sourcePath { print("source: \(p)") }
         print("options:")
         print("  passthrough_unmatched: \(res.config.options.passthroughUnmatched)")
@@ -489,8 +522,10 @@ enum ChordApp {
         }
     }
 
-    private static func printBindingSection(_ label: String,
-                                            rows: [Binding]) {
+    private static func printBindingSection(
+        _ label: String,
+        rows: [Binding]
+    ) {
         print("\(label) (\(rows.count)):")
         for b in rows {
             let lineTag = b.sourceLine.map { ":L\($0)" } ?? ""
@@ -521,20 +556,35 @@ enum ChordApp {
     /// Human-readable form of a chained `.keys` action for `config --show`
     /// text. Collapses L/R sides to the logical modifier — the plain
     /// output is for humans; the JSON wire form carries the exact bits.
-    private static func describeKeys(_ mods: Modifiers,
-                                     _ code: UInt16) -> String {
+    private static func describeKeys(
+        _ mods: Modifiers,
+        _ code: UInt16
+    ) -> String {
         var parts: [String] = []
         if mods.contains(.cmd) || mods.contains(.lcmd)
-            || mods.contains(.rcmd) { parts.append("cmd") }
+            || mods.contains(.rcmd)
+        {
+            parts.append("cmd")
+        }
         if mods.contains(.opt) || mods.contains(.lopt)
-            || mods.contains(.ropt) { parts.append("opt") }
+            || mods.contains(.ropt)
+        {
+            parts.append("opt")
+        }
         if mods.contains(.ctrl) || mods.contains(.lctrl)
-            || mods.contains(.rctrl) { parts.append("ctrl") }
+            || mods.contains(.rctrl)
+        {
+            parts.append("ctrl")
+        }
         if mods.contains(.shift) || mods.contains(.lshift)
-            || mods.contains(.rshift) { parts.append("shift") }
+            || mods.contains(.rshift)
+        {
+            parts.append("shift")
+        }
         if mods.contains(.fn) { parts.append("fn") }
         let key = KeyCodes.name(forCode: code)
-        return parts.isEmpty ? key
+        return parts.isEmpty
+            ? key
             : parts.joined(separator: " + ") + " - " + key
     }
 
@@ -558,8 +608,9 @@ enum ChordApp {
             fputs("chord: --watch: cannot create \(path)\n", stderr)
             return 1
         }
-        fputs("chord: --watch — tailing \(path) (Ctrl-C to exit; " +
-              "rm the file to silence the daemon)\n", stderr)
+        fputs(
+            "chord: --watch — tailing \(path) (Ctrl-C to exit; "
+                + "rm the file to silence the daemon)\n", stderr)
         let tail = Process()
         tail.executableURL = URL(fileURLWithPath: "/usr/bin/tail")
         // `-F` follows by name (handles truncate / rotate), `-n0`
@@ -589,18 +640,17 @@ enum ChordApp {
         // Accessibility alone. Don't flip `bad` (would break installs
         // that never use v-key bindings).
         let im = Permissions.isInputMonitoringTrusted()
-        print("input monitoring: " +
-              (im ? "ok" : "not granted (only needed for v-key bindings)"))
+        print("input monitoring: " + (im ? "ok" : "not granted (only needed for v-key bindings)"))
 
         let cfgPath = ChordConfig.path
         let cfgPresent = FileManager.default.fileExists(atPath: cfgPath)
-        print("config: \(cfgPath) — " +
-              (cfgPresent ? "present" : "MISSING"))
+        print("config: \(cfgPath) — " + (cfgPresent ? "present" : "MISSING"))
         if let res = try? Config.load() {
-            print("bindings: \(res.config.bindings.count) loaded, " +
-                  "\(res.config.fallbacks.count) fallbacks, " +
-                  "\(res.config.actionAliases.count) action-aliases, " +
-                  "\(res.droppedBindings) dropped")
+            print(
+                "bindings: \(res.config.bindings.count) loaded, "
+                    + "\(res.config.fallbacks.count) fallbacks, "
+                    + "\(res.config.actionAliases.count) action-aliases, "
+                    + "\(res.droppedBindings) dropped")
             // The shipped template is all-commented by design — a
             // brand-new install would otherwise look broken when
             // --doctor reports `bindings: 0 loaded`. Surface the
@@ -609,9 +659,10 @@ enum ChordApp {
                 && res.config.fallbacks.count == 0
                 && res.droppedBindings == 0
             {
-                print("note: config has no active bindings — the " +
-                      "shipped template is all-commented. Uncomment " +
-                      "patterns in \(cfgPath) and run `chord daemon --reload`.")
+                print(
+                    "note: config has no active bindings — the "
+                        + "shipped template is all-commented. Uncomment "
+                        + "patterns in \(cfgPath) and run `chord daemon --reload`.")
             }
             if res.droppedBindings > 0 { bad = true }
         }

@@ -10,14 +10,14 @@ import Testing
     /// `.vkey(id)` trigger with no modifiers.
     @Test func vKeyAliasResolvesToTrigger() throws {
         let source = """
-        [v-key-aliases]
-        TU_LL_C = 0x26
+            [v-key-aliases]
+            TU_LL_C = 0x26
 
-        [[bindings]]
-        name = "paste"
-        input = "TU_LL_C"
-        action-keys = "cmd - v"
-        """
+            [[bindings]]
+            name = "paste"
+            input = "TU_LL_C"
+            action-keys = "cmd - v"
+            """
         let r = try Config.parse(source)
         #expect(r.droppedBindings == 0)
         #expect(r.config.bindings.count == 1)
@@ -30,47 +30,53 @@ import Testing
     /// flat `[[vkey]]` design could NOT express).
     @Test func vKeyAppRouting() throws {
         let source = """
-        [v-key-aliases]
-        TU_LL_C = 38
+            [v-key-aliases]
+            TU_LL_C = 38
 
-        [[bindings]]
-        name = "chrome"
-        input = "TU_LL_C"
-        apps = ["com.google.Chrome"]
-        action-keys = "ctrl + shift - tab"
+            [[bindings]]
+            name = "chrome"
+            input = "TU_LL_C"
+            apps = ["com.google.Chrome"]
+            action-keys = "ctrl + shift - tab"
 
-        [[bindings]]
-        name = "vscode"
-        input = "TU_LL_C"
-        apps = ["com.microsoft.VSCode"]
-        action-keys = "cmd + shift - ["
-        """
+            [[bindings]]
+            name = "vscode"
+            input = "TU_LL_C"
+            apps = ["com.microsoft.VSCode"]
+            action-keys = "cmd + shift - ["
+            """
         let r = try Config.parse(source)
         #expect(r.droppedBindings == 0)
         #expect(r.config.bindings.count == 2)
         let m = Matcher(bindings: r.config.bindings)
         #expect(
-            m.find(.init(trigger: .vkey(38), modifiers: [],
-                         bundleID: "com.google.Chrome"))?.name == "chrome")
+            m.find(
+                .init(
+                    trigger: .vkey(38), modifiers: [],
+                    bundleID: "com.google.Chrome"))?.name == "chrome")
         #expect(
-            m.find(.init(trigger: .vkey(38), modifiers: [],
-                         bundleID: "com.microsoft.VSCode"))?.name == "vscode")
+            m.find(
+                .init(
+                    trigger: .vkey(38), modifiers: [],
+                    bundleID: "com.microsoft.VSCode"))?.name == "vscode")
         // An app neither binding scopes to → no match (would beep via the
         // any-vkey fallback if one were declared).
         #expect(
-            m.find(.init(trigger: .vkey(38), modifiers: [],
-                         bundleID: "com.apple.Terminal")) == nil)
+            m.find(
+                .init(
+                    trigger: .vkey(38), modifiers: [],
+                    bundleID: "com.apple.Terminal")) == nil)
     }
 
     /// The bare `v-key` literal is the any-vkey wildcard — `[[fallbacks]]`
     /// only; the single-sound "undefined vkey" feedback bucket.
     @Test func anyVKeyWildcardFallback() throws {
         let source = """
-        [[fallbacks]]
-        name = "undefined vkey beep"
-        input = "v-key"
-        action-shell = "afplay /x.aiff"
-        """
+            [[fallbacks]]
+            name = "undefined vkey beep"
+            input = "v-key"
+            action-shell = "afplay /x.aiff"
+            """
         let r = try Config.parse(source)
         #expect(r.droppedBindings == 0)
         #expect(r.config.fallbacks.count == 1)
@@ -78,7 +84,8 @@ import Testing
         let m = Matcher(bindings: [], fallbacks: r.config.fallbacks)
         // Matches any vkey the bindings missed…
         #expect(
-            m.find(.init(trigger: .vkey(99), modifiers: [], bundleID: nil))?.name == "undefined vkey beep")
+            m.find(.init(trigger: .vkey(99), modifiers: [], bundleID: nil))?.name
+                == "undefined vkey beep")
         // …but not a keyboard key (that is `*` / .anyKey territory).
         #expect(m.find(.init(trigger: .key(0), modifiers: [], bundleID: nil)) == nil)
     }
@@ -86,11 +93,12 @@ import Testing
     /// `v-key` in a regular `[[bindings]]` is rejected (wildcard is
     /// fallback-only, same contract as `*`).
     @Test func anyVKeyRejectedInBindings() throws {
-        let r = try Config.parse("""
-        [[bindings]]
-        input = "v-key"
-        action-noop = true
-        """)
+        let r = try Config.parse(
+            """
+            [[bindings]]
+            input = "v-key"
+            action-noop = true
+            """)
         #expect(r.config.bindings.count == 0)
         #expect(r.droppedBindings >= 1)
     }
@@ -98,14 +106,15 @@ import Testing
     /// Out-of-range alias id is ignored; a binding that references it then
     /// fails to resolve and drops.
     @Test func aliasOutOfRangeIgnored() throws {
-        let r = try Config.parse("""
-        [v-key-aliases]
-        BAD = 999
+        let r = try Config.parse(
+            """
+            [v-key-aliases]
+            BAD = 999
 
-        [[bindings]]
-        input = "BAD"
-        action-noop = true
-        """)
+            [[bindings]]
+            input = "BAD"
+            action-noop = true
+            """)
         #expect(r.config.bindings.count == 0)
         #expect(r.droppedBindings >= 1)
     }
@@ -114,14 +123,15 @@ import Testing
     /// then resolves to the literal key `a`, never the alias (ambiguity
     /// guard keeps bare-name resolution sound).
     @Test func aliasShadowingKeycodeIgnored() throws {
-        let r = try Config.parse("""
-        [v-key-aliases]
-        a = 5
+        let r = try Config.parse(
+            """
+            [v-key-aliases]
+            a = 5
 
-        [[bindings]]
-        input = "a"
-        action-noop = true
-        """)
+            [[bindings]]
+            input = "a"
+            action-noop = true
+            """)
         #expect(r.config.bindings.count == 1)
         #expect(r.config.bindings[0].trigger == .key(KeyCodes.code(forName: "a")!))
     }
@@ -131,19 +141,20 @@ import Testing
     /// would be rejected as keycode-shadowing, see
     /// `aliasShadowingKeycodeIgnored`.)
     @Test func hexAndDecimalIds() throws {
-        let r = try Config.parse("""
-        [v-key-aliases]
-        VKHEX = 0x1A
-        VKDEC = 26
+        let r = try Config.parse(
+            """
+            [v-key-aliases]
+            VKHEX = 0x1A
+            VKDEC = 26
 
-        [[bindings]]
-        input = "VKHEX"
-        action-noop = true
+            [[bindings]]
+            input = "VKHEX"
+            action-noop = true
 
-        [[bindings]]
-        input = "VKDEC"
-        action-noop = true
-        """)
+            [[bindings]]
+            input = "VKDEC"
+            action-noop = true
+            """)
         #expect(r.config.bindings.count == 2)
         #expect(r.config.bindings[0].trigger == .vkey(0x1A))
         #expect(r.config.bindings[1].trigger == .vkey(26))

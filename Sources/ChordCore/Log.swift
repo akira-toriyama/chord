@@ -49,8 +49,10 @@ public enum Log {
     /// temp file so its assertions don't race other suites that drive the
     /// real Controller (which calls this with the default path) under Swift
     /// Testing's parallel-by-default execution.
-    public static func watch(_ message: @autoclosure () -> String,
-                             to path: String = watchPath) {
+    public static func watch(
+        _ message: @autoclosure () -> String,
+        to path: String = watchPath
+    ) {
         guard FileManager.default.fileExists(atPath: path) else {
             return
         }
@@ -59,7 +61,7 @@ public enum Log {
         lock.lock()
         defer { lock.unlock() }
         guard let data = line.data(using: .utf8),
-              let h = FileHandle(forWritingAtPath: path)
+            let h = FileHandle(forWritingAtPath: path)
         else { return }
         defer { try? h.close() }
         _ = try? h.seekToEnd()

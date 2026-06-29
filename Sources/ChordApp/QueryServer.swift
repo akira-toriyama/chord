@@ -25,7 +25,7 @@ extension Controller {
     /// from `start()` on the main actor.
     func installQueryServer() {
         let path = QuerySchema.socketPath
-        unlink(path)   // clear a stale socket left by a crashed prior daemon
+        unlink(path)  // clear a stale socket left by a crashed prior daemon
         guard let fd = queryBindListen(path: path) else {
             Log.line("query: socket unavailable at \(path) — query API disabled")
             return
@@ -42,7 +42,7 @@ extension Controller {
             // The read source coalesces; drain every pending connection.
             while true {
                 let client = accept(fd, nil, nil)
-                if client < 0 { break }   // EWOULDBLOCK / EAGAIN → drained
+                if client < 0 { break }  // EWOULDBLOCK / EAGAIN → drained
                 guard let me = weakSelf.value else { close(client); continue }
                 me.handleQueryConnection(client)
             }
@@ -111,10 +111,12 @@ extension Controller {
         let fl = fcntl(fd, F_GETFL, 0)
         _ = fcntl(fd, F_SETFL, fl & ~O_NONBLOCK)
         var tv = timeval(tv_sec: 1, tv_usec: 0)
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv,
-                   socklen_t(MemoryLayout<timeval>.size))
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv,
-                   socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(
+            fd, SOL_SOCKET, SO_RCVTIMEO, &tv,
+            socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(
+            fd, SOL_SOCKET, SO_SNDTIMEO, &tv,
+            socklen_t(MemoryLayout<timeval>.size))
 
         guard let line = queryReadLine(fd) else { return }
         let body: Data
@@ -135,32 +137,37 @@ extension Controller {
         let meta = readMeta()
         switch req.endpoint {
         case .status:
-            let uptime = meta.startedAt
+            let uptime =
+                meta.startedAt
                 .map { Swift.max(0, Int(now.timeIntervalSince($0))) } ?? 0
-            return QuerySchema.encode(QuerySchema.StatusResponse(
-                queriedAt: iso,
-                paused: isPaused(),
-                // Cheap (in-process cached TCC) and intentionally live —
-                // the grant can change at runtime, so we don't snapshot it.
-                axGranted: Permissions.isAccessibilityTrusted(),
-                version: ChordVersion.current,
-                uptimeS: uptime,
-                configLoadedAt: meta.configLoadedAt.map(QuerySchema.iso),
-                inputMonitoringGranted: Permissions.isInputMonitoringTrusted()))
+            return QuerySchema.encode(
+                QuerySchema.StatusResponse(
+                    queriedAt: iso,
+                    paused: isPaused(),
+                    // Cheap (in-process cached TCC) and intentionally live —
+                    // the grant can change at runtime, so we don't snapshot it.
+                    axGranted: Permissions.isAccessibilityTrusted(),
+                    version: ChordVersion.current,
+                    uptimeS: uptime,
+                    configLoadedAt: meta.configLoadedAt.map(QuerySchema.iso),
+                    inputMonitoringGranted: Permissions.isInputMonitoringTrusted()))
         case .vars:
-            return QuerySchema.encode(QuerySchema.VarsResponse(
-                queriedAt: iso, vars: variableStore.snapshot().variables))
+            return QuerySchema.encode(
+                QuerySchema.VarsResponse(
+                    queriedAt: iso, vars: variableStore.snapshot().variables))
         case .loadedBindings:
             let m = matcherSnapshot()
-            return QuerySchema.encode(QuerySchema.LoadedBindingsResponse(
-                queriedAt: iso,
-                bindings: m.bindings.count,
-                fallbacks: m.fallbacks.count,
-                actionAliases: meta.actionAliasCount,
-                inputAliases: meta.inputAliasCount))
+            return QuerySchema.encode(
+                QuerySchema.LoadedBindingsResponse(
+                    queriedAt: iso,
+                    bindings: m.bindings.count,
+                    fallbacks: m.fallbacks.count,
+                    actionAliases: meta.actionAliasCount,
+                    inputAliases: meta.inputAliasCount))
         case .recentFires:
-            return QuerySchema.encode(QuerySchema.RecentFiresResponse(
-                queriedAt: iso, fires: firesSnapshot(limit: req.limit)))
+            return QuerySchema.encode(
+                QuerySchema.RecentFiresResponse(
+                    queriedAt: iso, fires: firesSnapshot(limit: req.limit)))
         }
     }
 
@@ -169,8 +176,9 @@ extension Controller {
     nonisolated private func firesSnapshot(limit: Int?) -> [QuerySchema.FireRecord] {
         firesLock.lock(); defer { firesLock.unlock() }
         var records = recentFires.elements().reversed().map { entry in
-            QuerySchema.FireRecord(ts: QuerySchema.iso(entry.at), name: entry.name,
-                                   app: entry.app, action: entry.action)
+            QuerySchema.FireRecord(
+                ts: QuerySchema.iso(entry.at), name: entry.name,
+                app: entry.app, action: entry.action)
         }
         if let limit { records = Array(records.prefix(limit)) }
         return records
@@ -197,7 +205,7 @@ private func queryBindListen(path: String) -> Int32? {
         $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, len) }
     }
     guard bound == 0 else { close(fd); return nil }
-    chmod(path, 0o600)   // owner-only; the data is non-sensitive but be tidy
+    chmod(path, 0o600)  // owner-only; the data is non-sensitive but be tidy
     guard listen(fd, 8) == 0 else { close(fd); unlink(path); return nil }
     let flags = fcntl(fd, F_GETFL, 0)
     _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
@@ -218,8 +226,8 @@ private func queryReadLine(_ fd: Int32) -> String? {
     var ch: UInt8 = 0
     while bytes.count < 256 {
         let n = read(fd, &ch, 1)
-        if n < 0 && errno == EINTR { continue }   // interrupted — retry
-        if n <= 0 { break }                       // EOF / recv timeout / error
+        if n < 0 && errno == EINTR { continue }  // interrupted — retry
+        if n <= 0 { break }  // EOF / recv timeout / error
         if ch == UInt8(ascii: "\n") { break }
         bytes.append(ch)
     }
@@ -235,8 +243,8 @@ private func queryWriteAll(_ fd: Int32, _ data: Data) {
         while remaining > 0 {
             let n = write(fd, p, remaining)
             if n > 0 { p = p.advanced(by: n); remaining -= n; continue }
-            if n < 0 && errno == EINTR { continue }   // interrupted — retry
-            break                                      // peer gone / timeout
+            if n < 0 && errno == EINTR { continue }  // interrupted — retry
+            break  // peer gone / timeout
         }
     }
 }

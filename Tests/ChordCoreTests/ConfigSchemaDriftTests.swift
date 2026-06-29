@@ -12,9 +12,9 @@ import Testing
 @Suite struct ConfigSchemaDriftTests {
     private func repoRoot() -> URL {
         URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Tests/ChordCoreTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // <repo root>
+            .deletingLastPathComponent()  // Tests/ChordCoreTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // <repo root>
     }
 
     @Test func committedSchemaMatchesEmitted() throws {
@@ -22,7 +22,8 @@ import Testing
         let committed = try String(contentsOf: url, encoding: .utf8)
         #expect(
             committed == ChordConfigSchema.jsonSchema,
-            "config.schema.json is stale — run `chord config --emit-schema > config.schema.json` and commit.")
+            "config.schema.json is stale — run `chord config --emit-schema > config.schema.json` and commit."
+        )
     }
 
     /// The emitted schema is always well-formed JSON (drift guard compares

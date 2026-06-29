@@ -21,8 +21,7 @@ public enum ActionDispatcher {
         case .noop:
             Log.debug("dispatch.noop: \(name)")
         case .keys(let mods, let code):
-            Log.debug("dispatch.keys: \(name) → " +
-                      "mods=\(mods.rawValue) code=\(code)")
+            Log.debug("dispatch.keys: \(name) → " + "mods=\(mods.rawValue) code=\(code)")
             postKeys(modifiers: mods, code: code)
         case .shell(let cmd):
             Log.debug("dispatch.shell: \(name) → \(cmd)")
@@ -68,8 +67,7 @@ public enum ActionDispatcher {
     ) {
         let interval = Double(delayMs) / 1000.0
         macroQueue.async {
-            Log.debug("dispatch.keys-seq: \(name) → \(keys.count) keys, " +
-                      "delay=\(delayMs)ms")
+            Log.debug("dispatch.keys-seq: \(name) → \(keys.count) keys, " + "delay=\(delayMs)ms")
             for (i, key) in keys.enumerated() {
                 if i > 0 { Thread.sleep(forTimeInterval: interval) }
                 postKeys(modifiers: key.0, code: key.1)
@@ -86,18 +84,24 @@ public enum ActionDispatcher {
         // when the 4 lands). Apple's docs recommend "set flags on
         // the keyDown event" — that works for cmd+key but not for
         // cmd+shift+key, so we explicitly raise flag-changes too.
-        if let down = CGEvent(keyboardEventSource: src,
-                              virtualKey: code, keyDown: true) {
+        if let down = CGEvent(
+            keyboardEventSource: src,
+            virtualKey: code, keyDown: true)
+        {
             down.flags = flags
-            down.setIntegerValueField(.eventSourceUserData,
-                                      value: EventTap.syntheticUserData)
+            down.setIntegerValueField(
+                .eventSourceUserData,
+                value: EventTap.syntheticUserData)
             down.post(tap: .cghidEventTap)
         }
-        if let up = CGEvent(keyboardEventSource: src,
-                            virtualKey: code, keyDown: false) {
+        if let up = CGEvent(
+            keyboardEventSource: src,
+            virtualKey: code, keyDown: false)
+        {
             up.flags = flags
-            up.setIntegerValueField(.eventSourceUserData,
-                                    value: EventTap.syntheticUserData)
+            up.setIntegerValueField(
+                .eventSourceUserData,
+                value: EventTap.syntheticUserData)
             up.post(tap: .cghidEventTap)
         }
     }
@@ -108,9 +112,9 @@ public enum ActionDispatcher {
         // Set when EITHER the any-side bit OR one of the side-
         // specific bits is requested.
         for cat in SideMaskTable.categories
-            where m.contains(cat.any)
-               || m.contains(cat.left)
-               || m.contains(cat.right)
+        where m.contains(cat.any)
+            || m.contains(cat.left)
+            || m.contains(cat.right)
         {
             raw |= cat.mask.rawValue
         }

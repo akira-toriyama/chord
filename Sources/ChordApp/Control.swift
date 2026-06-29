@@ -20,8 +20,8 @@ import Foundation
 public enum Control {
     public static let center = "com.chord.app.control"
     public static let reload = "chord.reload"
-    public static let quit   = "chord.quit"
-    public static let pause  = "chord.pause"
+    public static let quit = "chord.quit"
+    public static let pause = "chord.pause"
     public static let resume = "chord.resume"
 
     public static let statusPath = "/tmp/chord.status"
@@ -62,27 +62,32 @@ public enum Control {
     /// socket after a crash) both mean "not running" → the caller maps
     /// it to exit 3. A short socket timeout caps a wedged daemon, same
     /// don't-block-forever discipline as [postAndWait].
-    public static func query(_ request: QuerySchema.Request,
-                             timeout: TimeInterval = 2.0) -> String? {
+    public static func query(
+        _ request: QuerySchema.Request,
+        timeout: TimeInterval = 2.0
+    ) -> String? {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return nil }
         defer { close(fd) }
 
         guard let (addr, len) = makeUnixSocketAddr(path: QuerySchema.socketPath)
-        else { return nil }   // fd closed by the `defer` above
+        else { return nil }  // fd closed by the `defer` above
         let connected = withUnsafePointer(to: addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, len) }
         }
-        guard connected == 0 else { return nil }   // ENOENT / ECONNREFUSED → no daemon
+        guard connected == 0 else { return nil }  // ENOENT / ECONNREFUSED → no daemon
 
         var tv = timeval(tv_sec: Int(timeout), tv_usec: 0)
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv,
-                   socklen_t(MemoryLayout<timeval>.size))
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv,
-                   socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(
+            fd, SOL_SOCKET, SO_RCVTIMEO, &tv,
+            socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(
+            fd, SOL_SOCKET, SO_SNDTIMEO, &tv,
+            socklen_t(MemoryLayout<timeval>.size))
         var noSig: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSig,
-                   socklen_t(MemoryLayout<Int32>.size))
+        setsockopt(
+            fd, SOL_SOCKET, SO_NOSIGPIPE, &noSig,
+            socklen_t(MemoryLayout<Int32>.size))
 
         // Send the request line.
         let reqBytes = Array(request.line.utf8)
@@ -92,8 +97,8 @@ public enum Control {
             while off < reqBytes.count {
                 let n = write(fd, base + off, reqBytes.count - off)
                 if n > 0 { off += n; continue }
-                if n < 0 && errno == EINTR { continue }   // interrupted — retry
-                break                                      // timeout / peer gone
+                if n < 0 && errno == EINTR { continue }  // interrupted — retry
+                break  // timeout / peer gone
             }
         }
 
@@ -103,16 +108,18 @@ public enum Control {
         while true {
             let n = chunk.withUnsafeMutableBytes { read(fd, $0.baseAddress, $0.count) }
             if n > 0 { out.append(contentsOf: chunk[0..<n]); continue }
-            if n < 0 && errno == EINTR { continue }   // interrupted — retry
-            break                                      // EOF / timeout / error
+            if n < 0 && errno == EINTR { continue }  // interrupted — retry
+            break  // EOF / timeout / error
         }
         guard !out.isEmpty else { return nil }
         return String(decoding: out, as: UTF8.self)
     }
 
     private static func mtime(_ path: String) -> TimeInterval {
-        guard let attrs = try? FileManager.default
-            .attributesOfItem(atPath: path) else { return 0 }
+        guard
+            let attrs = try? FileManager.default
+                .attributesOfItem(atPath: path)
+        else { return 0 }
         return (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
     }
 }

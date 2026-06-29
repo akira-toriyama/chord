@@ -16,7 +16,7 @@ func makeUnixSocketAddr(path: String) -> (addr: sockaddr_un, len: socklen_t)? {
     var addr = sockaddr_un()
     addr.sun_family = sa_family_t(AF_UNIX)
     let cap = MemoryLayout.size(ofValue: addr.sun_path)
-    let pathBytes = path.utf8CString   // includes the trailing NUL
+    let pathBytes = path.utf8CString  // includes the trailing NUL
     guard pathBytes.count <= cap else { return nil }
     withUnsafeMutablePointer(to: &addr.sun_path) { tuplePtr in
         tuplePtr.withMemoryRebound(to: CChar.self, capacity: cap) { dst in

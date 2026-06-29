@@ -7,28 +7,33 @@ import ChordAdapterTest
     @MainActor
     @Test func handlerConsumesMatchedAndPassesUnmatched() throws {
         let cfg = """
-        [[bindings]]
-        name = "screenshot"
-        input = "mouse.side1"
-        action-shell = "true"
-        """
+            [[bindings]]
+            name = "screenshot"
+            input = "mouse.side1"
+            action-shell = "true"
+            """
         let result = try Config.parse(cfg)
         let matcher = Matcher(bindings: result.config.bindings)
 
         let src = TestEventSource()
         try src.start { event in
-            let me = Matcher.Event(trigger: event.trigger,
-                                   modifiers: event.modifiers,
-                                   bundleID: event.frontmostBundleID)
+            let me = Matcher.Event(
+                trigger: event.trigger,
+                modifiers: event.modifiers,
+                bundleID: event.frontmostBundleID)
             return matcher.find(me) == nil ? .passthrough : .consume
         }
 
-        let matched = src.feed(.init(trigger: .mouseButton(.side1),
-                                     modifiers: [],
-                                     frontmostBundleID: nil))
-        let unmatched = src.feed(.init(trigger: .key(0x00),
-                                       modifiers: [],
-                                       frontmostBundleID: nil))
+        let matched = src.feed(
+            .init(
+                trigger: .mouseButton(.side1),
+                modifiers: [],
+                frontmostBundleID: nil))
+        let unmatched = src.feed(
+            .init(
+                trigger: .key(0x00),
+                modifiers: [],
+                frontmostBundleID: nil))
         #expect(matched == .consume)
         #expect(unmatched == .passthrough)
     }
@@ -42,19 +47,19 @@ import ChordAdapterTest
     @MainActor
     @Test func sequenceLeaderFlowThroughEventSource() throws {
         let cfg = """
-        [[sequence]]
-        name = "j"
-        prefix = "cmd + opt - j"
-        timeout-ms = 500
+            [[sequence]]
+            name = "j"
+            prefix = "cmd + opt - j"
+            timeout-ms = 500
 
-          [[sequence.bindings]]
-          input = "k"
-          action-keys = "return"
+              [[sequence.bindings]]
+              input = "k"
+              action-keys = "return"
 
-          [[sequence.bindings]]
-          input = "l"
-          action-keys = "backspace"
-        """
+              [[sequence.bindings]]
+              input = "l"
+              action-keys = "backspace"
+            """
         let result = try Config.parse(cfg)
         #expect(result.droppedBindings == 0)
         let matcher = Matcher(bindings: result.config.bindings)
@@ -69,49 +74,62 @@ import ChordAdapterTest
 
         let src = TestEventSource()
         try src.start { event in
-            let me = Matcher.Event(trigger: event.trigger,
-                                   modifiers: event.modifiers,
-                                   bundleID: event.frontmostBundleID,
-                                   state: state.snapshot)
+            let me = Matcher.Event(
+                trigger: event.trigger,
+                modifiers: event.modifiers,
+                bundleID: event.frontmostBundleID,
+                state: state.snapshot)
             guard let hit = matcher.find(me) else { return .passthrough }
             state.apply(hit.action)
             return .consume
         }
 
         // 1. Child key alone (no prefix yet): not in mode → passthrough.
-        let kBefore = src.feed(.init(trigger: .key(0x28),       // k
-                                     modifiers: [.lcmd, .lopt],
-                                     frontmostBundleID: nil))
-        #expect(kBefore == .passthrough,
-                "child must not fire before prefix sets _seq_j")
+        let kBefore = src.feed(
+            .init(
+                trigger: .key(0x28),  // k
+                modifiers: [.lcmd, .lopt],
+                frontmostBundleID: nil))
+        #expect(
+            kBefore == .passthrough,
+            "child must not fire before prefix sets _seq_j")
         #expect(state.snapshot.value("_seq_j") == 0)
 
         // 2. Prefix: enters mode, consumes, sets _seq_j = 1.
-        let prefix = src.feed(.init(trigger: .key(0x26),        // j
-                                    modifiers: [.lcmd, .lopt],
-                                    frontmostBundleID: nil))
+        let prefix = src.feed(
+            .init(
+                trigger: .key(0x26),  // j
+                modifiers: [.lcmd, .lopt],
+                frontmostBundleID: nil))
         #expect(prefix == .consume)
         #expect(state.snapshot.value("_seq_j") == 1)
 
         // 3. Child within mode: consumes (would emit return).
-        let kAfter = src.feed(.init(trigger: .key(0x28),
-                                    modifiers: [.lcmd, .lopt],
-                                    frontmostBundleID: nil))
+        let kAfter = src.feed(
+            .init(
+                trigger: .key(0x28),
+                modifiers: [.lcmd, .lopt],
+                frontmostBundleID: nil))
         #expect(kAfter == .consume)
 
         // 4. Second child also fires.
-        let lInMode = src.feed(.init(trigger: .key(0x25),       // l
-                                     modifiers: [.lcmd, .lopt],
-                                     frontmostBundleID: nil))
+        let lInMode = src.feed(
+            .init(
+                trigger: .key(0x25),  // l
+                modifiers: [.lcmd, .lopt],
+                frontmostBundleID: nil))
         #expect(lInMode == .consume)
 
         // 5. Simulate Controller's timeout clear: wipe state.
         state.reset()
-        let kAfterTimeout = src.feed(.init(trigger: .key(0x28),
-                                           modifiers: [.lcmd, .lopt],
-                                           frontmostBundleID: nil))
-        #expect(kAfterTimeout == .passthrough,
-                "child should stop firing after timeout-clear")
+        let kAfterTimeout = src.feed(
+            .init(
+                trigger: .key(0x28),
+                modifiers: [.lcmd, .lopt],
+                frontmostBundleID: nil))
+        #expect(
+            kAfterTimeout == .passthrough,
+            "child should stop firing after timeout-clear")
     }
 }
 

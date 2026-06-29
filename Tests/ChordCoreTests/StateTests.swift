@@ -12,43 +12,54 @@ import Testing
     // MARK: - Matcher condition gate
 
     @Test func conditionGateBlocksWhenVariableUnset() {
-        let bind = Binding(name: "wm-k", trigger: .key(0x28),
-                           modifiers: [.cmd, .opt], apps: nil,
-                           action: .noop,
-                           condition: .variable(name: "wm", equals: 1))
+        let bind = Binding(
+            name: "wm-k", trigger: .key(0x28),
+            modifiers: [.cmd, .opt], apps: nil,
+            action: .noop,
+            condition: .variable(name: "wm", equals: 1))
         let m = Matcher(bindings: [bind])
         // Variable unset → reads as 0 → predicate fails.
-        let hit = m.find(.init(trigger: .key(0x28),
-                               modifiers: [.lcmd, .lopt],
-                               bundleID: nil,
-                               state: StateSnapshot()))
+        let hit = m.find(
+            .init(
+                trigger: .key(0x28),
+                modifiers: [.lcmd, .lopt],
+                bundleID: nil,
+                state: StateSnapshot()))
         #expect(hit == nil, "binding should not fire when wm == 0 (unset)")
     }
 
     @Test func conditionGateFiresWhenVariableMatches() {
-        let bind = Binding(name: "wm-k", trigger: .key(0x28),
-                           modifiers: [.cmd, .opt], apps: nil,
-                           action: .noop,
-                           condition: .variable(name: "wm", equals: 1))
+        let bind = Binding(
+            name: "wm-k", trigger: .key(0x28),
+            modifiers: [.cmd, .opt], apps: nil,
+            action: .noop,
+            condition: .variable(name: "wm", equals: 1))
         let m = Matcher(bindings: [bind])
-        let hit = m.find(.init(trigger: .key(0x28),
-                               modifiers: [.lcmd, .lopt],
-                               bundleID: nil,
-                               state: StateSnapshot(variables: ["wm": 1])))
+        let hit = m.find(
+            .init(
+                trigger: .key(0x28),
+                modifiers: [.lcmd, .lopt],
+                bundleID: nil,
+                state: StateSnapshot(variables: ["wm": 1])))
         #expect(hit?.name == "wm-k")
     }
 
     @Test func conditionGateRespectsExactValue() {
-        let bind = Binding(name: "layer-3", trigger: .key(0x00),
-                           modifiers: [], apps: nil, action: .noop,
-                           condition: .variable(name: "layer", equals: 3))
+        let bind = Binding(
+            name: "layer-3", trigger: .key(0x00),
+            modifiers: [], apps: nil, action: .noop,
+            condition: .variable(name: "layer", equals: 3))
         let m = Matcher(bindings: [bind])
-        let two = m.find(.init(trigger: .key(0x00), modifiers: [],
-                               bundleID: nil,
-                               state: StateSnapshot(variables: ["layer": 2])))
-        let three = m.find(.init(trigger: .key(0x00), modifiers: [],
-                                 bundleID: nil,
-                                 state: StateSnapshot(variables: ["layer": 3])))
+        let two = m.find(
+            .init(
+                trigger: .key(0x00), modifiers: [],
+                bundleID: nil,
+                state: StateSnapshot(variables: ["layer": 2])))
+        let three = m.find(
+            .init(
+                trigger: .key(0x00), modifiers: [],
+                bundleID: nil,
+                state: StateSnapshot(variables: ["layer": 3])))
         #expect(two == nil)
         #expect(three?.name == "layer-3")
     }
@@ -70,14 +81,14 @@ import Testing
     // MARK: - Modifiers.isStillHeld (hold-while subset check)
 
     @Test func holdWhileSatisfiedByLeftSideOnly() {
-        let hold: Modifiers = [.cmd, .opt]   // any-side
+        let hold: Modifiers = [.cmd, .opt]  // any-side
         let current: Modifiers = [.lcmd, .lopt]
         #expect(hold.isStillHeld(in: current))
     }
 
     @Test func holdWhileFailsWhenAModifierReleased() {
         let hold: Modifiers = [.cmd, .opt]
-        let current: Modifiers = [.lcmd]    // opt was released
+        let current: Modifiers = [.lcmd]  // opt was released
         #expect(!hold.isStillHeld(in: current))
     }
 
@@ -100,13 +111,14 @@ import Testing
     // MARK: - Config: v2 TOML fields
 
     @Test func parseActionSetVar() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "enter wm"
-        input = "cmd + opt - j"
-        action-set-var = "wm"
-        hold-while = "cmd + opt"
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "enter wm"
+            input = "cmd + opt - j"
+            action-set-var = "wm"
+            hold-while = "cmd + opt"
+            """)
         #expect(res.config.bindings.count == 1)
         let b = res.config.bindings[0]
         if case .setVariable(let name, let value) = b.action {
@@ -119,13 +131,14 @@ import Testing
     }
 
     @Test func parseActionSetWithExplicitValue() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "leave wm"
-        input = "esc"
-        action-set-var = "wm"
-        action-set-value = 0
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "leave wm"
+            input = "esc"
+            action-set-var = "wm"
+            action-set-value = 0
+            """)
         #expect(res.config.bindings.count == 1)
         if case .setVariable(_, let v) = res.config.bindings[0].action {
             #expect(v == 0)
@@ -135,14 +148,15 @@ import Testing
     }
 
     @Test func parseConditionAndOnUp() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "wm-l"
-        input = "cmd + opt - l"
-        when-var = "wm"
-        action-shell = "yabai -m window --grid 1:1:0:0:1:1"
-        action-shell-on-up = "yabai -m window --minimize"
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "wm-l"
+            input = "cmd + opt - l"
+            when-var = "wm"
+            action-shell = "yabai -m window --grid 1:1:0:0:1:1"
+            action-shell-on-up = "yabai -m window --minimize"
+            """)
         #expect(res.config.bindings.count == 1)
         let b = res.config.bindings[0]
         #expect(b.condition == .variable(name: "wm", equals: 1))
@@ -154,27 +168,30 @@ import Testing
     }
 
     @Test func orphanWhenVarValueDropsBinding() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "orphan"
-        input = "f13"
-        when-var-value = 1
-        action-noop = true
-        """)
-        #expect(res.config.bindings.count == 0,
-                "orphan when-var-value must drop the binding")
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "orphan"
+            input = "f13"
+            when-var-value = 1
+            action-noop = true
+            """)
+        #expect(
+            res.config.bindings.count == 0,
+            "orphan when-var-value must drop the binding")
         #expect(res.droppedBindings == 1)
         #expect(res.warnings.contains { $0.kind == .conditionParseError })
     }
 
     @Test func holdWhileEmptyDropsBinding() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "bad-hold"
-        input = "cmd - j"
-        action-set-var = "x"
-        hold-while = ""
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "bad-hold"
+            input = "cmd - j"
+            action-set-var = "x"
+            hold-while = ""
+            """)
         #expect(res.config.bindings.count == 0)
         #expect(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
@@ -182,80 +199,89 @@ import Testing
     // MARK: - hold-while-timeout (chord 0.4.0)
 
     @Test func parseHoldWhileTimeout() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "j-layer (timeout)"
-        input = "rctrl + ralt + rshift - j"
-        action-set-var = "jlayer"
-        hold-while-timeout = 800
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "j-layer (timeout)"
+            input = "rctrl + ralt + rshift - j"
+            action-set-var = "jlayer"
+            hold-while-timeout = 800
+            """)
         #expect(res.config.bindings.count == 1)
         #expect(res.config.bindings[0].holdWhileTimeoutMs == 800)
-        #expect(res.config.bindings[0].holdWhile == nil,
-                "timeout-only binding should not carry holdWhile")
+        #expect(
+            res.config.bindings[0].holdWhile == nil,
+            "timeout-only binding should not carry holdWhile")
     }
 
     @Test func holdWhileTimeoutZeroDropsBinding() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "bad-timeout"
-        input = "f13"
-        action-set-var = "x"
-        hold-while-timeout = 0
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "bad-timeout"
+            input = "f13"
+            action-set-var = "x"
+            hold-while-timeout = 0
+            """)
         #expect(res.config.bindings.count == 0)
         #expect(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
 
     @Test func holdWhileTimeoutNegativeDropsBinding() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "bad-timeout"
-        input = "f13"
-        action-set-var = "x"
-        hold-while-timeout = -100
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "bad-timeout"
+            input = "f13"
+            action-set-var = "x"
+            hold-while-timeout = -100
+            """)
         #expect(res.config.bindings.count == 0)
         #expect(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
 
     @Test func holdWhileAndTimeoutMutuallyExclusive() throws {
-        let res = try Config.parse("""
-        [[bindings]]
-        name = "both-lifecycles"
-        input = "cmd - j"
-        action-set-var = "x"
-        hold-while = "cmd"
-        hold-while-timeout = 500
-        """)
+        let res = try Config.parse(
+            """
+            [[bindings]]
+            name = "both-lifecycles"
+            input = "cmd - j"
+            action-set-var = "x"
+            hold-while = "cmd"
+            hold-while-timeout = 500
+            """)
         #expect(res.config.bindings.count == 0)
-        #expect(res.warnings.contains { $0.kind == .holdWhileParseError },
-                "both lifecycles should produce a holdWhileParseError")
+        #expect(
+            res.warnings.contains { $0.kind == .holdWhileParseError },
+            "both lifecycles should produce a holdWhileParseError")
     }
 
     @Test func schemaEmitsHoldWhileTimeout() throws {
-        let b = try firstBinding("""
-        [[bindings]]
-        name = "j-layer"
-        input = "rctrl + ralt + rshift - j"
-        action-set-var = "jlayer"
-        hold-while-timeout = 800
-        """)
+        let b = try firstBinding(
+            """
+            [[bindings]]
+            name = "j-layer"
+            input = "rctrl + ralt + rshift - j"
+            action-set-var = "jlayer"
+            hold-while-timeout = 800
+            """)
         #expect(b["hold_while_timeout"] as? Int == 800)
-        #expect(b["hold_while"] == nil,
-                "timeout-only binding omits hold_while in JSON")
+        #expect(
+            b["hold_while"] == nil,
+            "timeout-only binding omits hold_while in JSON")
     }
 
     // MARK: - Schema v2 emission
 
     @Test func schemaEmitsSetVariableAction() throws {
-        let json = try parseToBindingsJSON("""
-        [[bindings]]
-        name = "enter"
-        input = "cmd + opt - j"
-        action-set-var = "wm"
-        hold-while = "cmd + opt"
-        """)
+        let json = try parseToBindingsJSON(
+            """
+            [[bindings]]
+            name = "enter"
+            input = "cmd + opt - j"
+            action-set-var = "wm"
+            hold-while = "cmd + opt"
+            """)
         #expect(json["schema"] as? String == "chord.bindings.v3")
         let bs = try #require(json["bindings"] as? [[String: Any]])
         let b = bs[0]
@@ -268,14 +294,15 @@ import Testing
     }
 
     @Test func schemaEmitsConditionAndOnUp() throws {
-        let b = try firstBinding("""
-        [[bindings]]
-        name = "wm-l"
-        input = "cmd + opt - l"
-        when-var = "wm"
-        action-shell = "max"
-        action-shell-on-up = "min"
-        """)
+        let b = try firstBinding(
+            """
+            [[bindings]]
+            name = "wm-l"
+            input = "cmd + opt - l"
+            when-var = "wm"
+            action-shell = "max"
+            action-shell-on-up = "min"
+            """)
         let cond = try #require(b["condition"] as? [String: Any])
         #expect(cond["kind"] as? String == "variable")
         #expect(cond["variable"] as? String == "wm")

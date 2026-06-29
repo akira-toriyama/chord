@@ -15,8 +15,10 @@ extension JSONEncoder {
     /// back to `{}`), because the failure modes differ.
     static func chordWire() -> JSONEncoder {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys,
-                                    .withoutEscapingSlashes]
+        encoder.outputFormatting = [
+            .prettyPrinted, .sortedKeys,
+            .withoutEscapingSlashes
+        ]
         return encoder
     }
 }

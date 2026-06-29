@@ -77,12 +77,14 @@ public struct InputEvent: Sendable, Hashable {
     /// against `Binding.inputSource`.
     public var inputSourceID: String?
 
-    public init(trigger: Trigger, modifiers: Modifiers,
-                frontmostBundleID: String?,
-                kind: EventKind = .down,
-                isSynthetic: Bool = false,
-                isRepeat: Bool = false,
-                inputSourceID: String? = nil) {
+    public init(
+        trigger: Trigger, modifiers: Modifiers,
+        frontmostBundleID: String?,
+        kind: EventKind = .down,
+        isSynthetic: Bool = false,
+        isRepeat: Bool = false,
+        inputSourceID: String? = nil
+    ) {
         self.trigger = trigger
         self.modifiers = modifiers
         self.frontmostBundleID = frontmostBundleID

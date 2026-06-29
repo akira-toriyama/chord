@@ -30,25 +30,26 @@ enum ObserveCommand {
     @MainActor
     static func run() -> Int32 {
         guard Permissions.isAccessibilityTrusted() else {
-            FileHandle.standardError.write(Data((
-                "chord: observe needs Accessibility access. Grant chord in " +
-                "System Settings → Privacy & Security → Accessibility, then retry.\n"
-            ).utf8))
+            FileHandle.standardError.write(
+                Data(
+                    ("chord: observe needs Accessibility access. Grant chord in "
+                        + "System Settings → Privacy & Security → Accessibility, then retry.\n")
+                        .utf8))
             return 1
         }
-        FileHandle.standardError.write(Data((
-            "chord: observe — press keys / mouse buttons / scroll to see their " +
-            "codes, sides, and modifiers. Nothing is consumed. Ctrl-C to stop.\n"
-        ).utf8))
+        FileHandle.standardError.write(
+            Data(
+                ("chord: observe — press keys / mouse buttons / scroll to see their "
+                    + "codes, sides, and modifiers. Nothing is consumed. Ctrl-C to stop.\n").utf8))
 
         let source = MacOSEventSource()
         do {
             try source.start { event in
                 if let line = ObserveCommand.line(for: event) {
                     print(line)
-                    fflush(stdout)   // stream live even when stdout is piped
+                    fflush(stdout)  // stream live even when stdout is piped
                 }
-                return .passthrough   // observe never swallows input
+                return .passthrough  // observe never swallows input
             }
         } catch {
             FileHandle.standardError.write(Data("chord: observe: \(error)\n".utf8))
@@ -113,7 +114,7 @@ enum ObserveCommand {
             (.lopt, "lopt"), (.ropt, "ropt"), (.opt, "opt"),
             (.lshift, "lshift"), (.rshift, "rshift"), (.shift, "shift"),
             (.lcmd, "lcmd"), (.rcmd, "rcmd"), (.cmd, "cmd"),
-            (.fn, "fn"),
+            (.fn, "fn")
         ]
         let tokens = pairs.filter { m.contains($0.0) }.map(\.1)
         return tokens.isEmpty ? "(none)" : tokens.joined(separator: " + ")

@@ -27,7 +27,8 @@ public extension ChordConfigSchema {
         try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let want = jsonSchema
         if let current = try? String(contentsOfFile: path, encoding: .utf8),
-           current == want {
+            current == want
+        {
             return false
         }
         return (try? want.write(toFile: path, atomically: true, encoding: .utf8)) != nil
