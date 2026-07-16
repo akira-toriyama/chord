@@ -29,8 +29,14 @@
 public typealias TOML = Toml
 
 // Source-line attribution comes from `Toml.Row.span` now — each
-// `[[array-of-tables]]` row from `Toml.parse` is a `Toml.Row` carrying the
-// `SourceSpan` of its `[[header]]` (swift-toml-edit 2.0.0). The old
+// `[[array-of-tables]]` row from the nested parse is a `Toml.Row` carrying
+// the `SourceSpan` of its `[[header]]` (swift-toml-edit 2.0.0). The old
 // `__line__`/`TOML.lineKey` synthetic dict key is gone, so the
 // `Dictionary.sourceLine` reader that pulled it out is gone too; call sites
 // read `row.span?.line` directly off the `Row`.
+//
+// Since swift-toml-edit 2.3.1 the entry point is `Toml.parseWithSpans`
+// (t-0030 / chord#159): the SAME nested strict tree (equivalence with
+// `Toml.parse` is CI-gated upstream), re-derived from the lossless DOM,
+// plus a per-entry / per-header line+column index (`SpannedTree`) that
+// upgrades warning attribution to `(config.toml:N:C)`.

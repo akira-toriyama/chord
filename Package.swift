@@ -46,10 +46,13 @@ let package = Package(
         // shared parser was modelled on; in atelier Phase 1.6 it folded into
         // sill's `Toml`, and from sill 0.11.0 that module moved out into its
         // own repo (swift-toml-edit). ChordCore takes ONLY `Toml` (zero
-        // AppKit, zero theming) via its NESTED, strict `parse` skin. The
-        // module name is unchanged, so chord's `import Toml` survives.
+        // AppKit, zero theming) via its NESTED, strict skin — since 2.3.1
+        // through `parseWithSpans` (the DOM-derived tiler, t-0030/chord#159),
+        // whose per-entry line+column spans feed `(config.toml:N:C)`
+        // warnings. The module name is unchanged, so chord's `import Toml`
+        // survives.
         .package(url: "https://github.com/akira-toriyama/swift-toml-edit.git",
-                 .upToNextMajor(from: "2.0.0")),
+                 .upToNextMajor(from: "2.3.1")),
         // sill — the shared swift-app-family library (atelier). chord is NOT
         // a theme consumer (no Palette / Effects / PaletteKit); it takes only
         // `CLIKit`, the family's shared pure argv tokenizer (Phase 3 M4),

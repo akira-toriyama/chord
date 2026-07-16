@@ -56,8 +56,14 @@ public enum Config {
     }
 
     public static func parse(_ source: String) throws -> ParseResult {
+        // t-0030: parse via `parseWithSpans` — the same nested strict tree
+        // (equivalence is CI-gated in swift-toml-edit), re-derived from the
+        // lossless DOM. `spanned.entrySpans` / `.headerSpans` carry the
+        // per-entry line+column index that will upgrade warning attribution
+        // from `(config.toml:N)` to `(config.toml:N:C)`; the plumbing below
+        // still reads line-only `Row.span` until the per-field pass lands.
         let root: [String: TOML.Value]
-        do { root = try TOML.parse(source) } catch let e as TOML.ParseError {
+        do { root = try TOML.parseWithSpans(source).tree } catch let e as TOML.ParseError {
             throw LoadError.tomlError(String(describing: e))
         } catch { throw LoadError.tomlError(String(describing: error)) }
 
