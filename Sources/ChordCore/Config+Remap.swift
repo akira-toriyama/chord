@@ -22,7 +22,7 @@ extension Config {
     ///   * `action-shell` is intentionally not supported — the issue
     ///     spec restricts remap to action-keys only.
     static func parseRemaps(
-        root: [String: TOML.Value],
+        spanned: TOML.SpannedTree,
         actionAliases: [String: String],
         inputAliases: [String: Modifiers],
         vkeyAliases: [String: UInt8] = [:],
@@ -30,25 +30,27 @@ extension Config {
     ) -> (expanded: [Binding], dropped: Int) {
         var expanded: [Binding] = []
         var dropped = 0
-        let rows = root["remap"]?.asArrayOfTables ?? []
+        let rows = spanned.tree["remap"]?.asArrayOfTables ?? []
         for (ri, row) in rows.enumerated() {
-            let line = row.span?.line
-            let source = sourceTag(line: line)
+            let spans = rowSpans(row, at: [.key("remap"), .index(ri)], in: spanned)
             let baseName = row["name"]?.asString ?? "remap-\(ri + 1)"
 
-            func failRemap(_ msg: String) {
+            func failRemap(_ msg: String, at span: TOML.SourceSpan?) {
                 warnings.append(
                     ConfigWarning(
                         kind: .remapParseError,
-                        message: "[[remap]] '\(baseName)'\(source): \(msg)",
-                        sourceLine: line, bindingName: baseName))
+                        message: "[[remap]] '\(baseName)'\(sourceTag(span)): \(msg)",
+                        source: span, bindingName: baseName))
                 dropped += 1
             }
 
             guard let modsRaw = row["modifiers"]?.asString,
                 !modsRaw.trimmingCharacters(in: .whitespaces).isEmpty
             else {
-                failRemap("missing 'modifiers' (bare-key remap is not allowed)")
+                failRemap(
+                    "missing 'modifiers' (bare-key remap is not allowed)",
+                    at: row["modifiers"] != nil
+                        ? spans.value("modifiers") : spans.header)
                 continue
             }
             do {
@@ -56,30 +58,50 @@ extension Config {
                     modsRaw, inputAliases: inputAliases)
                 guard mask.rawValue != 0 else {
                     failRemap(
-                        "modifiers resolved to an empty mask " + "(at least one modifier required)")
+                        "modifiers resolved to an empty mask "
+                            + "(at least one modifier required)",
+                        at: spans.value("modifiers"))
                     continue
                 }
             } catch {
-                failRemap("modifiers: \(error)")
+                failRemap("modifiers: \(error)", at: spans.value("modifiers"))
                 continue
             }
 
+            // Inline-table interiors are not indexed by parseWithSpans
+            // (the entry is the unit), so every map complaint — including
+            // the per-entry ones below — points at the `map` entry.
+            let mapSpan = spans.value("map")
             guard let mapValue = row["map"] else {
-                failRemap("missing 'map' (inline table of key → action-keys)")
+                failRemap(
+                    "missing 'map' (inline table of key → action-keys)",
+                    at: spans.header)
                 continue
             }
             guard case .table(let mapTable) = mapValue else {
-                failRemap("'map' must be an inline table " + "(`{ b = \"left\", … }`)")
+                failRemap(
+                    "'map' must be an inline table " + "(`{ b = \"left\", … }`)",
+                    at: mapSpan)
                 continue
             }
             if mapTable.isEmpty {
-                failRemap("map must contain at least one entry")
+                failRemap("map must contain at least one entry", at: mapSpan)
                 continue
             }
 
             // Sort by key for deterministic ordering. Inline-table key
             // iteration is unordered in Swift dictionaries, and that
             // would surface as non-deterministic `config --show --json` output.
+            // Synthesized fields map back to the [[remap]] fields they
+            // came from (input ← modifiers, action-keys ← map) so a
+            // makeBinding complaint points at the user's actual TOML.
+            var synthSpanFields: [String: TOML.EntrySpans] = [:]
+            synthSpanFields["name"] = spans.fields["name"]
+            synthSpanFields["input"] = spans.fields["modifiers"]
+            synthSpanFields["action-keys"] = spans.fields["map"]
+            synthSpanFields["apps"] = spans.fields["apps"]
+            let synthSpans = RowSpans(header: spans.header, fields: synthSpanFields)
+
             for key in mapTable.keys.sorted() {
                 let entryName = "\(baseName).\(key)"
                 guard let valueStr = mapTable[key]?.asString else {
@@ -87,10 +109,10 @@ extension Config {
                         ConfigWarning(
                             kind: .remapParseError,
                             message:
-                                "[[remap]] '\(baseName)'\(source): "
+                                "[[remap]] '\(baseName)'\(sourceTag(mapSpan)): "
                                 + "map['\(key)']: value must be a string "
                                 + "(interpreted as action-keys)",
-                            sourceLine: line, bindingName: entryName))
+                            source: mapSpan, bindingName: entryName))
                     dropped += 1
                     continue
                 }
@@ -106,10 +128,10 @@ extension Config {
                         ConfigWarning(
                             kind: .remapParseError,
                             message:
-                                "[[remap]] '\(baseName)'\(source): map key '\(key)' "
+                                "[[remap]] '\(baseName)'\(sourceTag(mapSpan)): map key '\(key)' "
                                 + "is a v-key — v-keys are not supported in remaps "
                                 + "(they carry no modifiers); entry dropped",
-                            sourceLine: line, bindingName: entryName))
+                            source: mapSpan, bindingName: entryName))
                     dropped += 1
                     continue
                 }
@@ -121,7 +143,7 @@ extension Config {
                 ]
                 if let apps = row["apps"] { synth["apps"] = apps }
                 if let b = makeBinding(
-                    from: synth, sourceLine: line, index: ri,
+                    from: synth, spans: synthSpans, index: ri,
                     isFallback: false,
                     actionAliases: actionAliases,
                     inputAliases: inputAliases,

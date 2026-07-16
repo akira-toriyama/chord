@@ -24,7 +24,8 @@ public extension ChordConfigSchema {
     /// reported but never drops a sibling row — the warning rides
     /// `ParseResult.warnings`, and `--strict` turns it into a hard exit 1
     /// like every other warning.
-    static func unknownKeyWarnings(root: [String: TOML.Value]) -> [ConfigWarning] {
+    static func unknownKeyWarnings(spanned: TOML.SpannedTree) -> [ConfigWarning] {
+        let root = spanned.tree
         var out: [ConfigWarning] = []
         // Top level: a key that isn't a known section name is a mistyped
         // header (`[[bindigs]]`, `[optoins]`) — or, rarely, a stray
@@ -34,37 +35,40 @@ public extension ChordConfigSchema {
         // --strict` passed, even though the editor JSON schema flags the
         // same typo. Warn so the CLI is at least as strict. The label
         // mirrors the syntax the user wrote (`[[x]]` / `[x]` / `x`); the
-        // source line is best-effort (only `[[x]]` rows carry one).
+        // location comes from the span index (`[[x]]` first element / `[x]`
+        // header / the stray entry's key).
         let knownSections = Set(sections.map(\.name))
         let knownList = knownSections.sorted().joined(separator: ", ")
         for (key, value) in root.sorted(by: { $0.key < $1.key })
         where !knownSections.contains(key) {
-            let line: Int?
+            let span: TOML.SourceSpan?
             let label: String
             let noun: String
             switch value {
             case .arrayOfTables(let rows):
-                // Only `[[x]]` rows carry a source span; a `[x]` table or a
-                // stray top-level scalar has none.
-                line = rows.first?.span?.line; label = "[[\(key)]]"; noun = "section"
+                span = rows.first?.span; label = "[[\(key)]]"; noun = "section"
             case .table:
-                line = nil; label = "[\(key)]"; noun = "section"
+                span = spanned.headerSpans[[.key(key)]]; label = "[\(key)]"; noun = "section"
             default:
-                line = nil; label = "'\(key)'"; noun = "key"
+                span = spanned.entrySpans[[.key(key)]]?.key; label = "'\(key)'"; noun = "key"
             }
             out.append(
                 ConfigWarning(
                     kind: .unknownKey,
-                    message: "\(label): unknown top-level \(noun) — ignored "
+                    message: "\(label)\(Config.sourceTag(span)): "
+                        + "unknown top-level \(noun) — ignored "
                         + "(known: \(knownList))",
-                    sourceLine: line))
+                    source: span))
         }
         for section in sections {
             guard case .arrayOfTables(let shape) = section.kind,
                 case .arrayOfTables(let rows)? = root[section.name]
             else { continue }
-            for row in rows {
-                checkRow(row, shape: shape, path: section.name, into: &out)
+            for (i, row) in rows.enumerated() {
+                checkRow(
+                    row, shape: shape, path: section.name,
+                    prefix: [.key(section.name), .index(i)],
+                    in: spanned, into: &out)
             }
         }
         return out
@@ -72,33 +76,41 @@ public extension ChordConfigSchema {
 
     /// Validate one row against `shape.keySet`, then recurse into the
     /// shape's nested array-of-tables (per-app / sequence.bindings). `path`
-    /// is the dotted TOML section path, rendered as `[[path]]` in messages.
+    /// is the dotted TOML section path, rendered as `[[path]]` in messages;
+    /// `prefix` is the same address in the span index's path terms.
     private static func checkRow(
         _ row: TOML.Row,
         shape: ObjectShape,
         path: String,
+        prefix: [TOML.PathSegment],
+        in spanned: TOML.SpannedTree,
         into out: inout [ConfigWarning]
     ) {
         let known = shape.keySet
         // A per-app row identifies by bundle-id rather than name.
         let name = row["name"]?.asString ?? row["bundle-id"]?.asString
-        let line = row.span?.line
         let who = name.map { " '\($0)'" } ?? ""
         // Sorted for deterministic warning order (TOML tables are unordered).
         for key in row.fields.keys.sorted() where !known.contains(key) {
+            // An unknown key points at ITSELF (its key span); a dotted key
+            // the direct lookup misses falls back to the row header.
+            let span = spanned.entrySpans[prefix + [.key(key)]]?.key ?? row.span
             out.append(
                 ConfigWarning(
                     kind: .unknownKey,
-                    message: "[[\(path)]]\(who): unknown key '\(key)' — ignored",
-                    sourceLine: line,
+                    message: "[[\(path)]]\(who)\(Config.sourceTag(span)): "
+                        + "unknown key '\(key)' — ignored",
+                    source: span,
                     bindingName: name))
         }
         for nested in shape.nested {
             guard case .arrayOfTables(let subRows)? = row[nested.key] else { continue }
-            for sub in subRows {
+            for (i, sub) in subRows.enumerated() {
                 checkRow(
                     sub, shape: nested.item,
-                    path: "\(path).\(nested.key)", into: &out)
+                    path: "\(path).\(nested.key)",
+                    prefix: prefix + [.key(nested.key), .index(i)],
+                    in: spanned, into: &out)
             }
         }
     }

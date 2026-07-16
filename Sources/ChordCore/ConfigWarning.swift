@@ -17,11 +17,14 @@ import Foundation
 /// * `message` — the human-readable line; `description` returns it
 ///   verbatim so existing callers (`print("warning: \(w)")`)
 ///   keep working byte-for-byte.
-/// * `sourceLine` — the 1-based config-file line, when known. Comes
-///   from the `Toml.Row.span` each `[[X]]` row carries (swift-toml-edit
-///   2.0.0; resolved at parse time and threaded into the binding). For
-///   `[action-aliases]` entries and `[options]` table fields, lines are
-///   not tracked (plain `[table]`s carry no span) — surfaces as `nil`.
+/// * `source` — the 1-based line (+ column, in Unicode scalars) of the
+///   construct the warning is about, when known. Since t-0030 this is
+///   FIELD-precise: resolved from `Toml.parseWithSpans`' entry index
+///   (a malformed value points at the value, an unknown key at the
+///   key), falling back to the row's `[[header]]` span when the field
+///   has no source bytes (synthesized desugar rows). `[options]` and
+///   alias-table entries are located the same way — the old "plain
+///   tables carry no line" nil is gone.
 /// * `bindingName` — the row's `name` (or the synthetic `binding-N`
 ///   fallback) when the warning is attributable to a single binding.
 public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
@@ -132,17 +135,21 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
 
     public let kind: Kind
     public let message: String
-    public let sourceLine: Int?
+    public let source: TOML.SourceSpan?
     public let bindingName: String?
+
+    /// Line-only view of `source` — the v3 wire field
+    /// (`source_line`) and text renderers read this.
+    public var sourceLine: Int? { source?.line }
 
     public init(
         kind: Kind, message: String,
-        sourceLine: Int? = nil,
+        source: TOML.SourceSpan? = nil,
         bindingName: String? = nil
     ) {
         self.kind = kind
         self.message = message
-        self.sourceLine = sourceLine
+        self.source = source
         self.bindingName = bindingName
     }
 

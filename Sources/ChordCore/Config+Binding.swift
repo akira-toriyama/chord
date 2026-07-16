@@ -11,7 +11,7 @@ extension Config {
     /// rows and route them through the same validation as user-authored
     /// rows.
     static func makeBinding(
-        from row: [String: TOML.Value], sourceLine line: Int?, index: Int,
+        from row: [String: TOML.Value], spans: RowSpans, index: Int,
         isFallback: Bool,
         actionAliases: [String: String],
         inputAliases: [String: Modifiers],
@@ -21,17 +21,19 @@ extension Config {
     ) -> Binding? {
         let section = isFallback ? "[[fallbacks]]" : "[[bindings]]"
         let name = row["name"]?.asString ?? "binding-\(index + 1)"
-        // Source line is resolved by the caller from the originating
-        // `Toml.Row.span` and passed in — synthesized desugar rows carry no
-        // source bytes, so the line travels alongside the fields, not inside
-        // them (no synthetic dict key).
-        let source = sourceTag(line: line)
+        // Locations are resolved by the caller from parseWithSpans' entry
+        // index and passed in as a per-field view — synthesized desugar rows
+        // carry no source bytes, so the spans travel alongside the fields,
+        // not inside them (no synthetic dict key). Each warning below picks
+        // the field it is actually about; a field with no source falls back
+        // to the row header.
         guard let inputRaw = row["input"]?.asString else {
+            let span = spans.header
             warnings.append(
                 ConfigWarning(
                     kind: .missingInput,
-                    message: "\(section) '\(name)'\(source): missing 'input'",
-                    sourceLine: line, bindingName: name))
+                    message: "\(section) '\(name)'\(sourceTag(span)): missing 'input'",
+                    source: span, bindingName: name))
             return nil
         }
         let parsed: InputParser.Parsed
@@ -52,26 +54,27 @@ extension Config {
             } else {
                 kind = .unknownInputToken
             }
+            let span = spans.value("input")
             warnings.append(
                 ConfigWarning(
                     kind: kind,
-                    message: "\(section) '\(name)'\(source): \(e)",
-                    sourceLine: line, bindingName: name))
+                    message: "\(section) '\(name)'\(sourceTag(span)): \(e)",
+                    source: span, bindingName: name))
             return nil
         } catch {
+            let span = spans.value("input")
             warnings.append(
                 ConfigWarning(
                     kind: .unknownInputToken,
-                    message: "\(section) '\(name)'\(source): \(error)",
-                    sourceLine: line, bindingName: name))
+                    message: "\(section) '\(name)'\(sourceTag(span)): \(error)",
+                    source: span, bindingName: name))
             return nil
         }
         let actionResult = parseAction(
             row: row,
             section: section,
             name: name,
-            source: source,
-            sourceLine: line,
+            spans: spans,
             actionAliases: actionAliases,
             suffix: "",
             required: true,
@@ -95,12 +98,13 @@ extension Config {
                 let parsed = try parseKeysListValue(keysVal)
                 extraDownActions = parsed.map { .keys($0.0, $0.1) }
             } catch {
+                let span = spans.value("action-keys")
                 warnings.append(
                     ConfigWarning(
                         kind: .actionKeysParseError,
                         message:
-                            "\(section) '\(name)'\(source): " + "action-keys: \(error)",
-                        sourceLine: line, bindingName: name))
+                            "\(section) '\(name)'\(sourceTag(span)): " + "action-keys: \(error)",
+                        source: span, bindingName: name))
                 return nil
             }
         } else if !parsedAction.extraKeys.isEmpty {
@@ -117,25 +121,25 @@ extension Config {
         // action-*-on-up, that's a conflict — they're contradicting
         // hold-var's contract.
         let onUpResult: ParsedAction?
-        let userWroteOnUp = hasOnUpAction(row: row)
-        if userWroteOnUp {
+        let explicitOnUpKey = firstOnUpActionKey(row: row)
+        if let explicitOnUpKey {
             if parsedAction.autoOnUpAction != nil {
+                let span = spans.key(explicitOnUpKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .missingAction,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "action-hold-var owns the on-up half — remove "
                             + "the explicit action-*-on-up entry",
-                        sourceLine: line, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             onUpResult = parseAction(
                 row: row,
                 section: section,
                 name: name,
-                source: source,
-                sourceLine: line,
+                spans: spans,
                 actionAliases: actionAliases,
                 suffix: "-on-up",
                 required: false,
@@ -155,29 +159,25 @@ extension Config {
         guard
             let condition = parseCondition(
                 row: row, section: section,
-                name: name, source: source,
-                sourceLine: line,
+                name: name, spans: spans,
                 warnings: &warnings)
         else { return nil }
         guard
             let holdWhile = parseHoldWhile(
                 row: row, section: section,
-                name: name, source: source,
-                sourceLine: line,
+                name: name, spans: spans,
                 warnings: &warnings)
         else { return nil }
         guard
             let holdWhileTimeout = parseHoldWhileTimeout(
                 row: row, section: section,
-                name: name, source: source,
-                sourceLine: line,
+                name: name, spans: spans,
                 warnings: &warnings)
         else { return nil }
         guard
             let actionKeysDelay = parseActionKeysDelay(
                 row: row, section: section,
-                name: name, source: source,
-                sourceLine: line,
+                name: name, spans: spans,
                 warnings: &warnings)
         else { return nil }
         // hold-while and hold-while-timeout are mutually exclusive —
@@ -185,14 +185,15 @@ extension Config {
         // user almost certainly meant one or the other; offer a clear
         // error rather than silently picking.
         if holdWhile.value != nil && holdWhileTimeout.value != nil {
+            let span = spans.key("hold-while-timeout")
             warnings.append(
                 ConfigWarning(
                     kind: .holdWhileParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "hold-while and hold-while-timeout are mutually "
                         + "exclusive — pick one",
-                    sourceLine: line, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
 
@@ -210,13 +211,13 @@ extension Config {
         // silently skipped. The read below is unchanged.
         warnFieldType(
             row, key: "input-source", accept: ["array", "string"],
-            label: "\(section) '\(name)'\(source): input-source",
-            sourceLine: line, bindingName: name,
+            label: "\(section) '\(name)': input-source",
+            spans: spans, bindingName: name,
             warnings: &warnings)
         warnArrayElementTypes(
             row, key: "input-source",
-            label: "\(section) '\(name)'\(source): input-source",
-            sourceLine: line, bindingName: name,
+            label: "\(section) '\(name)': input-source",
+            spans: spans, bindingName: name,
             warnings: &warnings)
         var inputSource: [String]?
         if let arr = row["input-source"]?.asArray {
@@ -234,13 +235,15 @@ extension Config {
             if let parsed = RepeatStrategy(rawValue: raw) {
                 repeatStrategy = parsed
             } else {
+                let span = spans.value("repeat")
                 warnings.append(
                     ConfigWarning(
                         kind: .other,
                         message:
-                            "\(section) '\(name)'\(source): " + "repeat: unknown value '\(raw)' — "
+                            "\(section) '\(name)'\(sourceTag(span)): "
+                            + "repeat: unknown value '\(raw)' — "
                             + "expected fire-each / ignore / passthrough",
-                        sourceLine: line, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
         }
@@ -255,22 +258,23 @@ extension Config {
         var passthrough = false
         warnFieldType(
             row, key: "passthrough", accept: ["boolean"],
-            label: "\(section) '\(name)'\(source): passthrough",
-            sourceLine: line, bindingName: name,
+            label: "\(section) '\(name)': passthrough",
+            spans: spans, bindingName: name,
             warnings: &warnings)
         if let raw = row["passthrough"]?.asBool {
             passthrough = raw
         }
         if passthrough {
+            let span = spans.key("passthrough")
             if !extraDownActions.isEmpty {
                 warnings.append(
                     ConfigWarning(
                         kind: .actionKeysParseError,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "passthrough is incompatible with action-keys "
                             + "(the original event already reaches the OS)",
-                        sourceLine: line, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             switch parsedAction.action {
@@ -279,20 +283,20 @@ extension Config {
                     ConfigWarning(
                         kind: .actionKeysParseError,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "passthrough requires action-shell (or no action) — "
                             + "action-keys would duplicate the keystroke",
-                        sourceLine: line, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             case .noop:
                 warnings.append(
                     ConfigWarning(
                         kind: .missingAction,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "passthrough is incompatible with action-noop "
                             + "(noop = absorb; passthrough = relay)",
-                        sourceLine: line, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             case .shell, .setVariable, .toggleVariable:
                 break
@@ -302,10 +306,10 @@ extension Config {
                     ConfigWarning(
                         kind: .missingAction,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "passthrough cannot carry an action-*-on-up — "
                             + "no paired-up is captured when the event flows through",
-                        sourceLine: line, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
         }
@@ -326,21 +330,25 @@ extension Config {
             inputRaw: inputRaw,
             actionRaw: parsedAction.raw,
             aliasName: parsedAction.aliasName,
-            sourceLine: line)
+            sourceSpan: spans.header)
     }
 
-    /// True iff at least one `action-*-on-up` key is present in `row`.
-    /// Lets `makeBinding` decide whether to even invoke the parser —
-    /// keeps the absent-on-up case zero-cost.
-    private static func hasOnUpAction(row: [String: TOML.Value]) -> Bool {
-        row["action-shell-on-up"] != nil
-            || row["action-keys-on-up"] != nil
-            || row["action-noop-on-up"] != nil
-            || row["action-set-var-on-up"] != nil
-            // chord 0.9.0+: detect to-on-up forms so parseAction can
-            // emit the "not allowed on -on-up paths" rejection
-            // instead of silently dropping the field on the floor.
-            || row["action-toggle-var-on-up"] != nil
-            || row["action-hold-var-on-up"] != nil
+    /// The first `action-*-on-up` key present in `row`, or `nil` when
+    /// none is. Lets `makeBinding` decide whether to even invoke the
+    /// parser (keeps the absent-on-up case zero-cost) AND attribute
+    /// the hold-var conflict warning to the offending key.
+    private static func firstOnUpActionKey(row: [String: TOML.Value]) -> String? {
+        // chord 0.9.0+: the to-on-up forms are listed so parseAction can
+        // emit the "not allowed on -on-up paths" rejection instead of
+        // silently dropping the field on the floor.
+        let onUpKeys = [
+            "action-shell-on-up",
+            "action-keys-on-up",
+            "action-noop-on-up",
+            "action-set-var-on-up",
+            "action-toggle-var-on-up",
+            "action-hold-var-on-up"
+        ]
+        return onUpKeys.first { row[$0] != nil }
     }
 }

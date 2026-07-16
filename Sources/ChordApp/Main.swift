@@ -516,7 +516,10 @@ enum ChordApp {
         if includeDropped && !res.warnings.isEmpty {
             print("dropped / warnings (\(res.warnings.count)):")
             for w in res.warnings {
-                let lineTag = w.sourceLine.map { ":\($0)" } ?? ""
+                let lineTag =
+                    w.source.map {
+                        ":\($0.line)" + ($0.column.map { ":\($0)" } ?? "")
+                    } ?? ""
                 print("  [\(w.kind.rawValue)\(lineTag)] \(w.message)")
             }
         }

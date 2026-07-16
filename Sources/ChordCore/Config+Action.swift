@@ -24,8 +24,7 @@ extension Config {
         row: [String: TOML.Value],
         section: String,
         name: String,
-        source: String,
-        sourceLine: Int?,
+        spans: RowSpans,
         actionAliases: [String: String],
         suffix: String = "",
         required: Bool = true,
@@ -52,8 +51,7 @@ extension Config {
         if suffix.isEmpty {
             switch parseNativeAction(
                 row: row, section: section,
-                name: name, source: source,
-                sourceLine: sourceLine,
+                name: name, spans: spans,
                 warnings: &warnings)
             {
             case .absent: break  // fall through to other action-*
@@ -74,22 +72,24 @@ extension Config {
                 // separately from the `[[bindings]] '…' (line): …`
                 // format on purpose. The structured `.undefinedActionAlias`
                 // kind lets machine consumers disambiguate.
+                let span = spans.value(shellKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .undefinedActionAlias,
                         message:
-                            "binding '\(name)'\(source)\(fieldLabel) "
+                            "binding '\(name)'\(sourceTag(span))\(fieldLabel) "
                             + "references undefined alias '@\(aliasName)'; " + "binding dropped",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             case .callError(let aliasName, let msg):
+                let span = spans.value(shellKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .actionAliasCallError,
                         message:
-                            "binding '\(name)'\(source)\(fieldLabel) "
+                            "binding '\(name)'\(sourceTag(span))\(fieldLabel) "
                             + "@\(aliasName) call error: \(msg); binding dropped",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
         }
@@ -101,6 +101,7 @@ extension Config {
             //   layer extras onto Binding.extraDownActions.
             // on-up does not support arrays (Binding.onUpAction holds
             // a single Action; multiple wouldn't fire).
+            let span = spans.value(keysKey)
             let parsed: [(Modifiers, UInt16)]
             do {
                 parsed = try parseKeysListValue(keysVal)
@@ -109,8 +110,9 @@ extension Config {
                     ConfigWarning(
                         kind: .actionKeysParseError,
                         message:
-                            "\(section) '\(name)'\(source)\(fieldLabel): " + "\(keysKey): \(error)",
-                        sourceLine: sourceLine, bindingName: name))
+                            "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): "
+                            + "\(keysKey): \(error)",
+                        source: span, bindingName: name))
                 return nil
             }
             if parsed.isEmpty {
@@ -118,9 +120,9 @@ extension Config {
                     ConfigWarning(
                         kind: .actionKeysParseError,
                         message:
-                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): "
                             + "\(keysKey): must contain at least one keystroke",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             if !suffix.isEmpty && parsed.count > 1 {
@@ -128,10 +130,10 @@ extension Config {
                     ConfigWarning(
                         kind: .actionKeysParseError,
                         message:
-                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): "
                             + "\(keysKey): array form is not supported for on-up "
                             + "(use a single string)",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             let (mods, code) = parsed[0]
@@ -153,37 +155,40 @@ extension Config {
         // semantics belong on the primary action only.
         if let varName = row[toggleKey]?.asString {
             if !suffix.isEmpty {
+                let span = spans.key(toggleKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .actionSetParseError,
                         message:
-                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): "
                             + "\(toggleKey) is not allowed on -on-up paths",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             if !allowReservedVarNames && varName.hasPrefix("_seq_") {
+                let span = spans.value(toggleKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .actionSetParseError,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "\(toggleKey) name '_seq_*' is reserved for "
                             + "[[sequence]] expansion",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             if row[setKey] != nil || row[setValKey] != nil
                 || row[holdVarKey] != nil
             {
+                let span = spans.key(toggleKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .actionSetParseError,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "\(toggleKey) is mutually exclusive with "
                             + "action-set-var / action-set-value / action-hold-var",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             return ParsedAction(
@@ -199,35 +204,38 @@ extension Config {
         // contract that this sugar owns).
         if let varName = row[holdVarKey]?.asString {
             if !suffix.isEmpty {
+                let span = spans.key(holdVarKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .actionSetParseError,
                         message:
-                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): "
                             + "\(holdVarKey) is not allowed on -on-up paths",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             if !allowReservedVarNames && varName.hasPrefix("_seq_") {
+                let span = spans.value(holdVarKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .actionSetParseError,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "\(holdVarKey) name '_seq_*' is reserved for "
                             + "[[sequence]] expansion",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             if row[setKey] != nil || row[setValKey] != nil {
+                let span = spans.key(holdVarKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .actionSetParseError,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "\(holdVarKey) is mutually exclusive with "
                             + "action-set-var / action-set-value",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             return ParsedAction(
@@ -243,13 +251,14 @@ extension Config {
             // writes to that namespace so a typo'd sequence name never
             // looks like a normal binding owning the var.
             if !allowReservedVarNames && varName.hasPrefix("_seq_") {
+                let span = spans.value(setKey)
                 warnings.append(
                     ConfigWarning(
                         kind: .actionSetParseError,
                         message:
-                            "\(section) '\(name)'\(source)\(fieldLabel): "
+                            "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): "
                             + "\(setKey) name '_seq_*' is reserved for " + "[[sequence]] expansion",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             // `action-set-value` defaults to 1 (the leader-key case).
@@ -258,13 +267,14 @@ extension Config {
             let value: Int
             if let raw = row[setValKey] {
                 guard let v = raw.asInt else {
+                    let span = spans.value(setValKey)
                     warnings.append(
                         ConfigWarning(
                             kind: .actionSetParseError,
                             message:
-                                "\(section) '\(name)'\(source)\(fieldLabel): "
+                                "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): "
                                 + "\(setValKey) must be an integer",
-                            sourceLine: sourceLine, bindingName: name))
+                            source: span, bindingName: name))
                     return nil
                 }
                 value = Int(v)
@@ -279,21 +289,23 @@ extension Config {
         if row[setValKey] != nil {
             // Orphan: action-set-value without action-set-var. Common
             // typo — surfacing it explicitly beats silently ignoring.
+            let span = spans.key(setValKey)
             warnings.append(
                 ConfigWarning(
                     kind: .actionSetParseError,
                     message:
-                        "\(section) '\(name)'\(source)\(fieldLabel): "
+                        "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): "
                         + "\(setValKey) present without \(setKey)",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
         if !required { return nil }
+        let span = spans.header
         warnings.append(
             ConfigWarning(
                 kind: .missingAction,
-                message: "\(section) '\(name)'\(source): no action-* key provided",
-                sourceLine: sourceLine, bindingName: name))
+                message: "\(section) '\(name)'\(sourceTag(span)): no action-* key provided",
+                source: span, bindingName: name))
         return nil
     }
 
@@ -342,16 +354,16 @@ extension Config {
     }
     private static func parseNativeAction(
         row: [String: TOML.Value],
-        section: String, name: String, source: String,
-        sourceLine: Int?,
+        section: String, name: String, spans: RowSpans,
         warnings: inout [ConfigWarning]
     ) -> NativeActionOutcome {
-        func warn(_ msg: String) {
+        func warn(_ msg: String, field: String) {
+            let span = spans.value(field)
             warnings.append(
                 ConfigWarning(
                     kind: .actionKeysParseError,
-                    message: "\(section) '\(name)'\(source): \(msg)",
-                    sourceLine: sourceLine, bindingName: name))
+                    message: "\(section) '\(name)'\(sourceTag(span)): \(msg)",
+                    source: span, bindingName: name))
         }
 
         if let target = row["action-mission-control"]?.asString {
@@ -371,7 +383,8 @@ extension Config {
             default:
                 warn(
                     "action-mission-control: unknown value '\(target)' "
-                        + "(expected show-all-windows / show-app-windows)")
+                        + "(expected show-all-windows / show-app-windows)",
+                    field: "action-mission-control")
                 return .invalid
             }
         }
@@ -392,7 +405,8 @@ extension Config {
             default:
                 warn(
                     "action-screenshot: unknown value '\(target)' "
-                        + "(expected selection / screen)")
+                        + "(expected selection / screen)",
+                    field: "action-screenshot")
                 return .invalid
             }
         }
