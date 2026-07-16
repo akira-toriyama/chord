@@ -44,7 +44,7 @@ extension Config {
     ///     prefix's modset
     ///   * nested `[[sequence.sequence]]` is rejected (out of scope)
     static func parseSequences(
-        root: [String: TOML.Value],
+        spanned: TOML.SpannedTree,
         actionAliases: [String: String],
         inputAliases: [String: Modifiers],
         vkeyAliases: [String: UInt8] = [:],
@@ -55,19 +55,19 @@ extension Config {
         var dropped = 0
         var seenNames: Set<String> = []
 
-        let rows = root["sequence"]?.asArrayOfTables ?? []
+        let rows = spanned.tree["sequence"]?.asArrayOfTables ?? []
         for (i, row) in rows.enumerated() {
-            let line = row.span?.line
-            let source = sourceTag(line: line)
+            let rowPrefix: [TOML.PathSegment] = [.key("sequence"), .index(i)]
+            let spans = rowSpans(row, at: rowPrefix, in: spanned)
             let rawName = row["name"]?.asString
             let seqName = rawName ?? "sequence-\(i + 1)"
 
-            func failSeq(_ msg: String) {
+            func failSeq(_ msg: String, at span: TOML.SourceSpan?) {
                 warnings.append(
                     ConfigWarning(
                         kind: .sequenceParseError,
-                        message: "[[sequence]] '\(seqName)'\(source): \(msg)",
-                        sourceLine: line, bindingName: seqName))
+                        message: "[[sequence]] '\(seqName)'\(sourceTag(span)): \(msg)",
+                        source: span, bindingName: seqName))
                 dropped += 1
             }
 
@@ -75,34 +75,44 @@ extension Config {
             // the synthetic variable `_seq_<name>`, and `_seq_` is
             // the reservation surface we enforce on user `action-set-var`.
             if let n = rawName, n.hasPrefix("_seq_") {
-                failSeq("sequence name must not start with '_seq_' (reserved)")
+                failSeq(
+                    "sequence name must not start with '_seq_' (reserved)",
+                    at: spans.value("name"))
                 continue
             }
 
             if seenNames.contains(seqName) {
                 failSeq(
                     "duplicate sequence name (each sequence "
-                        + "owns variable '_seq_\(seqName)' — names " + "must be unique)")
+                        + "owns variable '_seq_\(seqName)' — names " + "must be unique)",
+                    at: spans.value("name"))
                 continue
             }
             seenNames.insert(seqName)
 
             if row["sequence"] != nil {
-                failSeq("nested [[sequence.sequence]] is not supported")
+                failSeq(
+                    "nested [[sequence.sequence]] is not supported",
+                    at: spans.key("sequence"))
                 continue
             }
 
             guard let prefixRaw = row["prefix"]?.asString else {
-                failSeq("missing 'prefix'")
+                failSeq("missing 'prefix'", at: spans.header)
                 continue
             }
             guard let timeoutRaw = row["timeout-ms"]?.asInt else {
-                failSeq("missing or non-integer 'timeout-ms'")
+                failSeq(
+                    "missing or non-integer 'timeout-ms'",
+                    at: row["timeout-ms"] != nil
+                        ? spans.value("timeout-ms") : spans.header)
                 continue
             }
             let timeoutMs = Int(timeoutRaw)
             guard timeoutMs > 0 else {
-                failSeq("timeout-ms must be > 0 (got \(timeoutMs))")
+                failSeq(
+                    "timeout-ms must be > 0 (got \(timeoutMs))",
+                    at: spans.value("timeout-ms"))
                 continue
             }
 
@@ -114,13 +124,14 @@ extension Config {
                     allowWildcard: false,
                     inputAliases: inputAliases)
             } catch {
-                failSeq("prefix: \(error)")
+                failSeq("prefix: \(error)", at: spans.value("prefix"))
                 continue
             }
             guard prefixParsed.modifiers.rawValue != 0 else {
                 failSeq(
                     "prefix must include at least one modifier "
-                        + "(a bare-key leader would swallow every press)")
+                        + "(a bare-key leader would swallow every press)",
+                    at: spans.value("prefix"))
                 continue
             }
 
@@ -131,7 +142,9 @@ extension Config {
             // ran and the first `-` IS the separator.
             let trimmedPrefix = prefixRaw.trimmingCharacters(in: .whitespaces)
             guard let dashIdx = trimmedPrefix.firstIndex(of: "-") else {
-                failSeq("internal error: prefix parsed with modifiers but no separator")
+                failSeq(
+                    "internal error: prefix parsed with modifiers but no separator",
+                    at: spans.value("prefix"))
                 continue
             }
             let modsetStr = String(trimmedPrefix[..<dashIdx])
@@ -139,7 +152,7 @@ extension Config {
 
             let childRows = row["bindings"]?.asArrayOfTables ?? []
             guard !childRows.isEmpty else {
-                failSeq("no [[sequence.bindings]] children declared")
+                failSeq("no [[sequence.bindings]] children declared", at: spans.header)
                 continue
             }
 
@@ -148,16 +161,24 @@ extension Config {
             // Prefix binding — synthesize a row and reuse makeBinding so
             // all the v2 validation (hold-while-timeout positive, etc.)
             // runs uniformly. allowReservedVarNames bypasses the
-            // `_seq_*` guard for this synthetic row only.
-            var prefixRow: [String: TOML.Value] = [
+            // `_seq_*` guard for this synthetic row only. The synthesized
+            // fields map back to the [[sequence]] fields they came from
+            // (input ← prefix, hold-while-timeout ← timeout-ms) so a
+            // makeBinding complaint points at the user's actual TOML.
+            let prefixRow: [String: TOML.Value] = [
                 "name": .string("\(seqName) [enter]"),
                 "input": .string(prefixRaw),
                 "action-set-var": .string(varName),
                 "hold-while-timeout": .int(Int64(timeoutMs))
             ]
+            var prefixSpanFields: [String: TOML.EntrySpans] = [:]
+            prefixSpanFields["name"] = spans.fields["name"]
+            prefixSpanFields["input"] = spans.fields["prefix"]
+            prefixSpanFields["hold-while-timeout"] = spans.fields["timeout-ms"]
+            let prefixSpans = RowSpans(header: spans.header, fields: prefixSpanFields)
             guard
                 let prefixBinding = makeBinding(
-                    from: prefixRow, sourceLine: line, index: i, isFallback: false,
+                    from: prefixRow, spans: prefixSpans, index: i, isFallback: false,
                     actionAliases: actionAliases,
                     inputAliases: inputAliases,
                     vkeyAliases: vkeyAliases,
@@ -173,20 +194,22 @@ extension Config {
 
             // Child bindings.
             for (ci, child) in childRows.enumerated() {
-                let childLine = child.span?.line ?? line
-                let childSrc = sourceTag(line: childLine)
+                let childPrefix = rowPrefix + [.key("bindings"), .index(ci)]
+                var childSpans = rowSpans(child, at: childPrefix, in: spanned)
+                if childSpans.header == nil { childSpans.header = spans.header }
                 let childName =
                     child["name"]?.asString
                     ?? "\(seqName).\(ci + 1)"
 
                 guard let childInputRaw = child["input"]?.asString else {
+                    let span = childSpans.header
                     warnings.append(
                         ConfigWarning(
                             kind: .missingInput,
                             message:
-                                "[[sequence.bindings]] '\(childName)'\(childSrc): "
+                                "[[sequence.bindings]] '\(childName)'\(sourceTag(span)): "
                                 + "missing 'input'",
-                            sourceLine: childLine, bindingName: childName))
+                            source: span, bindingName: childName))
                     dropped += 1
                     continue
                 }
@@ -205,14 +228,15 @@ extension Config {
                 if vkeyAliases[childLower] != nil
                     || InputParser.vkeyWildcardNames.contains(childLower)
                 {
+                    let span = childSpans.value("input")
                     warnings.append(
                         ConfigWarning(
                             kind: .sequenceParseError,
                             message:
-                                "[[sequence.bindings]] '\(childName)'\(childSrc): "
+                                "[[sequence.bindings]] '\(childName)'\(sourceTag(span)): "
                                 + "v-key triggers are not supported in sequences "
                                 + "(vkeys carry no modifiers) — child dropped",
-                            sourceLine: childLine, bindingName: childName))
+                            source: span, bindingName: childName))
                     dropped += 1
                     continue
                 }
@@ -227,9 +251,11 @@ extension Config {
                 childRow["name"] = .string(childName)
                 childRow["input"] = .string(composedInput)
                 childRow["when-var"] = .string(varName)
-
+                // The composed input's span stays the child's own `input`
+                // entry; the synthetic when-var has no source and falls
+                // back to the child header.
                 if let b = makeBinding(
-                    from: childRow, sourceLine: childLine, index: ci, isFallback: false,
+                    from: childRow, spans: childSpans, index: ci, isFallback: false,
                     actionAliases: actionAliases,
                     inputAliases: inputAliases,
                     vkeyAliases: vkeyAliases,

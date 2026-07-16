@@ -12,12 +12,12 @@ extension Config {
     /// inputs[]` (chord 0.8.0+) and `[[bindings]] [[bindings.per-app]]`
     /// (chord 0.8.0+).
     enum RowExpansion {
-        /// Use the row as-is (no sugar field present), with its resolved
-        /// source line (from the originating `Toml.Row.span`).
-        case single([String: TOML.Value], line: Int?)
-        /// Expand into N rows, each paired with its resolved source line.
-        /// Caller threads each through makeBinding as `(fields, sourceLine)`.
-        case many([(row: [String: TOML.Value], line: Int?)])
+        /// Use the row as-is (no sugar field present), with its
+        /// resolved per-field spans.
+        case single([String: TOML.Value], spans: RowSpans)
+        /// Expand into N rows, each paired with its resolved spans.
+        /// Caller threads each through makeBinding as `(fields, spans)`.
+        case many([(row: [String: TOML.Value], spans: RowSpans)])
         /// Validation failed (mutually exclusive fields, empty list,
         /// non-string member, etc.). Warning already appended; caller
         /// counts the drop.
@@ -53,44 +53,47 @@ extension Config {
     ///   * empty `per-app` array drops the whole binding
     static func expandBindingPerApp(
         _ row: TOML.Row,
+        at prefix: [TOML.PathSegment],
+        in spanned: TOML.SpannedTree,
         warnings: inout [ConfigWarning]
     ) -> RowExpansion {
+        let baseSpans = rowSpans(row, at: prefix, in: spanned)
         guard let perApp = row["per-app"]?.asArrayOfTables else {
-            return .single(row.fields, line: row.span?.line)
+            return .single(row.fields, spans: baseSpans)
         }
-        let line = row.span?.line
         let baseName = row["name"]?.asString
         let displayName = baseName ?? "[[bindings]] entry"
-        let source = sourceTag(line: line)
 
         if row["apps"] != nil {
+            let span = baseSpans.key("apps")
             warnings.append(
                 ConfigWarning(
                     kind: .perAppParseError,
                     message:
-                        "[[bindings]] '\(displayName)'\(source): "
+                        "[[bindings]] '\(displayName)'\(sourceTag(span)): "
                         + "'apps' and 'per-app' are mutually exclusive — "
                         + "per-app entries provide their own bundle id",
-                    sourceLine: line, bindingName: baseName))
+                    source: span, bindingName: baseName))
             return .invalid
         }
         if perApp.isEmpty {
+            let span = baseSpans.header
             warnings.append(
                 ConfigWarning(
                     kind: .perAppParseError,
                     message:
-                        "[[bindings]] '\(displayName)'\(source): "
+                        "[[bindings]] '\(displayName)'\(sourceTag(span)): "
                         + "per-app must contain at least one [[bindings.per-app]] entry",
-                    sourceLine: line, bindingName: baseName))
+                    source: span, bindingName: baseName))
             return .invalid
         }
 
         // Field names whose per-app override layers onto the base.
         // Everything binding-shape (input / when-var / hold-while /
-        // action-* / on-up variants) is layerable; metadata (`name`,
-        // `__line__`) and the per-app identity key (`bundle-id`, which
-        // becomes `apps`) are not. #52-bounded: this set is DERIVED from
-        // the descriptor's perAppShape (the same single source that drives
+        // action-* / on-up variants) is layerable; metadata (`name`)
+        // and the per-app identity key (`bundle-id`, which becomes
+        // `apps`) are not. #52-bounded: this set is DERIVED from the
+        // descriptor's perAppShape (the same single source that drives
         // the unknown-key check + the schema), so a key added to the
         // shape lands here too — it can't go stale. `rejected` fields
         // (the invalid `*-on-up` forms) are excluded.
@@ -99,36 +102,52 @@ extension Config {
                 .filter { !$0.rejected && $0.key != "bundle-id" }
                 .map(\.key))
 
-        var out: [(row: [String: TOML.Value], line: Int?)] = []
-        for entry in perApp {
-            // Attribute each expansion to the per-app entry's line when
-            // present (so warnings point at the override row), otherwise
-            // inherit the base row's line.
-            let entryLine = entry.span?.line ?? line
-            let entrySource = sourceTag(line: entryLine)
+        var out: [(row: [String: TOML.Value], spans: RowSpans)] = []
+        for (ei, entry) in perApp.enumerated() {
+            // Attribute each expansion to the per-app entry when present
+            // (so warnings point at the override row), otherwise inherit
+            // the base row's location — and layer the entry's FIELD spans
+            // over the base's exactly like the fields themselves layer.
+            let entryPrefix = prefix + [.key("per-app"), .index(ei)]
+            let entrySpans = rowSpans(entry, at: entryPrefix, in: spanned)
             guard let bundleID = entry["bundle-id"]?.asString,
                 !bundleID.isEmpty
             else {
+                let span = entrySpans.value("bundle-id") ?? baseSpans.header
                 warnings.append(
                     ConfigWarning(
                         kind: .perAppParseError,
                         message:
                             "[[bindings.per-app]] for '\(displayName)'"
-                            + "\(entrySource): missing or empty 'bundle-id'",
-                        sourceLine: entryLine, bindingName: baseName))
+                            + "\(sourceTag(span)): missing or empty 'bundle-id'",
+                        source: span, bindingName: baseName))
                 return .invalid
             }
 
             var synth = row.fields
+            var synthFields = baseSpans.fields
             synth["per-app"] = nil
+            synthFields["per-app"] = nil
             synth["apps"] = .array([.string(bundleID)])
+            // The synthesized `apps` comes from the entry's bundle-id —
+            // point any `apps` complaint there.
+            synthFields["apps"] = entrySpans.fields["bundle-id"]
             for key in layerableKeys {
-                if let v = entry[key] { synth[key] = v }
+                if let v = entry[key] {
+                    synth[key] = v
+                    synthFields[key] = entrySpans.fields[key]
+                }
             }
             if let baseName {
                 synth["name"] = .string("\(baseName) — \(bundleID)")
             }
-            out.append((synth, entryLine))
+            out.append(
+                (
+                    synth,
+                    RowSpans(
+                        header: entrySpans.header ?? baseSpans.header,
+                        fields: synthFields)
+                ))
         }
         return .many(out)
     }
@@ -143,63 +162,75 @@ extension Config {
     /// `config --show --json` distinguish the siblings.
     ///
     /// Every expanded fallback attributes back to the source
-    /// `[[fallbacks]]` header line (carried explicitly alongside the
-    /// synthesized fields).
+    /// `[[fallbacks]]` row's spans (the synthesized `input` points at
+    /// the `inputs` array it came from).
     static func expandFallbackRow(
         _ row: TOML.Row,
+        at prefix: [TOML.PathSegment],
+        in spanned: TOML.SpannedTree,
         warnings: inout [ConfigWarning]
     ) -> FallbackExpansion {
+        let baseSpans = rowSpans(row, at: prefix, in: spanned)
         guard let inputsRaw = row["inputs"] else {
-            return .single(row.fields, line: row.span?.line)
+            return .single(row.fields, spans: baseSpans)
         }
-        let line = row.span?.line
         let baseName = row["name"]?.asString
         let displayName = baseName ?? "[[fallbacks]] entry"
-        let source = sourceTag(line: line)
 
         guard case .array(let arr) = inputsRaw else {
+            let span = baseSpans.value("inputs")
             warnings.append(
                 ConfigWarning(
                     kind: .missingInput,
                     message:
-                        "[[fallbacks]] '\(displayName)'\(source): "
+                        "[[fallbacks]] '\(displayName)'\(sourceTag(span)): "
                         + "inputs must be an array of strings",
-                    sourceLine: line, bindingName: baseName))
+                    source: span, bindingName: baseName))
             return .invalid
         }
         if row["input"] != nil {
+            let span = baseSpans.key("input")
             warnings.append(
                 ConfigWarning(
                     kind: .missingInput,
                     message:
-                        "[[fallbacks]] '\(displayName)'\(source): "
+                        "[[fallbacks]] '\(displayName)'\(sourceTag(span)): "
                         + "'input' and 'inputs' are mutually exclusive — pick one",
-                    sourceLine: line, bindingName: baseName))
+                    source: span, bindingName: baseName))
             return .invalid
         }
         if arr.isEmpty {
+            let span = baseSpans.value("inputs")
             warnings.append(
                 ConfigWarning(
                     kind: .missingInput,
                     message:
-                        "[[fallbacks]] '\(displayName)'\(source): "
+                        "[[fallbacks]] '\(displayName)'\(sourceTag(span)): "
                         + "inputs[] must contain at least one entry",
-                    sourceLine: line, bindingName: baseName))
+                    source: span, bindingName: baseName))
             return .invalid
         }
         let inputStrings = arr.compactMap(\.asString)
         if inputStrings.count != arr.count {
+            let span = baseSpans.value("inputs")
             warnings.append(
                 ConfigWarning(
                     kind: .missingInput,
                     message:
-                        "[[fallbacks]] '\(displayName)'\(source): "
+                        "[[fallbacks]] '\(displayName)'\(sourceTag(span)): "
                         + "every inputs[] element must be a string",
-                    sourceLine: line, bindingName: baseName))
+                    source: span, bindingName: baseName))
             return .invalid
         }
 
-        var out: [(row: [String: TOML.Value], line: Int?)] = []
+        // The synthesized `input` comes from the `inputs` array — point
+        // any input complaint there.
+        var synthSpanFields = baseSpans.fields
+        synthSpanFields["input"] = baseSpans.fields["inputs"]
+        synthSpanFields["inputs"] = nil
+        let synthSpans = RowSpans(header: baseSpans.header, fields: synthSpanFields)
+
+        var out: [(row: [String: TOML.Value], spans: RowSpans)] = []
         for inputStr in inputStrings {
             var synth = row.fields
             synth["input"] = .string(inputStr)
@@ -207,7 +238,7 @@ extension Config {
             if let baseName {
                 synth["name"] = .string("\(baseName) — \(inputStr)")
             }
-            out.append((synth, line))
+            out.append((synth, synthSpans))
         }
         return .many(out)
     }

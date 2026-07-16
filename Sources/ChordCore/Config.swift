@@ -58,14 +58,15 @@ public enum Config {
     public static func parse(_ source: String) throws -> ParseResult {
         // t-0030: parse via `parseWithSpans` — the same nested strict tree
         // (equivalence is CI-gated in swift-toml-edit), re-derived from the
-        // lossless DOM. `spanned.entrySpans` / `.headerSpans` carry the
-        // per-entry line+column index that will upgrade warning attribution
-        // from `(config.toml:N)` to `(config.toml:N:C)`; the plumbing below
-        // still reads line-only `Row.span` until the per-field pass lands.
-        let root: [String: TOML.Value]
-        do { root = try TOML.parseWithSpans(source).tree } catch let e as TOML.ParseError {
+        // lossless DOM. `spanned.entrySpans` / `.headerSpans` are the
+        // per-entry line+column index behind every field-precise
+        // `(config.toml:N:C)` warning below (resolved per row via
+        // `rowSpans` / `tableSpans`, Config+Spans.swift).
+        let spanned: TOML.SpannedTree
+        do { spanned = try TOML.parseWithSpans(source) } catch let e as TOML.ParseError {
             throw LoadError.tomlError(String(describing: e))
         } catch { throw LoadError.tomlError(String(describing: error)) }
+        let root = spanned.tree
 
         var warnings: [ConfigWarning] = []
         var options = ChordConfig.Options()
@@ -77,9 +78,11 @@ public enum Config {
         // aliases] / [input-aliases]) accept any key by design.
         warnings.append(
             contentsOf:
-                ChordConfigSchema.unknownKeyWarnings(root: root))
+                ChordConfigSchema.unknownKeyWarnings(spanned: spanned))
 
         if case .table(let opts)? = root["options"] {
+            let optSpans = tableSpans(
+                keys: opts.keys, at: [.key("options")], in: spanned)
             // t-0055: surface present-but-wrong-type. The reads below keep
             // their `?.asBool` / `?.asArray` guards (which fall through to
             // the default on a type miss); these calls only make that
@@ -88,6 +91,7 @@ public enum Config {
                 opts, key: "passthrough-unmatched",
                 accept: ["boolean"],
                 label: "[options] 'passthrough-unmatched'",
+                spans: optSpans,
                 warnings: &warnings)
             if let b = opts["passthrough-unmatched"]?.asBool {
                 options.passthroughUnmatched = b
@@ -95,10 +99,12 @@ public enum Config {
             warnFieldType(
                 opts, key: "exclude-apps", accept: ["array"],
                 label: "[options] 'exclude-apps'",
+                spans: optSpans,
                 warnings: &warnings)
             warnArrayElementTypes(
                 opts, key: "exclude-apps",
                 label: "[options] 'exclude-apps'",
+                spans: optSpans,
                 warnings: &warnings)
             if let arr = opts["exclude-apps"]?.asArray {
                 options.excludeApps = arr.compactMap(\.asString)
@@ -106,6 +112,7 @@ public enum Config {
             warnFieldType(
                 opts, key: "fn-auto-arrows", accept: ["boolean"],
                 label: "[options] 'fn-auto-arrows'",
+                spans: optSpans,
                 warnings: &warnings)
             if let b = opts["fn-auto-arrows"]?.asBool {
                 options.fnAutoArrows = b
@@ -119,12 +126,14 @@ public enum Config {
             // never carried a synthetic line key.
             let known = ChordConfigSchema.optionsShape().keySet
             for key in opts.keys where !known.contains(key) {
+                let span = optSpans.key(key)
                 warnings.append(
                     ConfigWarning(
                         kind: .unknownOptionKey,
                         message:
-                            "[options] '\(key)': unknown option key — "
-                            + "ignored (known: \(known.sorted().joined(separator: ", ")))"))
+                            "[options] '\(key)'\(sourceTag(span)): unknown option key — "
+                            + "ignored (known: \(known.sorted().joined(separator: ", ")))",
+                        source: span))
             }
         }
 
@@ -133,15 +142,20 @@ public enum Config {
         // dropped with a warning.
         var actionAliases: [String: String] = [:]
         if case .table(let raw)? = root["action-aliases"] {
+            let aliasSpans = tableSpans(
+                keys: raw.keys, at: [.key("action-aliases")], in: spanned)
             for (key, value) in raw {
                 if let s = value.asString {
                     actionAliases[key] = s
                 } else {
+                    let span = aliasSpans.value(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .actionAliasNonString,
-                            message: "[action-aliases] '\(key)': value must be a string — ignored",
-                            bindingName: key))
+                            message:
+                                "[action-aliases] '\(key)'\(sourceTag(span)): "
+                                + "value must be a string — ignored",
+                            source: span, bindingName: key))
                 }
             }
         }
@@ -164,49 +178,56 @@ public enum Config {
         var inputAliasesRaw: [String: String] = [:]
         var inputAliasesParsed: [String: Modifiers] = [:]
         if case .table(let raw)? = root["input-aliases"] {
+            let aliasSpans = tableSpans(
+                keys: raw.keys, at: [.key("input-aliases")], in: spanned)
             for (key, value) in raw {
                 let keyLower = key.lowercased()
                 if InputParser.reservedModifierTokens.contains(keyLower) {
+                    let span = aliasSpans.key(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .inputAliasShadowsModifier,
                             message:
-                                "[input-aliases] '\(key)': name shadows "
+                                "[input-aliases] '\(key)'\(sourceTag(span)): name shadows "
                                 + "built-in modifier token — ignored",
-                            bindingName: key))
+                            source: span, bindingName: key))
                     continue
                 }
                 guard let s = value.asString else {
+                    let span = aliasSpans.value(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .inputAliasNonString,
                             message:
-                                "[input-aliases] '\(key)': value must be a " + "string — ignored",
-                            bindingName: key))
+                                "[input-aliases] '\(key)'\(sourceTag(span)): "
+                                + "value must be a string — ignored",
+                            source: span, bindingName: key))
                     continue
                 }
                 let mask: Modifiers
                 do {
                     mask = try InputParser.parseModifiersOnly(s)
                 } catch {
+                    let span = aliasSpans.value(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .inputAliasInvalidBody,
                             message:
-                                "[input-aliases] '\(key)': \(error) — ignored",
-                            bindingName: key))
+                                "[input-aliases] '\(key)'\(sourceTag(span)): \(error) — ignored",
+                            source: span, bindingName: key))
                     continue
                 }
                 // Empty body is meaningless — same treatment as
                 // hold-while: caller almost certainly mistyped.
                 if mask.rawValue == 0 {
+                    let span = aliasSpans.value(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .inputAliasInvalidBody,
                             message:
-                                "[input-aliases] '\(key)': must contain at "
+                                "[input-aliases] '\(key)'\(sourceTag(span)): must contain at "
                                 + "least one modifier — ignored",
-                            bindingName: key))
+                            source: span, bindingName: key))
                     continue
                 }
                 inputAliasesRaw[key] = s
@@ -227,50 +248,57 @@ public enum Config {
         // be ambiguous.
         var vkeyAliasesParsed: [String: UInt8] = [:]
         if case .table(let raw)? = root["v-key-aliases"] {
+            let aliasSpans = tableSpans(
+                keys: raw.keys, at: [.key("v-key-aliases")], in: spanned)
             for (key, value) in raw {
                 let keyLower = key.lowercased()
                 if InputParser.vkeyWildcardNames.contains(keyLower)
                     || InputParser.reservedModifierTokens.contains(keyLower)
                     || KeyCodes.code(forName: keyLower) != nil
                 {
+                    let span = aliasSpans.key(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .vkeyAliasInvalid,
                             message:
-                                "[v-key-aliases] '\(key)': name shadows a built-in "
+                                "[v-key-aliases] '\(key)'\(sourceTag(span)): "
+                                + "name shadows a built-in "
                                 + "key / modifier / the v-key wildcard — ignored "
                                 + "(rename so `input = \"\(key)\"` stays unambiguous)",
-                            bindingName: key))
+                            source: span, bindingName: key))
                     continue
                 }
                 guard let idRaw = value.asInt.map({ Int($0) }) else {
+                    let span = aliasSpans.value(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .vkeyAliasInvalid,
                             message:
-                                "[v-key-aliases] '\(key)': value must be an "
+                                "[v-key-aliases] '\(key)'\(sourceTag(span)): value must be an "
                                 + "integer 1–255 (the id `&vkey <id>` sends) — ignored",
-                            bindingName: key))
+                            source: span, bindingName: key))
                     continue
                 }
                 guard (1...255).contains(idRaw) else {
+                    let span = aliasSpans.value(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .vkeyAliasInvalid,
                             message:
-                                "[v-key-aliases] '\(key)': id \(idRaw) out of "
+                                "[v-key-aliases] '\(key)'\(sourceTag(span)): id \(idRaw) out of "
                                 + "range 1–255 — ignored",
-                            bindingName: key))
+                            source: span, bindingName: key))
                     continue
                 }
                 if let existing = vkeyAliasesParsed[keyLower] {
+                    let span = aliasSpans.key(key)
                     warnings.append(
                         ConfigWarning(
                             kind: .vkeyAliasInvalid,
                             message:
-                                "[v-key-aliases] '\(key)': duplicate name "
+                                "[v-key-aliases] '\(key)'\(sourceTag(span)): duplicate name "
                                 + "(already = \(existing)) — first wins, ignored",
-                            bindingName: key))
+                            source: span, bindingName: key))
                     continue
                 }
                 vkeyAliasesParsed[keyLower] = UInt8(idRaw)
@@ -285,7 +313,7 @@ public enum Config {
         // (= first-match-wins yields the documented "sequence wins"
         // semantics without needing an extra precedence dimension).
         let seq = parseSequences(
-            root: root,
+            spanned: spanned,
             actionAliases: actionAliases,
             inputAliases: inputAliasesParsed,
             vkeyAliases: vkeyAliasesParsed,
@@ -295,16 +323,17 @@ public enum Config {
         var dropped = seq.dropped
         let rows = root["bindings"]?.asArrayOfTables ?? []
         var bindingIndex = 0
-        for row in rows {
+        for (ri, row) in rows.enumerated() {
             // v0.8.0 per-app sugar: a `[[bindings]]` row with a
             // `[[bindings.per-app]]` AoT child expands to N siblings,
             // one per per-app entry, with `apps = [bundle-id]` and
             // the entry's action-* fields layered onto the base row.
-            // Each synthesized row carries its resolved source line
-            // alongside its fields (the per-app entry's line wins).
-            let synthRows: [(row: [String: TOML.Value], line: Int?)]
-            switch expandBindingPerApp(row, warnings: &warnings) {
-            case .single(let r, let l): synthRows = [(r, l)]
+            // Each synthesized row carries its resolved spans alongside
+            // its fields (the per-app entry's field spans win).
+            let prefix: [TOML.PathSegment] = [.key("bindings"), .index(ri)]
+            let synthRows: [(row: [String: TOML.Value], spans: RowSpans)]
+            switch expandBindingPerApp(row, at: prefix, in: spanned, warnings: &warnings) {
+            case .single(let r, let s): synthRows = [(r, s)]
             case .many(let rs): synthRows = rs
             case .invalid: dropped += 1; continue
             }
@@ -313,7 +342,7 @@ public enum Config {
                 guard
                     let b = makeBinding(
                         from: synth.row,
-                        sourceLine: synth.line,
+                        spans: synth.spans,
                         index: bindingIndex,
                         isFallback: false,
                         actionAliases: actionAliases,
@@ -333,15 +362,16 @@ public enum Config {
                 if let collision = seq.prefixes.first(where: { p in
                     p.trigger == b.trigger && p.modifiers == b.modifiers
                 }) {
+                    let span = synth.spans.value("input")
                     warnings.append(
                         ConfigWarning(
                             kind: .sequenceParseError,
                             message:
-                                "[[bindings]] '\(b.name)'" + sourceTag(line: b.sourceLine)
+                                "[[bindings]] '\(b.name)'" + sourceTag(span)
                                 + ": input '\(b.inputRaw)' collides with "
                                 + "[[sequence]] prefix '\(collision.name)' — "
                                 + "regular binding dropped (sequence wins)",
-                            sourceLine: b.sourceLine, bindingName: b.name))
+                            source: span, bindingName: b.name))
                     dropped += 1
                     continue
                 }
@@ -377,7 +407,7 @@ public enum Config {
         // bindings so a specific `[[bindings]]` row can override a
         // bulk remap entry via first-match-wins.
         let remap = parseRemaps(
-            root: root,
+            spanned: spanned,
             actionAliases: actionAliases,
             inputAliases: inputAliasesParsed,
             vkeyAliases: vkeyAliasesParsed,
@@ -388,14 +418,15 @@ public enum Config {
         var fallbacks: [Binding] = []
         let fbRows = root["fallbacks"]?.asArrayOfTables ?? []
         var fbExpansionIndex = 0
-        for row in fbRows {
+        for (ri, row) in fbRows.enumerated() {
             let expanded = expandFallbackRow(
                 row,
+                at: [.key("fallbacks"), .index(ri)], in: spanned,
                 warnings: &warnings)
             switch expanded {
-            case .single(let r, let l):
+            case .single(let r, let s):
                 if let b = makeBinding(
-                    from: r, sourceLine: l,
+                    from: r, spans: s,
                     index: fbExpansionIndex,
                     isFallback: true,
                     actionAliases: actionAliases,
@@ -409,9 +440,9 @@ public enum Config {
                     dropped += 1
                 }
             case .many(let rows):
-                for (r, l) in rows {
+                for (r, s) in rows {
                     if let b = makeBinding(
-                        from: r, sourceLine: l,
+                        from: r, spans: s,
                         index: fbExpansionIndex,
                         isFallback: true,
                         actionAliases: actionAliases,
@@ -459,15 +490,17 @@ public enum Config {
     //   Config+Expansion.swift — expandBindingPerApp / expandFallbackRow
     //                            + RowExpansion / FallbackExpansion.
 
-    /// Render the `(config.toml:42)` suffix attached to per-binding
-    /// warnings. Returns the empty string when the parser couldn't
-    /// resolve a line — better to drop the suffix than print
-    /// "config.toml:?".
-    /// Internal so extension parsers can format `(config.toml:N)`
-    /// suffixes consistently with the in-file warning emitters.
-    static func sourceTag(line: Int?) -> String {
-        guard let line else { return "" }
-        return " (config.toml:\(line))"
+    /// Render the `(config.toml:N:C)` suffix attached to warnings —
+    /// `(config.toml:N)` when the span carries no column, the empty
+    /// string when there is no span at all (better to drop the suffix
+    /// than print "config.toml:?"). Internal so extension parsers
+    /// format the suffix consistently with the in-file emitters.
+    static func sourceTag(_ span: TOML.SourceSpan?) -> String {
+        guard let span else { return "" }
+        guard let column = span.column else {
+            return " (config.toml:\(span.line))"
+        }
+        return " (config.toml:\(span.line):\(column))"
     }
 
     /// Human-readable TOML type name for `field-type-mismatch` warnings.
@@ -485,18 +518,19 @@ public enum Config {
 
     /// present-but-wrong-type guard (t-0055). When `key` exists in
     /// `table` but its value's TOML type isn't one of `accept`, append a
-    /// `field-type-mismatch` warning. The read sites keep their
-    /// `?.asBool` / `?.asArray` guards (which already fall through to the
-    /// default on a type miss) — this only makes the otherwise-silent
-    /// skip visible. A missing or correctly-typed field emits nothing, so
-    /// valid configs are byte-for-byte unchanged (no regression).
+    /// `field-type-mismatch` warning pointing at the field's VALUE
+    /// (`spans.value(key)`). The read sites keep their `?.asBool` /
+    /// `?.asArray` guards (which already fall through to the default on
+    /// a type miss) — this only makes the otherwise-silent skip visible.
+    /// A missing or correctly-typed field emits nothing, so valid
+    /// configs are byte-for-byte unchanged (no regression).
     /// `accept` strings must match `tomlTypeName`'s vocabulary.
     static func warnFieldType(
         _ table: [String: TOML.Value],
         key: String,
         accept: Set<String>,
         label: String,
-        sourceLine: Int? = nil,
+        spans: RowSpans = .none,
         bindingName: String? = nil,
         warnings: inout [ConfigWarning]
     ) {
@@ -504,13 +538,14 @@ public enum Config {
         let actual = tomlTypeName(value)
         guard !accept.contains(actual) else { return }
         let expected = accept.sorted().joined(separator: " or ")
+        let span = spans.value(key)
         warnings.append(
             ConfigWarning(
                 kind: .fieldTypeMismatch,
                 message:
-                    "\(label): expected \(expected), got \(actual) — "
+                    "\(label)\(sourceTag(span)): expected \(expected), got \(actual) — "
                     + "ignored (value has no effect)",
-                sourceLine: sourceLine, bindingName: bindingName))
+                source: span, bindingName: bindingName))
     }
 
     /// Element-level companion to `warnFieldType` for the string-array
@@ -523,20 +558,21 @@ public enum Config {
         _ table: [String: TOML.Value],
         key: String,
         label: String,
-        sourceLine: Int? = nil,
+        spans: RowSpans = .none,
         bindingName: String? = nil,
         warnings: inout [ConfigWarning]
     ) {
         guard let arr = table[key]?.asArray else { return }
         let bad = arr.filter { $0.asString == nil }.map(tomlTypeName)
         guard !bad.isEmpty else { return }
+        let span = spans.value(key)
         warnings.append(
             ConfigWarning(
                 kind: .fieldTypeMismatch,
                 message:
-                    "\(label): expected an array of strings, got non-string "
+                    "\(label)\(sourceTag(span)): expected an array of strings, got non-string "
                     + "element(s) [\(bad.joined(separator: ", "))] — " + "dropped (no effect)",
-                sourceLine: sourceLine, bindingName: bindingName))
+                source: span, bindingName: bindingName))
     }
 
 }

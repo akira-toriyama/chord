@@ -259,7 +259,7 @@ public enum Condition: Hashable, Sendable {
 
 /// One binding: trigger + modifiers + optional app scope → action.
 ///
-/// Carries `inputRaw` / `actionRaw` / `aliasName` / `sourceLine`
+/// Carries `inputRaw` / `actionRaw` / `aliasName` / `sourceSpan`
 /// metadata alongside the runtime fields. The matcher ignores
 /// them; the `chord config --show --json` serialiser
 /// ([Schema.swift](Schema.swift)) needs them to round-trip a config
@@ -367,10 +367,15 @@ public struct Binding: Hashable, Sendable {
     /// (without the `@`) and `action` holds the resolved body. `nil`
     /// when no alias was used.
     public var aliasName: String?
-    /// 1-based line of the row's `[[bindings]]` / `[[fallbacks]]`
-    /// header in the source config, when the TOML parser tracked
-    /// it. `nil` if unavailable.
-    public var sourceLine: Int?
+    /// 1-based line + column of the row's `[[bindings]]` /
+    /// `[[fallbacks]]` header in the source config, when the TOML
+    /// parser tracked it. `nil` if unavailable. (Per-FIELD locations
+    /// exist only transiently, on the warnings.)
+    public var sourceSpan: TOML.SourceSpan?
+
+    /// Line-only view of `sourceSpan` — the v3 wire field
+    /// (`source_line`) and text renderers read this.
+    public var sourceLine: Int? { sourceSpan?.line }
 
     public init(
         name: String, trigger: Trigger, modifiers: Modifiers,
@@ -387,7 +392,7 @@ public struct Binding: Hashable, Sendable {
         inputRaw: String = "",
         actionRaw: String? = nil,
         aliasName: String? = nil,
-        sourceLine: Int? = nil
+        sourceSpan: TOML.SourceSpan? = nil
     ) {
         self.name = name
         self.trigger = trigger
@@ -406,7 +411,7 @@ public struct Binding: Hashable, Sendable {
         self.inputRaw = inputRaw
         self.actionRaw = actionRaw
         self.aliasName = aliasName
-        self.sourceLine = sourceLine
+        self.sourceSpan = sourceSpan
     }
 }
 

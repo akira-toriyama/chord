@@ -23,8 +23,7 @@ extension Config {
     /// stay on one path for the common case.
     static func parseCondition(
         row: [String: TOML.Value],
-        section: String, name: String, source: String,
-        sourceLine: Int?,
+        section: String, name: String, spans: RowSpans,
         warnings: inout [ConfigWarning]
     ) -> OptionalParse<Condition>? {
         let varName = row["when-var"]?.asString
@@ -34,46 +33,50 @@ extension Config {
         // Mutual exclusion: pick the user's intent up front so the
         // error is clear (they wrote both forms).
         if whenVars != nil && (varName != nil || rawValue != nil) {
+            let span = spans.key("when-vars")
             warnings.append(
                 ConfigWarning(
                     kind: .conditionParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "when-var / when-var-value and when-vars are "
                         + "mutually exclusive — pick one",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
 
         if let whenVars {
             return parseWhenVarsTable(
-                whenVars, section: section, name: name, source: source,
-                sourceLine: sourceLine, warnings: &warnings)
+                whenVars, section: section, name: name,
+                spans: spans, warnings: &warnings)
         }
 
         if varName == nil && rawValue == nil {
             return OptionalParse(value: nil)
         }
         guard let varName = varName else {
+            let span = spans.key("when-var-value")
             warnings.append(
                 ConfigWarning(
                     kind: .conditionParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "when-var-value present without when-var",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
         // when-var-value defaults to 1 — matches the leader-key idiom.
         let value: Int
         if let raw = rawValue {
             guard let v = raw.asInt else {
+                let span = spans.value("when-var-value")
                 warnings.append(
                     ConfigWarning(
                         kind: .conditionParseError,
                         message:
-                            "\(section) '\(name)'\(source): " + "when-var-value must be an integer",
-                        sourceLine: sourceLine, bindingName: name))
+                            "\(section) '\(name)'\(sourceTag(span)): "
+                            + "when-var-value must be an integer",
+                        source: span, bindingName: name))
                 return nil
             }
             value = Int(v)
@@ -85,18 +88,21 @@ extension Config {
 
     private static func parseWhenVarsTable(
         _ raw: TOML.Value,
-        section: String, name: String, source: String,
-        sourceLine: Int?,
+        section: String, name: String, spans: RowSpans,
         warnings: inout [ConfigWarning]
     ) -> OptionalParse<Condition>? {
+        // Inline-table interiors are not indexed by parseWithSpans (the
+        // entry is the unit), so every when-vars complaint points at the
+        // `when-vars` entry itself.
+        let span = spans.value("when-vars")
         guard case .table(let table) = raw else {
             warnings.append(
                 ConfigWarning(
                     kind: .conditionParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "when-vars must be an inline table { var = value, … }",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
         if table.isEmpty {
@@ -104,9 +110,9 @@ extension Config {
                 ConfigWarning(
                     kind: .conditionParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "when-vars must contain at least one variable",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
         // Sort by key for deterministic ordering — same reason as
@@ -118,9 +124,9 @@ extension Config {
                     ConfigWarning(
                         kind: .conditionParseError,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "when-vars['\(key)'] value must be an integer",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             parts.append(.variable(name: key, equals: Int(v)))
@@ -139,21 +145,21 @@ extension Config {
     /// clear uses `action-set-value = 0`).
     static func parseHoldWhileTimeout(
         row: [String: TOML.Value],
-        section: String, name: String, source: String,
-        sourceLine: Int?,
+        section: String, name: String, spans: RowSpans,
         warnings: inout [ConfigWarning]
     ) -> OptionalParse<Int>? {
         guard let raw = row["hold-while-timeout"] else {
             return OptionalParse(value: nil)
         }
+        let span = spans.value("hold-while-timeout")
         guard let v = raw.asInt else {
             warnings.append(
                 ConfigWarning(
                     kind: .holdWhileParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "hold-while-timeout must be an integer (ms)",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
         let ms = Int(v)
@@ -162,9 +168,9 @@ extension Config {
                 ConfigWarning(
                     kind: .holdWhileParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "hold-while-timeout must be > 0 (got \(ms))",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
         return OptionalParse(value: ms)
@@ -179,21 +185,21 @@ extension Config {
     /// `OptionalParse(value: nil)` = field absent.
     static func parseActionKeysDelay(
         row: [String: TOML.Value],
-        section: String, name: String, source: String,
-        sourceLine: Int?,
+        section: String, name: String, spans: RowSpans,
         warnings: inout [ConfigWarning]
     ) -> OptionalParse<Int>? {
         guard let raw = row["action-keys-delay-ms"] else {
             return OptionalParse(value: nil)
         }
+        let span = spans.value("action-keys-delay-ms")
         guard let v = raw.asInt else {
             warnings.append(
                 ConfigWarning(
                     kind: .actionKeysDelayParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "action-keys-delay-ms must be an integer (ms)",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
         let ms = Int(v)
@@ -202,9 +208,9 @@ extension Config {
                 ConfigWarning(
                     kind: .actionKeysDelayParseError,
                     message:
-                        "\(section) '\(name)'\(source): "
+                        "\(section) '\(name)'\(sourceTag(span)): "
                         + "action-keys-delay-ms must be > 0 (got \(ms))",
-                    sourceLine: sourceLine, bindingName: name))
+                    source: span, bindingName: name))
             return nil
         }
         return OptionalParse(value: ms)
@@ -214,13 +220,13 @@ extension Config {
     /// [Modifiers] mask. Same return convention as `parseCondition`.
     static func parseHoldWhile(
         row: [String: TOML.Value],
-        section: String, name: String, source: String,
-        sourceLine: Int?,
+        section: String, name: String, spans: RowSpans,
         warnings: inout [ConfigWarning]
     ) -> OptionalParse<Modifiers>? {
         guard let raw = row["hold-while"]?.asString else {
             return OptionalParse(value: nil)
         }
+        let span = spans.value("hold-while")
         do {
             let mask = try InputParser.parseModifiersOnly(raw)
             // Empty mask is meaningless for hold-while — surface it
@@ -230,9 +236,9 @@ extension Config {
                     ConfigWarning(
                         kind: .holdWhileParseError,
                         message:
-                            "\(section) '\(name)'\(source): "
+                            "\(section) '\(name)'\(sourceTag(span)): "
                             + "hold-while must contain at least one modifier",
-                        sourceLine: sourceLine, bindingName: name))
+                        source: span, bindingName: name))
                 return nil
             }
             return OptionalParse(value: mask)
@@ -241,8 +247,8 @@ extension Config {
                 ConfigWarning(
                     kind: .holdWhileParseError,
                     message:
-                        "\(section) '\(name)'\(source): hold-while: \(error)",
-                    sourceLine: sourceLine, bindingName: name))
+                        "\(section) '\(name)'\(sourceTag(span)): hold-while: \(error)",
+                    source: span, bindingName: name))
             return nil
         }
     }
