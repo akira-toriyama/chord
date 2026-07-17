@@ -24,6 +24,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Build/test/smoke only: the sync checks, swift-build and the smoke
+          # step never push, and SPM resolves only public deps — drop the
+          # persisted checkout token. t-yaxa
+          persist-credentials: false
 
       # chord-specific: fail fast if the version strings drift between
       # ChordVersion.current and Info.plist before the expensive build.
