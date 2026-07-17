@@ -243,7 +243,7 @@ enum ChordApp {
     /// (Draft-07) for taplo editor completion. Generated from
     /// `ChordConfigSchema` (the chord-local descriptor). Stateless: no daemon
     /// contact, no config read. DISTINCT from `config --show --json`, which
-    /// emits the chord.bindings.v3 parse-OUTPUT wire format.
+    /// emits the chord.bindings.v4 parse-OUTPUT wire format.
     /// Regenerate the committed copy: `chord config --emit-schema > config.schema.json`.
     private static func runEmitSchema() -> Int32 {
         // No trailing newline (terminator: "") so `… > config.schema.json`
@@ -465,7 +465,7 @@ enum ChordApp {
     /// `chord config --show [--json] [--include-dropped]` (was `--list`)
     ///
     /// Default is a human-readable text table. `--json` emits the
-    /// `chord.bindings.v3` schema document on stdout (machine-
+    /// `chord.bindings.v4` schema document on stdout (machine-
     /// readable). `--include-dropped` adds a `DROPPED` section to
     /// the text output or populates `dropped[]` in JSON (it's
     /// populated regardless of the flag, actually — the flag only
@@ -686,9 +686,9 @@ enum ChordApp {
         config — settings (standalone, no daemon required)
           chord config --validate           parse config.toml; exit 0 on clean
           chord config --validate --strict  warnings + drops fail with exit 1
-          chord config --validate --json    chord.bindings.v3 doc + validation block
+          chord config --validate --json    chord.bindings.v4 doc + validation block
           chord config --show               human-readable parsed config (was --list)
-          chord config --show --json        machine-readable (chord.bindings.v3)
+          chord config --show --json        machine-readable (chord.bindings.v4)
           chord config --show --include-dropped   also list dropped bindings
           chord config --doctor             report Accessibility / config / daemon
           chord config --emit-schema        config.toml JSON Schema for editors (Draft-07)

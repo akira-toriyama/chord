@@ -26,7 +26,7 @@ import Testing
 
     /// Fields semanticallyEqual deliberately IGNORES — cosmetic / ordering
     /// metadata that must NOT make a binding look changed.
-    private let ignored: Set<String> = ["index", "sourceLine"]
+    private let ignored: Set<String> = ["index", "source"]
 
     /// Fields semanticallyEqual MUST compare (and the renderer must be able
     /// to show). Keep in lockstep with `BindingsSchema.semanticallyEqual`

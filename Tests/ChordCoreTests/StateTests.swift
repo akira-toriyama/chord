@@ -282,7 +282,7 @@ import Testing
             action-set-var = "wm"
             hold-while = "cmd + opt"
             """)
-        #expect(json["schema"] as? String == "chord.bindings.v3")
+        #expect(json["schema"] as? String == "chord.bindings.v4")
         let bs = try #require(json["bindings"] as? [[String: Any]])
         let b = bs[0]
         let action = try #require(b["action"] as? [String: Any])

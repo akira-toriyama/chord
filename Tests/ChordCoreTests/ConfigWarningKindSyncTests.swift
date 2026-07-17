@@ -4,7 +4,7 @@ import Testing
 
 /// Compiled-enum guard that `ConfigWarning.Kind`'s raw values stay in lockstep
 /// with the two on-disk copies that consumers read:
-///   - `docs/schema/chord.bindings.v3.json` — `$defs.dropped.properties.kind.enum`
+///   - `docs/schema/chord.bindings.v4.json` — `$defs.dropped.properties.kind.enum`
 ///     (the OUTPUT wire contract; renaming a value is a schema MAJOR bump)
 ///   - `docs/glossary.md` — the `### ConfigWarning.Kind` table
 ///
@@ -28,7 +28,7 @@ import Testing
     }
 
     @Test func wireSchemaKindEnumMatchesEnum() throws {
-        let url = repoRoot().appendingPathComponent("docs/schema/chord.bindings.v3.json")
+        let url = repoRoot().appendingPathComponent("docs/schema/chord.bindings.v4.json")
         let obj = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         let enumValues =
             (((obj?["$defs"] as? [String: Any])?["dropped"] as? [String: Any])?["properties"]
@@ -36,11 +36,11 @@ import Testing
         let wire = Set(
             try #require(
                 enumValues?["enum"] as? [String],
-                "could not read $defs.dropped.properties.kind.enum from chord.bindings.v3.json"))
+                "could not read $defs.dropped.properties.kind.enum from chord.bindings.v4.json"))
         #expect(
             wire == enumKinds,
             """
-            chord.bindings.v3.json dropped.kind enum drifted from ConfigWarning.Kind — \
+            chord.bindings.v4.json dropped.kind enum drifted from ConfigWarning.Kind — \
             missing from schema: \(enumKinds.subtracting(wire).sorted()); \
             extra in schema: \(wire.subtracting(enumKinds).sorted()). \
             A rename is a schema MAJOR bump.

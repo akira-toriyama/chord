@@ -1,9 +1,18 @@
 import Foundation
 
 /// Wire format for `chord config --show --json` / `chord config --validate --json`,
-/// versioned `chord.bindings.v3` (was v1 through 0.3.x). The JSON
-/// Schema published at `docs/schema/chord.bindings.v3.json` is the
-/// canonical contract; every field in this file is mirrored there.
+/// versioned `chord.bindings.v4` (v3 through 0.10.x, v1 through
+/// 0.3.x). The JSON Schema published at
+/// `docs/schema/chord.bindings.v4.json` is the canonical contract;
+/// every field in this file is mirrored there.
+///
+/// v4 breaking change (t-0030 / #159): the `source_line: int` field on
+/// `bindings[]` / `fallbacks[]` / `dropped[]` became a
+/// `source: {line, column}` object — parse locations are now
+/// field-precise with a 1-based column (Unicode scalars), resolved
+/// from swift-toml-edit's `parseWithSpans`. `column` may be absent
+/// when only the line is known. Consumers pinned to v3 must re-pin
+/// (`additionalProperties: false` rejects the new key).
 ///
 /// The schema jumped v1 → v3 within the live file — no separate v2
 /// file was ever published (the state-machine additions landed in
@@ -17,11 +26,7 @@ import Foundation
 ///   * binding.action_on_up (release action)
 ///   * additional dropped[].kind values for the new fields' parse errors
 ///
-/// Consumers still pinned to v1 will reject these documents under
-/// strict-schema validation (`additionalProperties: false` on the v1
-/// binding object). Re-pin to v3 or vendor the v3 schema.
-///
-/// Design choices (locked for v3):
+/// Design choices (locked since v3):
 ///
 /// * **Modifier side encoded per-category** (`modifier_sides:
 ///   {"ctrl": "right"}`), not as a flat array mixing `ctrl` and
@@ -43,7 +48,7 @@ import Foundation
 ///   sort key.
 public enum BindingsSchema {
 
-    public static let version = "chord.bindings.v3"
+    public static let version = "chord.bindings.v4"
 
     /// Where the running daemon snapshots its last-loaded state, so
     /// `chord daemon --reload --dry-run` can diff the on-disk config
@@ -137,10 +142,18 @@ public enum BindingsSchema {
         }
     }
 
+    /// v4: 1-based parse location. `line` is always present; `column`
+    /// (Unicode scalars) may be absent when only the line is known.
+    public struct WireSourceSpan: Codable, Sendable, Hashable {
+        public let line: Int
+        public let column: Int?
+    }
+
     public struct WireBinding: Codable, Sendable, Hashable {
         public let index: Int
         public let name: String
-        public let sourceLine: Int?
+        /// The row's `[[header]]` location (v4: was `source_line`).
+        public let source: WireSourceSpan?
         public let input: WireInput
         public let apps: [String]?
         public let action: WireAction
@@ -178,8 +191,7 @@ public enum BindingsSchema {
         public let actionKeysDelayMs: Int?
 
         enum CodingKeys: String, CodingKey {
-            case index, name, input, apps, action, condition
-            case sourceLine = "source_line"
+            case index, name, source, input, apps, action, condition
             case holdWhile = "hold_while"
             case holdWhileTimeoutMs = "hold_while_timeout"
             case actionOnUp = "action_on_up"
@@ -296,15 +308,13 @@ public enum BindingsSchema {
         /// section header the warning fired in.
         public let section: String
         public let name: String?
-        public let sourceLine: Int?
+        /// The offending FIELD's location — a malformed value points at
+        /// the value, an unknown key at the key (v4: was the row-level
+        /// `source_line`).
+        public let source: WireSourceSpan?
         /// Stable [ConfigWarning.Kind] raw value.
         public let kind: String
         public let message: String
-
-        enum CodingKeys: String, CodingKey {
-            case section, name, kind, message
-            case sourceLine = "source_line"
-        }
     }
 
     // MARK: - diff (chord daemon --reload --dry-run)
@@ -420,7 +430,7 @@ public enum BindingsSchema {
         }
     }
 
-    /// Compare two bindings ignoring `index` and `source_line` —
+    /// Compare two bindings ignoring `index` and `source` —
     /// reordering / re-numbering must NOT show up in the diff or
     /// the user gets noise every time they insert a row above an
     /// existing binding.
@@ -514,11 +524,16 @@ public enum BindingsSchema {
 
     // MARK: - mappers
 
+    /// TOML.SourceSpan → wire form.
+    private static func wireSpan(_ s: TOML.SourceSpan?) -> WireSourceSpan? {
+        s.map { WireSourceSpan(line: $0.line, column: $0.column) }
+    }
+
     private static func wire(binding b: Binding, index: Int) -> WireBinding {
         WireBinding(
             index: index,
             name: b.name,
-            sourceLine: b.sourceLine,
+            source: wireSpan(b.sourceSpan),
             input: wireInput(b: b),
             apps: b.apps,
             action: wireAction(
@@ -727,14 +742,14 @@ public enum BindingsSchema {
             // family paths. Inferring the exact one requires extra
             // metadata; for v1 we emit "[[bindings]]" (the section the
             // message text always names precisely) and let the consumer
-            // cross-reference with sourceLine. PR2.1 could carry the
+            // cross-reference with `source`. A follow-up could carry the
             // section explicitly on ConfigWarning.
             section = "[[bindings]]"
         }
         return WireDropped(
             section: section,
             name: w.bindingName,
-            sourceLine: w.sourceLine,
+            source: wireSpan(w.source),
             kind: w.kind.rawValue,
             message: w.message)
     }
