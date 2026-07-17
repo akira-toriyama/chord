@@ -17,7 +17,7 @@ import Testing
             input = "f13"
             action-noop = true
             """)
-        #expect(json["schema"] as? String == "chord.bindings.v3")
+        #expect(json["schema"] as? String == "chord.bindings.v4")
         #expect(json["generated_at"] != nil)
         #expect(json["options"] != nil)
         #expect(json["action_aliases"] != nil)
@@ -59,7 +59,11 @@ import Testing
         let b = bindings[0]
         #expect(b["name"] as? String == "screenshot")
         #expect(b["index"] as? Int == 0)
-        #expect(b["source_line"] != nil)
+        // v4: `source_line` became the `source: {line, column}` object.
+        let src = try #require(b["source"] as? [String: Any])
+        #expect(src["line"] as? Int == 1)
+        #expect(src["column"] as? Int == 1)
+        #expect(b["source_line"] == nil)
         let input = try #require(b["input"] as? [String: Any])
         #expect(input["raw"] as? String == "cmd + shift - 4")
         #expect(input["fn"] as? Bool == false)
@@ -175,7 +179,12 @@ import Testing
         #expect(d["kind"] as? String == "unknown-input-token")
         #expect(d["name"] as? String == "bad")
         #expect(d["section"] as? String == "[[bindings]]")
-        #expect(d["source_line"] != nil)
+        // v4: field-precise source — the malformed input VALUE (line 3,
+        // column 9), not the row header, as a {line, column} object.
+        let src = try #require(d["source"] as? [String: Any])
+        #expect(src["line"] as? Int == 3)
+        #expect(src["column"] as? Int == 9)
+        #expect(d["source_line"] == nil)
     }
 
     // MARK: - validation block

@@ -1,5 +1,5 @@
 {
-  "$comment" : "chord config.toml INPUT schema (editor completion). Regenerate: `chord config --emit-schema > config.schema.json`. NOT chord.bindings.v3.json (the parse-OUTPUT wire format).",
+  "$comment" : "chord config.toml INPUT schema (editor completion). Regenerate: `chord config --emit-schema > config.schema.json`. NOT chord.bindings.v4.json (the parse-OUTPUT wire format).",
   "$schema" : "http:\/\/json-schema.org\/draft-07\/schema#",
   "additionalProperties" : false,
   "properties" : {

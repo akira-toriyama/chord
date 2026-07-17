@@ -131,8 +131,10 @@ import Testing
             """)
         let dropped = try #require(json["dropped"] as? [[String: Any]])
         let bad = try #require(dropped.first { ($0["name"] as? String) == "bad" })
-        // The accessor threaded a real `__line__` through to the warning.
-        let line = try #require(bad["source_line"] as? Int)
+        // The span is resolved at parse time and threaded through
+        // makeBinding into the warning (v4 wire: `source: {line, column}`).
+        let src = try #require(bad["source"] as? [String: Any])
+        let line = try #require(src["line"] as? Int)
         #expect(line > 0)
     }
 

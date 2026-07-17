@@ -7,7 +7,7 @@ import Testing
 /// "younger" wire feature — `passthrough` / `repeat` / `input_source` /
 /// `toggle-variable` action / multi-var `kind:"all"` condition / `vkey`
 /// trigger — through the *real* ChordCore emit path, then validates the
-/// emitted JSON against the committed `docs/schema/chord.bindings.v3.json`
+/// emitted JSON against the committed `docs/schema/chord.bindings.v4.json`
 /// with a small Foundation-only structural checker (NO external
 /// JSON-Schema library).
 ///
@@ -81,7 +81,7 @@ import Testing
         } catch let v as StructuralSchemaValidator.Violation {
             Issue.record(
                 """
-                Emitted wire JSON violates docs/schema/chord.bindings.v3.json — \
+                Emitted wire JSON violates docs/schema/chord.bindings.v4.json — \
                 the emitter shipped a field the published schema does not \
                 describe (the #45/#46/#47 drift class). \
                 \(v.path): \(v.reason)
@@ -115,6 +115,15 @@ import Testing
                 "com.apple.keylayout.US", "!com.apple.inputmethod.Kotoeri.*"
             ])
 
+        // v4: binding location is the `source: {line, column}` object
+        // (the row's [[header]] position); `source_line` is gone.
+        let src = try #require(
+            shell["source"] as? [String: Any],
+            "binding must carry the v4 source object")
+        #expect(src["line"] as? Int == 4)
+        #expect(src["column"] as? Int == 1)
+        #expect(shell["source_line"] == nil)
+
         // action kind "toggle-variable".
         let toggle = try #require(
             byName["wire-toggle"],
@@ -143,6 +152,40 @@ import Testing
             "kitchen-sink config produced unexpected warnings")
     }
 
+    // MARK: - dropped[] source coverage
+
+    /// The kitchen sink parses clean, so `dropped[]` is empty there and its
+    /// schema branch would go unexercised. This companion emits one dropped
+    /// row and checks BOTH the v4 `source: {line, column}` shape (pointing
+    /// at the malformed input VALUE — line 3, column 9) and whole-document
+    /// schema conformance with a non-empty dropped[].
+    @Test func droppedRowCarriesSourceSpanAndConforms() throws {
+        let doc = try parseToBindingsJSON(
+            """
+            [[bindings]]
+            name = "bad"
+            input = "notakey - x"
+            action-noop = true
+            """)
+        let dropped = try #require(doc["dropped"] as? [[String: Any]])
+        let row = try #require(dropped.first)
+        let src = try #require(
+            row["source"] as? [String: Any],
+            "dropped row must carry the v4 source object")
+        #expect(src["line"] as? Int == 3)
+        #expect(src["column"] as? Int == 9)
+        #expect(row["source_line"] == nil)
+
+        let schema = try loadPublishedSchema()
+        let validator = StructuralSchemaValidator(root: schema)
+        do {
+            try validator.validate(node: doc, schema: schema, path: "$")
+        } catch let v as StructuralSchemaValidator.Violation {
+            Issue.record(
+                "dropped[]-carrying document violates the published schema: \(v.path): \(v.reason)")
+        }
+    }
+
     // MARK: - schema loading
 
     /// Reads the committed wire schema from the repo (not a bundled
@@ -152,11 +195,11 @@ import Testing
             .deletingLastPathComponent()  // Tests/ChordCoreTests
             .deletingLastPathComponent()  // Tests
             .deletingLastPathComponent()  // <repo root>
-            .appendingPathComponent("docs/schema/chord.bindings.v3.json")
+            .appendingPathComponent("docs/schema/chord.bindings.v4.json")
         let data = try Data(contentsOf: url)
         return try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any],
-            "docs/schema/chord.bindings.v3.json is not a JSON object")
+            "docs/schema/chord.bindings.v4.json is not a JSON object")
     }
 }
 

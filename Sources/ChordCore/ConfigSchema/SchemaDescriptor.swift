@@ -17,7 +17,7 @@
 //
 // This is NOT sill `ConfigSchema.Spec` (#52's full parser-unification is
 // iceboxed — chord's config is an imperative DSL, not a flat decode), and it
-// is NOT `chord.bindings.v3.json` (that is the parse-OUTPUT wire format; this
+// is NOT `chord.bindings.v4.json` (that is the parse-OUTPUT wire format; this
 // models the config.toml INPUT).
 
 import Foundation
@@ -33,7 +33,7 @@ public enum ChordConfigSchema {
     static let comment =
         "chord config.toml INPUT schema (editor completion). "
         + "Regenerate: `chord config --emit-schema > config.schema.json`. "
-        + "NOT chord.bindings.v3.json (the parse-OUTPUT wire format)."
+        + "NOT chord.bindings.v4.json (the parse-OUTPUT wire format)."
 
     /// The action-* union members (key-down). Free-form vs enum vs const-true,
     /// matching ActionParser. mission-control / screenshot enum values are the
@@ -440,7 +440,7 @@ public enum ChordConfigSchema {
     /// matching the sibling apps' `--emit-schema`). chord's output spellings —
     /// the `x-chord-constraints` vendor key, escaped slashes, no trailing
     /// newline — are the `EmitOptions`; everything else is sill's shared
-    /// lowering. NOT chord.bindings.v3.json (the parse-OUTPUT wire format).
+    /// lowering. NOT chord.bindings.v4.json (the parse-OUTPUT wire format).
     public static var jsonSchema: String {
         descriptor.jsonSchema(
             options: .init(
