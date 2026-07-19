@@ -17,4 +17,4 @@ permissions:
 
 jobs:
   swift-format:
-    uses: akira-toriyama/.github/.github/workflows/swift-format.yml@v1
+    uses: akira-toriyama/.github/.github/workflows/swift-format.yml@v1.2.0
