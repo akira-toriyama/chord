@@ -64,7 +64,7 @@ let package = Package(
         // after `--limit` is a value, not a flag). Floor bumped to 0.11.0 (the release that removed
         // sill's in-tree `Toml`). Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "1.27.0")),
+                 .upToNextMinor(from: "3.5.0")),
     ],
     targets: [
         .target(
