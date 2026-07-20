@@ -671,10 +671,11 @@ stray instances before relaunching.
 
 ## Conventions
 
-- **Commit messages**: gitmoji + Conventional Commits (matches
-  stroke / facet). `<:gitmoji:> <type>(<scope>)<!>: <subject>`.
-  Enable the local hook when one is added: `git config
-  core.hooksPath scripts/hooks`.
+- **Commit messages**: gitmoji-driven — `<:gitmoji:>[(<scope>)][!] <subject>`,
+  where the leading `:code:` IS the type (the Conventional `<type>` word is
+  retired; legacy `<type>(scope):` tokens are accepted and ignored by the lint,
+  so old history still passes). `glyph rules` is the machine source of truth.
+  Install the local hook once per clone: `glyph hook install`.
 - **README is bilingual** ([README.md](README.md) English +
   [README.ja.md](README.ja.md) Japanese). Keep them in sync when
   user-visible behavior changes — same rule as stroke / facet.
@@ -934,9 +935,8 @@ re-confirmation.
   `/docs/ja/skills` (custom skills like `grill-me`, installed
   under `~/.claude/skills/`),
   `/docs/ja/settings` (per-project / per-user `settings.json`),
-  `/docs/ja/hooks` (workflow automation triggers — chord's
-  `scripts/hooks/commit-msg` is the local-git form, not the
-  Claude Code form).
+  `/docs/ja/hooks` (workflow automation triggers — distinct from the
+  local-git `commit-msg` hook that `glyph hook install` writes).
 
 ### Packaging / Release
 
