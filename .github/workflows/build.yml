@@ -43,7 +43,7 @@ jobs:
 
       # Shared Swift build (setup-xcode + SPM cache + build + test).
       # Consumed as a STEP so the `build` required check name is unchanged.
-      - uses: akira-toriyama/.github/actions/swift-build@main
+      - uses: akira-toriyama/.github/actions/swift-build@v2
 
       - name: smoke test (config --validate)
         run: |
