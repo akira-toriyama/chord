@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   release:
-    uses: akira-toriyama/glyph/.github/workflows/release.yml@v0.8.1
+    uses: akira-toriyama/glyph/.github/workflows/release.yml@v0.10.0
     with:
       app: Chord
       # chord is yabai-style: `chord config --validate` is the post-build smoke.
