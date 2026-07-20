@@ -1,6 +1,8 @@
 <!--
-Title: gitmoji + Conventional Commits (see https://github.com/akira-toriyama/.github/blob/main/CONTRIBUTING.md):
-  :sparkles: feat(core): add hyper modifier sugar
+Title: gitmoji-driven — <:gitmoji:>[(<scope>)][!] <subject>, where the leading
+:code: IS the type (see https://github.com/akira-toriyama/.github/blob/main/CONTRIBUTING.md,
+machine source of truth `glyph rules`):
+  :sparkles:(core) add hyper modifier sugar
 
 If this is a single-commit PR, squashing into main will use the
 commit message as the PR title — keep them in sync.
