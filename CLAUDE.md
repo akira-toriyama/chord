@@ -14,7 +14,7 @@ command, absorb the input, or mutate a named state variable
 
 Architectural sibling of
 [stroke](https://github.com/akira-toriyama/stroke): Swift 6,
-macOS 13+, three-layer hexagonal split. Difference from stroke is
+macOS 26+, three-layer hexagonal split. Difference from stroke is
 the trigger: chord is **discrete events + 1-tier state** — one
 key-down / button-down fires immediately, but a binding may
 optionally gate on a single named variable and another binding may

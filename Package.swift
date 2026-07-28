@@ -35,7 +35,12 @@ import PackageDescription
 
 let package = Package(
     name: "chord",
-    platforms: [.macOS(.v13)],
+    // macOS-26 floor, inherited from sill. sill v2.0.0 raised its own floor to
+    // 26 for the SwiftUI migration, so any consumer that steps past sill 1.x
+    // adopts it too — this is that step (family policy t-tbar D2 / t-fs7p).
+    // Spelled as a string because `.v26` does not exist in this toolchain's
+    // PackageDescription.
+    platforms: [.macOS("26.0")],
     products: [
         .executable(name: "chord", targets: ["ChordApp"]),
         .library(name: "ChordCore", targets: ["ChordCore"]),
@@ -61,10 +66,18 @@ let package = Package(
         // `-h`/`-V` carve-out). chord has one value-taking flag
         // (`query --recent-fires --limit N`), so it DOES exercise CLIKit's
         // `.value` arity + the D0 verbatim-value path (a `-`-leading arg
-        // after `--limit` is a value, not a flag). Floor bumped to 0.11.0 (the release that removed
-        // sill's in-tree `Toml`). Package.resolved locks the exact commit.
+        // after `--limit` is a value, not a flag).
+        //
+        // Floor 5.0.0. chord consumes CLIKit and ConfigSchema and NOTHING
+        // theme-shaped, which is why crossing sill 2/3/4/5 costs nothing here:
+        // every one of those majors landed in the theming surface (macOS floor,
+        // ThemeKitUI reshape, typed theme catalog, ambient SwiftUI widgets).
+        // Measured, not assumed — `swift build` is clean with zero source
+        // changes and `chord config --emit-schema` is byte-identical to the
+        // committed schema, because chord's schema enumerates no theme names.
+        // Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "1.27.0")),
+                 .upToNextMinor(from: "5.0.0")),
     ],
     targets: [
         .target(

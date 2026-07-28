@@ -102,7 +102,7 @@ is configured.)
 
 ## Install
 
-Requires macOS 13+ — the latest macOS is recommended.
+Requires macOS 26+ — the latest macOS is recommended.
 
 ```sh
 brew install akira-toriyama/tap/chord

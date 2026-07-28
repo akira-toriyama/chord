@@ -100,7 +100,7 @@ AdapterTest / App) で、
 
 ## インストール
 
-macOS 13+ で動作します（最新 macOS 推奨）。
+macOS 26+ で動作します（最新 macOS 推奨）。
 
 ```sh
 brew install akira-toriyama/tap/chord
