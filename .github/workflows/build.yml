@@ -16,10 +16,12 @@ permissions:
 
 jobs:
   build:
-    # macos-15 ships Xcode 16+ → Swift 6 toolchain. macos-14 stops at
-    # Xcode 15.4 = Swift 5.10, which can't parse our
-    # `swift-tools-version:6.0` Package.swift and fails immediately.
-    runs-on: macos-15
+    # macos-26: the package floor is macOS 26 (inherited from sill v2.0.0),
+    # and `swift test` EXECUTES the built binaries — a macos-15 host can
+    # compile a minos-26 image but cannot load it. (The older note here said
+    # macos-15 was needed for a Swift 6 toolchain; that constraint is subsumed,
+    # macos-26 ships a newer one still.)
+    runs-on: macos-26
     # Bounded so a hung `swift build` can't burn 6 h of free macOS minutes.
     timeout-minutes: 20
     steps:
