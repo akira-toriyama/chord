@@ -24,15 +24,18 @@ commit message as the PR title — keep them in sync.
 
 ## Glossary / non-goals review
 
-- [ ] このコード変更で新規 domain term を導入していない (した場合は
-      [docs/glossary.md](../blob/main/docs/glossary.md) を **同 PR で** 更新済)
-- [ ] 既存の term を rename / 意味変更していない (した場合は
-      `docs/glossary.md` を同期、旧名は entry の **`Don't call it:`** 欄へ追加済)
-- [ ] schema enum 値 (`docs/glossary.md` §3 / `docs/schema/chord.bindings.v3.json`)
-      の rename を含まない (含む場合は **v4 schema bump** 議論を起票済)
-- [ ] [docs/non-goals.md](../blob/main/docs/non-goals.md) の non-goal を
-      意図せず実装していない (実装した場合は non-goals.md 側を「When this
-      becomes Yes」条件達成として更新)
+- [ ] this code change introduces no new domain term (if it does,
+      [docs/glossary.md](../blob/main/docs/glossary.md) is updated **in the
+      same PR**)
+- [ ] no existing term is renamed or changes meaning (if one does,
+      `docs/glossary.md` is synced and the old name is added to the entry's
+      **`Don't call it:`** field)
+- [ ] no schema enum value (`docs/glossary.md` §3 /
+      `docs/schema/chord.bindings.v3.json`) is renamed (if one is, a
+      **v4 schema bump** discussion is filed)
+- [ ] no [docs/non-goals.md](../blob/main/docs/non-goals.md) non-goal is
+      implemented unintentionally (if one is, non-goals.md is updated as its
+      "When this becomes Yes" condition being met)
 
 ## Notes for reviewers
 <!-- anything subtle: re-entrancy, lock window, layer crossing, … -->

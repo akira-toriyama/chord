@@ -2,6 +2,12 @@
 
 Guidance for working in this repository.
 
+## Docs
+
+English-only and code-first — follow the fleet
+[doc-consistency policy](https://github.com/akira-toriyama/.github/blob/main/docs/doc-consistency-policy.md)
+(no stored translations; truth lives in the code/CLI, docs point to it).
+
 ## What this is
 
 `chord` — global keyboard + mouse hotkey daemon for macOS. Built
@@ -57,20 +63,20 @@ stroke / facet / ws-tabs.
 
 Two cross-cutting docs to consult before the layer-specific rules below:
 
-- **[docs/glossary.md](docs/glossary.md)** — chord の正規 (canonical)
-  用語表。同じ概念に複数の名前を当てない (= "alias" だけで input/action を
-  曖昧化しない、"state-store" と "variables" が混在しない、等) ための辞書。
-  各 entry に `Don't call it:` 欄があり、PR レビューでの即時 NG ワードの根拠
-  に使える。**コード変更で用語を新設 / rename した場合は同 PR で更新**
-  (PR template の glossary checkbox 参照)。
-- **[docs/non-goals.md](docs/non-goals.md)** — chord が **意図的に持たない
-  機能** と「再検討する条件」。隣接プロジェクト
-  (skhd / skhd.zig / Karabiner / ZMK) の機能を chord に取り込むべきか毎回
-  議論が再燃するのを防ぐ。
+- **[docs/glossary.md](docs/glossary.md)** — chord's canonical vocabulary:
+  the dictionary that keeps one name per concept (no bare "alias" blurring
+  input vs action, no "state-store" / "variables" mix, etc.). Each entry has
+  a `Don't call it:` field — the basis for immediate NG words in PR review.
+  **A code change that coins or renames a term updates it in the same PR**
+  (see the PR template's glossary checkbox).
+- **[docs/non-goals.md](docs/non-goals.md)** — the features chord
+  **deliberately does not have**, each with its reconsideration trigger.
+  Stops the recurring "should chord absorb this?" debate about neighboring
+  projects (skhd / skhd.zig / Karabiner / ZMK).
 
-実装タスク / ロードマップは furrow tracker
-([`akira-toriyama/projects`](https://github.com/akira-toriyama/projects))
-が正本 → §Roadmap board / task tracker。
+Implementation tasks / roadmap live in the furrow tracker
+([`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)) —
+the canon → §Roadmap board / task tracker.
 
 ## Non-obvious constraints — read before editing
 
@@ -926,7 +932,7 @@ re-confirmation.
 
 ### GitHub
 
-- [GitHub Docs (日本語)](https://docs.github.com/ja)
+- [GitHub Docs](https://docs.github.com)
   *(reviewed 2026-05-24)* — primary reference for the bits this
   repo actually touches: `gh` CLI, Actions workflow syntax,
   release drafts, branch protection, fine-grained PAT scoping (the
@@ -956,30 +962,44 @@ re-confirmation.
 
 ## Shared libraries (atelier)
 
-chord は swift app family の共有ライブラリに乗る（plan [atelier](https://github.com/akira-toriyama/atelier)）。
-共有 lib が持つ責務は**再実装せずライブラリ側を拡張**する（北極星＝「facet の theme を真似て」を二度と言わない）。
-モジュール → target の正確な配線は [Package.swift](Package.swift) を正とする。
+chord rides the swift app family's shared libraries (plan:
+[atelier](https://github.com/akira-toriyama/atelier)). A responsibility a
+shared lib owns is **extended on the library side, never reimplemented** (the
+north star: never again say "imitate facet's theme"). The exact module →
+target wiring: [Package.swift](Package.swift) is the truth.
 
-- **[sill](https://github.com/akira-toriyama/sill)** — 共有 theming / CLI 基盤。設計 → [`docs/DESIGN.md`](https://github.com/akira-toriyama/sill/blob/main/docs/DESIGN.md)。chord は headless ゆえ theming は非消費・`CLIKit`（CLI tokenizer）のみ使用。
-- **[swift-toml-edit](https://github.com/akira-toriyama/swift-toml-edit)** — family 唯一の TOML 実装（`Toml` module・Swift 版 toml_edit）。chord は config.toml パースに使用。
+- **[sill](https://github.com/akira-toriyama/sill)** — shared theming / CLI
+  foundation; design →
+  [`docs/DESIGN.md`](https://github.com/akira-toriyama/sill/blob/main/docs/DESIGN.md).
+  chord is headless, so it consumes no theming — only `CLIKit` (the CLI
+  tokenizer).
+- **[swift-toml-edit](https://github.com/akira-toriyama/swift-toml-edit)** —
+  the family's only TOML implementation (the `Toml` module, a Swift
+  toml_edit). chord uses it to parse config.toml.
 
-**自己完結しない — 共有候補は sill に PR を模索**: app 単独で実装する前に「2 つ以上の app で冗長になりそうか」を問い、そうなら sill への PR を検討する（過剰共通化はしない・zero-debt ≠ 全部共有）。
+**Not self-contained — explore a sill PR for shared candidates**: before
+implementing something app-side, ask "would this end up redundant across 2+
+apps?" — if so, consider a PR to sill (no over-sharing either; zero-debt ≠
+share everything).
 
-## 作業方針 (multi-session work policy)
+## Multi-session work policy
 
-タスク管理・セッション跨ぎの運用（進捗の正本 = task body 一本・未達成を暗黙に
-しない・中断時の所作）の正典は
-[projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md)
-— ここでは重複させない。破壊的変更 / 品質重視の扱いも既存ポリシーが正:
-破壊的変更は §config.toml grammar additions・§CLI option additions の
-"Breaking changes are OK"、品質重視は §Conventions の
-"Quality-first phased workflow" ("Don't push without explicit OK")。
+Task management and cross-session operation (the progress canon = the task
+body alone, never leave the unfinished implicit, how to suspend) — the canon
+is [projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md);
+not duplicated here. Breaking-change / quality-first handling also follows
+the existing policies: breaking changes → §config.toml grammar additions and
+§CLI option additions ("Breaking changes are OK"); quality-first →
+§Conventions ("Quality-first phased workflow", "Don't push without
+explicit OK").
 
 ## Roadmap board / task tracker
 
-chord の作業タスク（バックログ・設計メモ・引き継ぎ）の**正本は private repo
-[`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)**（furrow 製の
-中央 board）。運用ルールの正典は
-[projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md)、
-コマンドの正典は [furrow README](https://github.com/akira-toriyama/furrow#readme)。
-入口は checkout 内で `furrow next` 1 本（repo scope は自動）。
+The **canonical store for chord's work tasks** (backlog, design notes,
+handovers) is the private repo
+[`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)
+(the furrow-built central board). The operating rules' canon is
+[projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md);
+the command canon is the
+[furrow README](https://github.com/akira-toriyama/furrow#readme). The entry
+point inside a checkout is `furrow next` alone (the repo scope is automatic).
