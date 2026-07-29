@@ -69,8 +69,8 @@ Two cross-cutting docs to consult before the layer-specific rules below:
   議論が再燃するのを防ぐ。
 
 実装タスク / ロードマップは furrow tracker
-([`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)・label
-`chord`) が正本 → §Roadmap board / task tracker。
+([`akira-toriyama/projects`](https://github.com/akira-toriyama/projects))
+が正本 → §Roadmap board / task tracker。
 
 ## Non-obvious constraints — read before editing
 
@@ -967,64 +967,19 @@ chord は swift app family の共有ライブラリに乗る（plan [atelier](ht
 
 ## 作業方針 (multi-session work policy)
 
-長尺の作業を**セッション跨ぎ**で安全に進めるための運用ルール。
-記録先は furrow tracker (`akira-toriyama/projects`・label `chord`) →
-§Roadmap board / task tracker。破壊的変更 / 品質重視の扱いは既存ポリシーを
-参照 — ここでは重複させない: 破壊的変更は §config.toml grammar additions・
-§CLI option additions の "Breaking changes are OK"、品質重視は
-§Conventions の "Quality-first phased workflow"
-("Don't push without explicit OK") が正。
-
-- **1 セッションで完了しなくてよい**。大きな作業は plan(計画)と
-  execute(実行)に分け、複数セッションに跨ってよい。途中で
-  終わること自体は失敗ではない — 失敗は**進行状況を残さずに
-  終わること**。
-- **進行状況は必ず 1 箇所に記録し、二重管理しない**。進行中の
-  作業ごとに furrow task を 1 枚持ち、その body
-  (`furrow show <id>`・`.furrow/bodies/<id>.md`) が進行状況の唯一の真実
-  (single source of truth)。Project #5 のミラー (§Roadmap board / task
-  tracker) とは**粒度で棲み分ける**: Project = 高レベルな issue /
-  milestone の status、task body = その実装のための細粒度な計画 +
-  進行ログ。両者は `#N` / `t-NNNN` で相互リンクし、同じ情報を二重に
-  持たない。
-- **task body の構成**: ゴール (+ `Closes #N`) / 計画チェックリスト /
-  進行ログ / 未達成・保留。
-- **未達成を暗黙にしない**。チェック未了・保留・既知の積み残しは
-  task body に**明示的に**残す (黙って消さない)。「この作業の中で
-  まだやる」ものは同 body に、「別途やる」ものは別 task を起票して
-  Inbox (status `inbox`) へ — どちらかに必ず可視化する。
-- **task のライフサイクル**: 未達成が残る限り task は open
-  (`backlog` / `ready` / `in-progress`)。全項目が完了したら status を
-  `done` にし、紐付く issue があれば board でも Done へ。→ **open な
-  `chord` task に積み残しが残っていない = 進行中の積み残しなし**、
-  という不変条件を保つ。
-- **セッション境界の所作**: 作業再開時はまず該当 task を読み
-  (`furrow ls -l chord` → `furrow show <id>`)、終了時 (あるいは節目) に
-  必ず body の進行ログを更新してから終わる。
-- **記録形式は furrow の per-task markdown body** (`.furrow/bodies/*.md`・
-  手編集 OK)。より良い管理方法が見つかれば乗り換える — その場合も
-  この「1 箇所 / 未達成を残す / 粒度で棲み分け」の原則は維持する。
-- **これらは原則であって教条ではない**。重視はするが、ある場面で
-  適用しても**メリットが無い**、あるいは運用してみて**作業しづらい**
-  と感じたら、黙って無視するのでも形だけ遵守するのでもなく
-  **相談する** (未達成を暗黙にしないのと同じ精神 — ルールの不都合も
-  可視化する)。相談は原則そのものを見直す契機にしてよい
-  ([docs/non-goals.md](docs/non-goals.md) の「再検討する条件」と
-  同じ姿勢)。
+タスク管理・セッション跨ぎの運用（進捗の正本 = task body 一本・未達成を暗黙に
+しない・中断時の所作）の正典は
+[projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md)
+— ここでは重複させない。破壊的変更 / 品質重視の扱いも既存ポリシーが正:
+破壊的変更は §config.toml grammar additions・§CLI option additions の
+"Breaking changes are OK"、品質重視は §Conventions の
+"Quality-first phased workflow" ("Don't push without explicit OK")。
 
 ## Roadmap board / task tracker
 
-issue 運用（集約 Project「roadmap」#5・Inbox 既定 / Status フロー / `Closes #N`）は
-family 共通ポリシー。正典 → https://github.com/akira-toriyama/atelier/blob/main/docs/roadmap-board.md
-
 chord の作業タスク（バックログ・設計メモ・引き継ぎ）の**正本は private repo
-[`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)**（自作 furrow 製・
-plain-text の `.furrow/` = JSON index + per-task markdown body）。`chord` ラベルで絞る:
-`furrow ls -l chord`（着手候補 = ready / in-progress）/ `furrow show <id>`。`furrow next`
-は actionable（next-lane = ready / in-progress かつ deps 完了）を canonical order で出す
-（`-l chord` で repo 絞り・`-n` で件数制限）。Project #5 はその公開ミラー（手動）。**`docs/plans/` の plan-file 運用は 2026-06-25 に退役**し projects へ移行
-済み（細粒度な計画 + 進行ログは furrow の per-task body が持つ）。furrow 未導入なら
-`go install github.com/akira-toriyama/furrow/cmd/furrow@latest`（brew tap には未掲載）、
-最悪 `.furrow/`
-（index.json + bodies/）を直接読む。`.furrow/index.json` は furrow が機械生成＝手編集禁止・
-`bodies/*.md` は手編集 OK。
+[`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)**（furrow 製の
+中央 board）。運用ルールの正典は
+[projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md)、
+コマンドの正典は [furrow README](https://github.com/akira-toriyama/furrow#readme)。
+入口は checkout 内で `furrow next` 1 本（repo scope は自動）。
