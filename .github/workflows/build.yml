@@ -45,7 +45,7 @@ jobs:
 
       # Shared Swift build (setup-xcode + SPM cache + build + test).
       # Consumed as a STEP so the `build` required check name is unchanged.
-      - uses: akira-toriyama/.github/actions/swift-build@v2
+      - uses: akira-toriyama/.github/actions/swift-build@v2.1.2
 
       - name: smoke test (config --validate)
         run: |
@@ -63,4 +63,4 @@ jobs:
   # test / a `Bite-exempt:` commit trailer): akira-toriyama/.github
   # docs/swift-bite.md. Live-ammunition record: swift-toml-edit#29.
   bite:
-    uses: akira-toriyama/.github/.github/workflows/swift-bite.yml@v2
+    uses: akira-toriyama/.github/.github/workflows/swift-bite.yml@v2.1.2
