@@ -2,8 +2,6 @@
 
 Global keyboard + mouse hotkey daemon for macOS.
 
-[日本語版 →](./README.ja.md)
-
 ```
 [ cmd + shift - mouse.side1 ] → "screenshot the selection"
 [ hyper - f24                ] → "open my secret terminal"
