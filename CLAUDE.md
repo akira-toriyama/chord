@@ -676,9 +676,9 @@ stray instances before relaunching.
   retired; legacy `<type>(scope):` tokens are accepted and ignored by the lint,
   so old history still passes). `glyph rules` is the machine source of truth.
   Install the local hook once per clone: `glyph hook install`.
-- **README is bilingual** ([README.md](README.md) English +
-  [README.ja.md](README.ja.md) Japanese). Keep them in sync when
-  user-visible behavior changes — same rule as stroke / facet.
+- **README is English-only** ([README.md](README.md)), per the fleet
+  [doc-consistency-policy](https://github.com/akira-toriyama/.github/blob/main/docs/doc-consistency-policy.md).
+  Update it when user-visible behavior changes.
 - After source edits, **`swift build` must pass** before finishing
   a turn.
 - **Don't push without explicit OK**. Quality-first phased
