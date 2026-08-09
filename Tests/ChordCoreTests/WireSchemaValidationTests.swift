@@ -60,8 +60,6 @@ import Testing
         action-noop = true
         """
 
-    // MARK: - the lockstep test
-
     @Test func emittedWireDocumentConformsToPublishedSchema() throws {
         // 1. Emit through the real wire path (parse → makeDocument →
         //    encodeJSON → JSONSerialization), the same chain every other
@@ -88,8 +86,6 @@ import Testing
                 """)
         }
     }
-
-    // MARK: - feature-presence guard
 
     /// Asserts the emitted document contains each wire shape the schema
     /// fix is about. A failure here means the *emitter* regressed (stopped
@@ -152,8 +148,6 @@ import Testing
             "kitchen-sink config produced unexpected warnings")
     }
 
-    // MARK: - dropped[] source coverage
-
     /// The kitchen sink parses clean, so `dropped[]` is empty there and its
     /// schema branch would go unexercised. This companion emits one dropped
     /// row and checks BOTH the v4 `source: {line, column}` shape (pointing
@@ -185,8 +179,6 @@ import Testing
                 "dropped[]-carrying document violates the published schema: \(v.path): \(v.reason)")
         }
     }
-
-    // MARK: - schema loading
 
     /// Reads the committed wire schema from the repo (not a bundled
     /// resource — same `#filePath`-relative walk as ConfigSchemaDriftTests).
@@ -271,8 +263,6 @@ struct StructuralSchemaValidator {
         // scalar (string / integer / boolean / number) — shape-only guard,
         // value validity is out of scope.
     }
-
-    // MARK: -
 
     private func validateOneOf(
         node: Any, branches: [[String: Any]],

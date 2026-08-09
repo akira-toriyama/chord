@@ -7,8 +7,6 @@ import Testing
 /// Condition shape; multi-entry tables emit `.conjunction([...])`.
 @Suite struct MultiVarConditionTests {
 
-    // MARK: - Parse
-
     @Test func whenVarsTwoEntriesProducesConjunction() throws {
         let res = try Config.parse(
             """
@@ -59,8 +57,6 @@ import Testing
         #expect(res.droppedBindings == 0)
         #expect(res.config.bindings[0].condition == .variable(name: "jlayer", equals: 2))
     }
-
-    // MARK: - Validation
 
     @Test func whenVarAndWhenVarsMutuallyExclusive() throws {
         let res = try Config.parse(
@@ -127,8 +123,6 @@ import Testing
             })
     }
 
-    // MARK: - Matcher semantics
-
     @Test func conjunctionFiresOnlyWhenAllPartsHold() throws {
         let res = try Config.parse(
             """
@@ -176,8 +170,6 @@ import Testing
                 state: StateSnapshot(variables: ["a": 1, "b": 3])))
         #expect(wrong == nil)
     }
-
-    // MARK: - Schema
 
     @Test func schemaEmitsConjunctionAsAllKind() throws {
         let b = try firstBinding(

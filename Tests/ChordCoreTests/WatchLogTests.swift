@@ -30,8 +30,6 @@ import Testing
         #expect(Log.watchPath == "/tmp/chord-watch.log")
     }
 
-    // MARK: - Subscription gating
-
     @Test func watchIsNoOpWhenFileMissing() {
         // Pre-condition: file absent (unique path, never created yet).
         #expect(!FileManager.default.fileExists(atPath: path))

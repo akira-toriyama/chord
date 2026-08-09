@@ -257,8 +257,6 @@ public enum ChordConfigSchema {
     /// the single source.
     static func bindingConstraints() -> [String] { runtimeConstraints.map(\.text) }
 
-    // MARK: Per-context shapes
-
     /// `[[bindings]]` — input required, no wildcard, per-app nesting allowed.
     static func bindingShape() -> ObjectShape {
         ObjectShape(

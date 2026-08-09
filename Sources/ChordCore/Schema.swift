@@ -453,8 +453,6 @@ public enum BindingsSchema {
             && a.actionKeysDelayMs == b.actionKeysDelayMs
     }
 
-    // MARK: - encoding
-
     /// Build a [Document] from a parse result.
     ///
     /// `validationStrict` controls whether the optional
@@ -521,8 +519,6 @@ public enum BindingsSchema {
     public static func encodeJSON(_ document: Document) throws -> Data {
         try JSONEncoder.chordWire().encode(document)
     }
-
-    // MARK: - mappers
 
     /// TOML.SourceSpan → wire form.
     private static func wireSpan(_ s: TOML.SourceSpan?) -> WireSourceSpan? {

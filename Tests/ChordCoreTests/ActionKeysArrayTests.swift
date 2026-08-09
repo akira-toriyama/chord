@@ -8,8 +8,6 @@ import Testing
 /// multi-action uses).
 @Suite struct ActionKeysArrayTests {
 
-    // MARK: - Single-string form (regression)
-
     @Test func singleStringActionKeysUnchanged() throws {
         let res = try Config.parse(
             """
@@ -28,8 +26,6 @@ import Testing
         #expect(b.extraDownActions.isEmpty)
         #expect(b.actionRaw == "cmd - c")
     }
-
-    // MARK: - Array form
 
     @Test func arrayFormBuildsPrimaryPlusExtras() throws {
         let res = try Config.parse(
@@ -81,8 +77,6 @@ import Testing
             "1-element array → primary only, no extras")
     }
 
-    // MARK: - Combined with action-shell (v0.4.0 multi-action extended)
-
     @Test func shellPlusKeysArrayLayersAsExtras() throws {
         // action-shell is primary, every array element is an extra.
         let res = try Config.parse(
@@ -114,8 +108,6 @@ import Testing
         if case .shell = b.action {} else { Issue.record("expected .shell") }
         #expect(b.extraDownActions.count == 1)
     }
-
-    // MARK: - Validation
 
     @Test func emptyArrayRejected() throws {
         let res = try Config.parse(
@@ -191,8 +183,6 @@ import Testing
         }
     }
 
-    // MARK: - action-keys-delay-ms (chord 0.10.0+ inter-key pacing)
-
     @Test func delayMsParsedOntoArray() throws {
         let res = try Config.parse(
             """
@@ -266,8 +256,6 @@ import Testing
         #expect(b.actionKeysDelayMs == 50)
         #expect(b.extraDownActions.isEmpty)
     }
-
-    // MARK: - Schema round-trip
 
     @Test func schemaEmitsActionKeysDelayMs() throws {
         let b = try firstBinding(

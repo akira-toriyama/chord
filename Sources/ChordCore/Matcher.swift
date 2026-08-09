@@ -225,8 +225,6 @@ public struct Matcher: Sendable {
         return ruleTrigger == event
     }
 
-    // MARK: - glob matching
-
     /// `["*"]` is treated as "any" by the caller (apps == nil); this
     /// function handles the mixed allow/deny list otherwise. One
     /// exclusion match wins over any allowlist match. Public so the

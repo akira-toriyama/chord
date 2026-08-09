@@ -7,8 +7,6 @@ import Testing
 /// expanded bindings.
 @Suite struct RemapTableTests {
 
-    // MARK: - TOML inline-table value parsing (parser dependency)
-
     @Test func inlineTableParsesAsTableValue() throws {
         let v = try TOML.parse(
             """
@@ -34,8 +32,6 @@ import Testing
         #expect(map?["b"]?.asString == "left")
         #expect(map?["f"]?.asString == "right")
     }
-
-    // MARK: - Basic expansion
 
     @Test func remapExpandsToOneBindingPerMapEntry() throws {
         let res = try Config.parse(
@@ -106,8 +102,6 @@ import Testing
         }
     }
 
-    // MARK: - Ordering vs regular [[bindings]]
-
     @Test func regularBindingWinsOverRemapEntryOnCollision() throws {
         // Regular `[[bindings]]` appear BEFORE remap expansions, so
         // first-match-wins lets a specific binding override a remap
@@ -141,8 +135,6 @@ import Testing
                 bundleID: nil))
         #expect(hit?.name == "specific ctrl-b")
     }
-
-    // MARK: - Validation: error paths
 
     @Test func missingModifiersDropsRemap() throws {
         let res = try Config.parse(
@@ -248,8 +240,6 @@ import Testing
                 $0.kind == .remapParseError && $0.message.contains("$NOPE")
             })
     }
-
-    // MARK: - End-to-end via Matcher
 
     @Test func expandedRemapMatchesAtMatcher() throws {
         let res = try Config.parse(

@@ -19,8 +19,6 @@ struct ObserveFormatTests {
             frontmostBundleID: nil, kind: .down, isRepeat: isRepeat)
     }
 
-    // MARK: - line(for:)
-
     @Test func keyDownShowsCodeNameAndSideSpecificMods() {
         let line = ObserveCommand.line(for: keyDown(38, [.rctrl, .rshift]))
         #expect(line != nil)
@@ -91,8 +89,6 @@ struct ObserveFormatTests {
         #expect(ObserveCommand.line(for: e)?.contains("dir=up") == true)
     }
 
-    // MARK: - modString
-
     @Test func modStringEmptyIsNone() {
         #expect(ObserveCommand.modString([]) == "(none)")
     }
@@ -100,8 +96,6 @@ struct ObserveFormatTests {
     @Test func modStringKeepsSideBitsInStableOrder() {
         #expect(ObserveCommand.modString([.rshift, .lctrl]) == "lctrl + rshift")
     }
-
-    // MARK: - dispatch wiring (no tap is opened)
 
     /// `config --observe` is registered as a verb that honours no
     /// modifiers — so passing one is rejected (exit 2) BEFORE the

@@ -128,8 +128,6 @@ public final class VKeyHIDSource: @unchecked Sendable {
         Log.line("vkey-hid: stopped")
     }
 
-    // MARK: - device matching
-
     /// A matching device appeared — register the shared input-report buffer
     /// so its reports reach `inputReportCallback`. Runs on the main run loop;
     /// re-fires (and re-registers the same buffer) on every replug.
@@ -148,8 +146,6 @@ public final class VKeyHIDSource: @unchecked Sendable {
         let me = Unmanaged<VKeyHIDSource>.fromOpaque(ctx).takeUnretainedValue()
         me.deviceMatched(device)
     }
-
-    // MARK: - input report
 
     private static let inputReportCallback: IOHIDReportCallback = {
         ctx, result, _, _, reportID, report, reportLength in

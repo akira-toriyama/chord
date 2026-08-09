@@ -49,8 +49,6 @@ public enum QuerySchema {
         return f.string(from: date)
     }
 
-    // MARK: - request
-
     /// The read endpoints. `rawValue` is the on-wire token AND the CLI
     /// verb stem (`--` + rawValue), so the two never drift.
     public enum Endpoint: String, Sendable, CaseIterable {
@@ -101,7 +99,6 @@ public enum QuerySchema {
         }
     }
 
-    // MARK: - response payloads
     //
     // Each endpoint is its own top-level document so consumers read the
     // payload at the top level (`jq .vars.jlayer`, `jq .paused`,
@@ -242,8 +239,6 @@ public enum QuerySchema {
             self.error = error
         }
     }
-
-    // MARK: - encode
 
     /// Deterministic JSON for any response document. Same encoder
     /// settings as [BindingsSchema.encodeJSON] (sorted keys, pretty,

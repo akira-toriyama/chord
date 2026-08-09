@@ -17,8 +17,6 @@ import Testing
 ///   * Schema output (`chord.bindings.v3` `input_aliases` field)
 @Suite struct InputAliasesTests {
 
-    // MARK: - Resolution: alias hits
-
     @Test func dollarPrefixedAliasResolvesToModifierMask() throws {
         let res = try Config.parse(
             """
@@ -113,8 +111,6 @@ import Testing
         #expect(res.droppedBindings == 0)
     }
 
-    // MARK: - Resolution: alias misses
-
     @Test func bareReferenceFallsThroughAsUnknownToken() throws {
         // Bare `ULTRA_LL` (no `$` prefix) is treated as a plain
         // modifier token — and since it isn't a built-in, it fails
@@ -158,8 +154,6 @@ import Testing
             w?.message.contains("$foo_bar") == true,
             "want alias name with `$` prefix in error: \(w?.message ?? "")")
     }
-
-    // MARK: - Load validation
 
     @Test func aliasNameShadowsModifierIsRejected() throws {
         let res = try Config.parse(
@@ -262,8 +256,6 @@ import Testing
             res.warnings.first { $0.kind == .undefinedInputAlias } != nil)
     }
 
-    // MARK: - Schema output
-
     @Test func inputAliasesAppearInSchemaDocument() throws {
         let res = try Config.parse(
             """
@@ -280,8 +272,6 @@ import Testing
         #expect(doc.inputAliases["ULTRA_LL"] == "rctrl + ralt + rshift")
         #expect(doc.inputAliases["MIRACLE_LM"] == "rctrl + rcmd + rshift")
     }
-
-    // MARK: - Wildcard fallback uses actionAliases too
 
     @Test func fallbackInputUsesAlias() throws {
         let res = try Config.parse(

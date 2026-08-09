@@ -7,8 +7,6 @@ import Testing
 /// (every repeat invokes the action).
 @Suite struct AutorepeatTests {
 
-    // MARK: - Parse
-
     @Test func repeatDefaultsToFireEach() throws {
         let res = try Config.parse(
             """
@@ -57,8 +55,6 @@ import Testing
             })
     }
 
-    // MARK: - Event flow / autorepeat flag
-
     @Test func inputEventCarriesIsRepeat() {
         // Constructor exposes the new field with default false.
         let plain = InputEvent(
@@ -74,8 +70,6 @@ import Testing
             isRepeat: true)
         #expect(rep.isRepeat)
     }
-
-    // MARK: - Schema round-trip
 
     @Test func schemaOmitsRepeatWhenDefault() throws {
         let b = try firstBinding(

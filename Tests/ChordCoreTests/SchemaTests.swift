@@ -187,8 +187,6 @@ import Testing
         #expect(d["source_line"] == nil)
     }
 
-    // MARK: - validation block
-
     @Test func validationBlockAbsentWhenNotRequested() throws {
         let json = try parseToBindingsJSON(
             "[[bindings]]\nname=\"x\"\ninput=\"f13\"\naction-noop=true")

@@ -190,8 +190,6 @@ extension Controller {
     }
 }
 
-// MARK: - POSIX socket helpers (file-private)
-
 /// Create + bind + listen on an AF_UNIX stream socket, non-blocking.
 /// Returns the listening fd, or nil on any failure (caller logs +
 /// disables the query API).
