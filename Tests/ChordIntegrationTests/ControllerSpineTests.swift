@@ -109,8 +109,6 @@ final class ControllerSpineTests {
         #expect(src.feed(up(.key(0x00))) == .passthrough)
     }
 
-    // MARK: - autorepeat strategy
-
     /// `repeat = fire-each | ignore | passthrough` decides what the
     /// typematic `.down` (isRepeat == true) does after the initial press.
     /// Asserted on BOTH the outcome AND whether the action re-fires — each
@@ -159,8 +157,6 @@ final class ControllerSpineTests {
             "fire-each: the repeat re-fires the action")
     }
 
-    // MARK: - on-up dispatch
-
     /// A binding's `onUpAction` fires when its paired `.up` arrives — here a
     /// `setVariable` that a second binding gates on, proving the on-up ran
     /// through the real `handleKeyUp` path (not just that the up consumed).
@@ -187,8 +183,6 @@ final class ControllerSpineTests {
         #expect(src.feed(down(.key(0x0B))) == .consume)
     }
 
-    // MARK: - state interception on the down path
-
     /// `toggleVariable` is intercepted by the Controller (state lives here,
     /// not the dispatcher) and flips 0↔1 on each consumed down — the up is
     /// paired but does not toggle.
@@ -210,8 +204,6 @@ final class ControllerSpineTests {
             ctrl.variableSnapshotForTesting().value("flag") == 0,
             "second down toggles 1 → 0")
     }
-
-    // MARK: - modifier-only entry/exit
 
     /// A `.modifiersChanged` event never matches a trigger (always passes),
     /// but crosses the entry/exit edges of `.modifiersOnly` bindings through
@@ -236,8 +228,6 @@ final class ControllerSpineTests {
             ctrl.variableSnapshotForTesting().value("win") == 0,
             "mask-exit fired the onUp action")
     }
-
-    // MARK: - passthrough binding
 
     /// A `passthrough = true` binding runs its action but lets the original
     /// event reach the OS, and — because the OS sees the native up — it

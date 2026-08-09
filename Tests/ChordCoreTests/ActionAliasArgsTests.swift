@@ -7,8 +7,6 @@ import Testing
 /// in the alias body (e.g. `afplay "{{1}}.wav"`).
 @Suite struct ActionAliasArgsTests {
 
-    // MARK: - Basic substitution
-
     @Test func callWithSingleArgSubstitutes() throws {
         let res = try Config.parse(
             """
@@ -109,8 +107,6 @@ import Testing
         }
     }
 
-    // MARK: - Backwards compatibility (bare @name)
-
     @Test func bareAliasStillWorks() throws {
         // Existing v0.6 / v0.7 syntax: bare `@name` with no parens.
         let res = try Config.parse(
@@ -130,8 +126,6 @@ import Testing
             Issue.record("expected .shell")
         }
     }
-
-    // MARK: - Error paths
 
     @Test func bareCallOnTemplatedAliasIsRejected() throws {
         // Alias body has {{1}} but the user called bare → reject.
@@ -205,8 +199,6 @@ import Testing
             Issue.record("expected .shell")
         }
     }
-
-    // MARK: - Extras the substitution doesn't break
 
     @Test func extraArgsBeyondPlaceholdersAreSilentlyDropped() throws {
         // `@name(a, b)` with body using only {{1}} — `b` is unused.

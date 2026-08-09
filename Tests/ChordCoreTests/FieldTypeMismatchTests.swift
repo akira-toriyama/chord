@@ -13,8 +13,6 @@ import Testing
         r.warnings.filter { $0.kind == .fieldTypeMismatch }
     }
 
-    // MARK: - [options]
-
     @Test func optionsPassthroughUnmatchedWrongType() throws {
         let r = try Config.parse(
             """
@@ -72,8 +70,6 @@ import Testing
         #expect(m[0].message.contains("boolean"))
     }
 
-    // MARK: - [[bindings]]
-
     @Test func bindingPassthroughWrongType() throws {
         let r = try Config.parse(
             """
@@ -126,8 +122,6 @@ import Testing
         #expect(m[0].message.contains("non-string element"))
         #expect(m[0].message.contains("integer"))
     }
-
-    // MARK: - no regression
 
     /// A valid config exercising every guarded field emits ZERO
     /// field-type-mismatch warnings (the load-time behaviour is unchanged

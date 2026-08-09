@@ -7,8 +7,6 @@ import Testing
 /// / hold-while fields layer over the base row.
 @Suite struct PerAppTableTests {
 
-    // MARK: - Basic expansion
-
     @Test func perAppExpandsToOneBindingPerEntry() throws {
         let res = try Config.parse(
             """
@@ -128,8 +126,6 @@ import Testing
         #expect(res.config.bindings[0].name == "plain")
     }
 
-    // MARK: - Validation: error paths
-
     @Test func appsAndPerAppAreMutuallyExclusive() throws {
         let res = try Config.parse(
             """
@@ -189,8 +185,6 @@ import Testing
         #expect(res.warnings.contains { $0.kind == .perAppParseError })
     }
 
-    // MARK: - Per-app + sequence-prefix collision
-
     @Test func perAppCollidingWithSequencePrefixIsDropped() throws {
         // Sequence prefix wins over a regular per-app expansion that
         // shares (trigger, modifiers). Each per-app expansion gets
@@ -226,8 +220,6 @@ import Testing
         }
         #expect(collisions.count == 2)
     }
-
-    // MARK: - Matcher end-to-end
 
     @Test func perAppMatcherSelectsBindingByFrontmost() throws {
         let res = try Config.parse(

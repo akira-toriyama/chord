@@ -6,8 +6,6 @@ import Testing
 /// (allow / `!`-deny / `*` wildcard).
 @Suite struct InputSourceMatchingTests {
 
-    // MARK: - Parse
-
     @Test func inputSourceArrayParses() throws {
         let res = try Config.parse(
             """
@@ -45,8 +43,6 @@ import Testing
             """)
         #expect(res.config.bindings[0].inputSource == nil)
     }
-
-    // MARK: - Matcher semantics (allow / deny / glob)
 
     @Test func allowlistMatchesExactID() {
         let b = Binding(
@@ -148,8 +144,6 @@ import Testing
                     "com.apple.inputmethod.Kotoeri.Japanese"))
         #expect(hit != nil)
     }
-
-    // MARK: - Schema
 
     @Test func schemaEmitsInputSource() throws {
         let b = try firstBinding(

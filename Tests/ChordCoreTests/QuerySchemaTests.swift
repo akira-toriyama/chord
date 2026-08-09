@@ -20,8 +20,6 @@ import Testing
             ])
     }
 
-    // MARK: - request line round-trip
-
     @Test func requestLineEncoding() {
         #expect(QuerySchema.Request(endpoint: .vars).line == "vars\n")
         #expect(QuerySchema.Request(endpoint: .recentFires, limit: 10).line == "recent-fires 10\n")
@@ -55,8 +53,6 @@ import Testing
             #expect(QuerySchema.Request(line: r.line) == r, "round-trip \(ep)")
         }
     }
-
-    // MARK: - response JSON shape (keys / spelling / version)
 
     /// Decode encoded JSON back to a key→value map for assertions.
     private func object(_ data: Data) throws -> [String: Any] {
@@ -135,8 +131,6 @@ import Testing
         #expect(o["schema"] as? String == "chord.query.v1")
         #expect(o["error"] as? String == "nope")
     }
-
-    // MARK: - RingBuffer
 
     @Test func ringBufferUnderCapacity() {
         var r = RingBuffer<Int>(capacity: 3)

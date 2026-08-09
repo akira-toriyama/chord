@@ -43,8 +43,6 @@ public enum ActionDispatcher {
         }
     }
 
-    // MARK: - keys
-
     nonisolated(unsafe) private static let source =
         CGEventSource(stateID: .hidSystemState)
 
@@ -130,8 +128,6 @@ public enum ActionDispatcher {
         if m.contains(.fn) { raw |= CGEventFlags.maskSecondaryFn.rawValue }
         return CGEventFlags(rawValue: raw)
     }
-
-    // MARK: - shell
 
     static func runShell(_ command: String, name: String) {
         let proc = Process()

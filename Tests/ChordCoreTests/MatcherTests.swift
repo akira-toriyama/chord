@@ -85,8 +85,6 @@ import Testing
         _ = m  // silence unused
     }
 
-    // MARK: - L/R modifier semantics (PR1)
-
     /// `ctrl - x` (any-side) accepts both lctrl-x and rctrl-x.
     @Test func anySideAcceptsBothPhysicalSides() {
         let m = Matcher(bindings: [
@@ -196,8 +194,6 @@ import Testing
                     modifiers: .lctrl, bundleID: nil)) == nil
         )
     }
-
-    // MARK: - globMatch behavioral coverage
 
     /// Empty pattern matches only empty input.
     @Test func globEmptyPattern() {

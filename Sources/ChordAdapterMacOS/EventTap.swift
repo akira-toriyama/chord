@@ -90,8 +90,6 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
         Log.line("event-tap: stopped")
     }
 
-    // MARK: - callback
-
     private static let tapCallback: CGEventTapCallBack = {
         proxy, type, event, refcon in
         guard let refcon else { return Unmanaged.passUnretained(event) }
@@ -128,8 +126,6 @@ public final class MacOSEventSource: EventSource, @unchecked Sendable {
             return nil
         }
     }
-
-    // MARK: - CGEvent → InputEvent
 
     private func makeInputEvent(
         from event: CGEvent, type: CGEventType

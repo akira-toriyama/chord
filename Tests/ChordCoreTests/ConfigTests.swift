@@ -116,8 +116,6 @@ import Testing
         #expect(extra?.first?.key?.keycode == 0x7C)
     }
 
-    // MARK: - silent-drop fixes (analysis report items 2A / 2B)
-
     /// `[options]` typos used to be silent — the binding parser
     /// only checks the keys it knows about, so a camelCase typo
     /// (`passthroughUnmatched`) or an invented key looked exactly
@@ -151,8 +149,6 @@ import Testing
                 w.kind == .unknownOptionKey && w.message.contains("'bogus-option'")
             })
     }
-
-    // MARK: - #52-bounded: descriptor-driven unknown-key validation
 
     /// A typo on an OPTIONAL binding key warns (.unknownKey) but the binding
     /// still loads — the unknown key is lenient, like [options].

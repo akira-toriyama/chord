@@ -62,8 +62,6 @@ public final class Controller {
         Control.writeStatus("stopped")
     }
 
-    // MARK: - hot path
-
     nonisolated private func handle(_ event: InputEvent) -> EventOutcome {
         // The tap callback fires on its own run loop thread. We read
         // the lock-published matcher snapshot via `matcherSnapshot()`
@@ -349,20 +347,6 @@ public final class Controller {
         }
     }
 
-    /// Apply one action with Controller-owned state interception — the
-    /// single place the down path, the on-up path, and the
-    /// modifier-only path all funnel through. State mutations
-    /// (`setVariable` / `toggleVariable`) hit the variable store, because
-    /// state ownership lives in the App layer, NOT the dispatcher (which
-    /// is in the Adapter layer and has no legitimate reason to know about
-    /// the store); `keys` / `shell` / `noop` go to the dispatcher.
-    ///
-    /// Pure side effect, no logging: each call site keeps its own trace
-    /// line (the three paths log differently). Returns the
-    /// `(current, next)` transition when `action` is a toggle so a caller
-    /// can log it without re-reading the store, else nil. `action` is
-    /// passed separately from `binding` so the on-up path can apply
-    /// `binding.onUpAction` against the same binding.
     /// The keystrokes a binding emits on down, in order: the primary
     /// action when it is `.keys`, followed by every `.keys` in
     /// `extraDownActions` (a non-key primary like `action-shell`
@@ -380,6 +364,20 @@ public final class Controller {
         return keys
     }
 
+    /// Apply one action with Controller-owned state interception — the
+    /// single place the down path, the on-up path, and the
+    /// modifier-only path all funnel through. State mutations
+    /// (`setVariable` / `toggleVariable`) hit the variable store, because
+    /// state ownership lives in the App layer, NOT the dispatcher (which
+    /// is in the Adapter layer and has no legitimate reason to know about
+    /// the store); `keys` / `shell` / `noop` go to the dispatcher.
+    ///
+    /// Pure side effect, no logging: each call site keeps its own trace
+    /// line (the three paths log differently). Returns the
+    /// `(current, next)` transition when `action` is a toggle so a caller
+    /// can log it without re-reading the store, else nil. `action` is
+    /// passed separately from `binding` so the on-up path can apply
+    /// `binding.onUpAction` against the same binding.
     @discardableResult
     nonisolated private func applyAction(
         _ action: Action, for binding: Binding
@@ -399,8 +397,6 @@ public final class Controller {
         }
         return nil
     }
-
-    // MARK: - vkey (vendor-HID) hot path
 
     /// A vendor-HID selector arrived from [VKeyHIDSource] (on the main run
     /// loop). It is normalised into an `InputEvent` carrying a `.vkey(id)`
@@ -485,8 +481,6 @@ public final class Controller {
         sharedMatcher = matcher
         matcherLock.unlock()
     }
-
-    // MARK: - config
 
     public func reload() {
         loadConfig(reason: "reload")
@@ -768,7 +762,6 @@ nonisolated(unsafe) private var vkeyTracker = VKeyEdgeTracker()
 private let vkeyLock = NSLock()
 
 #if DEBUG
-    // MARK: - test seam
 
     public extension Controller {
         /// Test-only entry point (ChordIntegrationTests). Wires the REAL

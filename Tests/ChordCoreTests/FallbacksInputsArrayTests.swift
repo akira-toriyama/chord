@@ -7,8 +7,6 @@ import Testing
 /// shared verbatim.
 @Suite struct FallbacksInputsArrayTests {
 
-    // MARK: - Basic expansion
-
     @Test func inputsArrayExpandsToOneFallbackPerEntry() throws {
         let res = try Config.parse(
             """
@@ -87,8 +85,6 @@ import Testing
         // No " — <input>" suffix when the row used single input.
         #expect(!res.config.fallbacks[0].name.contains(" — "))
     }
-
-    // MARK: - Validation: error paths
 
     @Test func inputAndInputsAreMutuallyExclusive() throws {
         let res = try Config.parse(

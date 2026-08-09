@@ -30,8 +30,6 @@ enum ChordApp {
         runServer()
     }
 
-    // MARK: - subcommand dispatch (#7 + #2)
-
     /// Result of a subcommand invocation. `stdout` / `stderr` are
     /// written verbatim by `applyOutcome` — handlers are responsible
     /// for trailing newlines (mirrors `print` vs `print(terminator:)`).
@@ -352,7 +350,6 @@ enum ChordApp {
         return SubcommandOutcome(exitCode: 0, stdout: reply)
     }
 
-    // MARK: - server
     //
     // Daemon boot. Unlike the CLI subcommands above this is the
     // long-running path; exit() inside runServer is reserved for
@@ -392,8 +389,6 @@ enum ChordApp {
         Log.line("ready")
         app.run()
     }
-
-    // MARK: - standalone subcommands
 
     /// `config --validate` parses `~/.config/chord/config.toml` and prints
     /// a per-config summary.
