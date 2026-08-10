@@ -69,7 +69,7 @@ private func querySocketExists() -> Bool {
         #expect(out?.stderr == "chord: no daemon running\n")
     }
 
-    /// `daemon --show` (the read口, was `--status`) reports exit 3 when
+    /// `daemon --show` (the read mouth, was `--status`) reports exit 3 when
     /// there is no status file.
     ///
     /// Start-clean precondition: a sibling suite that constructs a real

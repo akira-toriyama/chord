@@ -1,59 +1,61 @@
-# chord ユビキタス言語 — Glossary
+# chord ubiquitous language — Glossary
 
-chord プロジェクトの **正規 (canonical) 用語表**。設計議論・PR レビュー・
-コードコメント・ドキュメント全てで、このファイルの用語と表記に従う。
+The **canonical vocabulary** of the chord project. Design discussions, PR
+reviews, code comments, and documentation all follow the terms and spellings
+in this file.
 
-同じ概念を別の名前で呼ぶ揺れ ("alias" だけで input/action のどちらか不明、
-"state-store" と "variables" が混在、等) が起きるたびに合意コストが膨らむ。
-それを根本的に潰すための辞書。
+Every drift that calls one concept by two names (a bare "alias" that could
+mean input or action, "state-store" mixed with "variables", …) inflates the
+cost of agreement. This dictionary exists to kill that at the root.
 
-## 運用ルール
+## Operating rules
 
-1. **コード変更時に用語を新設 / rename / 意味変更したら、同 PR で本書を更新**
-   (PR template の checkbox に従う)。
-2. **schema 契約** (`docs/schema/chord.bindings.v3.json`) の enum は
-   **値の追加は forward-compatible**、既存値の rename は schema version
-   bump の合図。
-3. **英名 = コード識別子と 1:1** を維持。Swift 型は CamelCase、TOML token
-   は kebab-case のまま使う。**説明は日本語**。
-4. 「**Don't call it:**」欄は **PR レビューでの即時 NG ワード**。コメントで
-   指摘するときの根拠にしてよい。
+1. **When a code change coins / renames / re-defines a term, update this file
+   in the same PR** (per the PR template checkbox).
+2. For the **schema contract** (`docs/schema/chord.bindings.v3.json`) enums,
+   **adding values is forward-compatible**; renaming an existing value is the
+   signal for a schema version bump.
+3. Keep **English names 1:1 with code identifiers**. Swift types stay
+   CamelCase, TOML tokens stay kebab-case. **Descriptions are English**
+   (fleet [doc-consistency policy](https://github.com/akira-toriyama/.github/blob/main/docs/doc-consistency-policy.md)).
+4. The "**Don't call it:**" field is the **immediate NG-word list for PR
+   review** — cite it when flagging a comment.
 
 ---
 
-## アーキテクチャ層
+## Architecture layers
 
-chord は **CGEventTap (Quartz の上)** に位置する。上下に隣接する層との
-関係を最初に視覚化しておく:
+chord sits **on CGEventTap (above Quartz)**. Start with the picture of its
+neighbors above and below:
 
 ```mermaid
 flowchart TB
-  app["macOS アプリ (Safari / Chrome / VS Code …)"]
+  app["macOS app (Safari / Chrome / VS Code …)"]
   quartz["Quartz / NSEvent layer"]
   tap["CGEventTap (.cgSessionEventTap)"]
   matcher["chord Matcher (ChordCore)"]
   dispatcher["ActionDispatcher (ChordAdapterMacOS)"]
-  os_hid["macOS HID 受信 (IOHID)"]
+  os_hid["macOS HID receive (IOHID)"]
   ble_usb["USB / BLE"]
   zmk["ZMK firmware (canon)"]
-  karabiner["Karabiner-Elements (任意)"]
+  karabiner["Karabiner-Elements (optional)"]
 
   zmk -->|"HID report"| ble_usb
   ble_usb --> os_hid
   os_hid --> karabiner
-  karabiner -->|"DriverKit 仮想 HID"| os_hid
+  karabiner -->|"DriverKit virtual HID"| os_hid
   os_hid --> quartz
   quartz -->|"keyDown / flagsChanged / mouseDown / scroll"| tap
   tap -->|"event"| matcher
   matcher -->|"binding hit"| dispatcher
-  dispatcher -->|"再 post (syntheticUserData タグ)"| tap
+  dispatcher -->|"re-post (syntheticUserData tag)"| tap
   tap -->|".passthrough"| app
   app
 ```
 
-- **ZMK firmware** は chord の上流 (= "atomic chord" emitter)。詳細は §6
-- **CGEventTap** は chord の入口かつ出口 (post 後にも再入する)。詳細は §5
-- **Matcher** / **Action** / **Binding** は ChordCore の純粋ロジック。詳細は §1
+- **ZMK firmware** is chord's upstream (= the "atomic chord" emitter). See §6
+- **CGEventTap** is chord's entrance and exit (posted events re-enter). See §5
+- **Matcher** / **Action** / **Binding** are ChordCore's pure logic. See §1
 
 ---
 
@@ -61,238 +63,245 @@ flowchart TB
 
 ### Modifiers
 
-UInt16 `OptionSet` で表現される修飾キー集合。**2 層構造**:
+The modifier-key set, a UInt16 `OptionSet`. **Two tiers**:
 
-- **any-side** (`.cmd`, `.opt`, `.ctrl`, `.shift`, `.fn`): L/R 不問
+- **any-side** (`.cmd`, `.opt`, `.ctrl`, `.shift`, `.fn`): either side
 - **strict-side** (`.lcmd`, `.rcmd`, `.lopt`, `.ropt`, `.lctrl`, `.rctrl`,
-  `.lshift`, `.rshift`): 片側必須
-- **`.hyper`** は `cmd + opt + ctrl + shift` の sugar (any-side のみ)
+  `.lshift`, `.rshift`): that side required
+- **`.hyper`** is sugar for `cmd + opt + ctrl + shift` (any-side only)
 
-**Event 側は strict-side ビットのみ運ぶ**。any-side は binding 側にしか
-立たない (matcher の `matches(event:)` で柔軟マッチ)。
+**Events carry strict-side bits only.** Any-side bits appear only on the
+binding side (the matcher's `matches(event:)` does the flexible match).
 
-`isStillHeld(in:)` は `matches(event:)` と別物で、`hold-while`
-ライフサイクル用に **余分な修飾を許容**する。
+`isStillHeld(in:)` is distinct from `matches(event:)`: it **tolerates extra
+modifiers**, for the `hold-while` lifecycle.
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `Modifiers`
 - schema: `modifier_token` / `modifier_sides` (frozen)
-- **Don't call it**: modifier-mask, modifier-set (説明文の語句としては可、
-  概念名としては Modifiers)
+- **Don't call it**: modifier-mask, modifier-set (fine as descriptive prose;
+  the concept name is Modifiers)
 
 ### Trigger
 
-binding を発火させる **入力イベントの種別**。代数的データ型:
+The **kind of input event** that fires a binding. An algebraic data type:
 
-- `.key(UInt16)` — キーボードのキー (keycode)
-- `.mouseButton(MouseButton)` — マウスボタン
-- `.scroll(ScrollDirection)` — スクロールホイール方向
-- `.anyKey` — wildcard。**[[fallbacks]] でだけ legal**
-- `.modifiersOnly` (chord 0.9.0+) — primary key を持たず、修飾 mask の entry/exit transition で発火
-- `.vkey(UInt8)` (chord 0.10.0+) — vendor-HID v-key。canon が `&vkey <id>` で
-  送る selector id (1–255)。修飾子を持たず、[`[v-key-aliases]`](#sections) の
-  名前で bare `input = "NAME"` 参照する。詳細は §5 [VKeyHIDSource](#vkeyhidsource) / §6
-- `.anyVKey` (chord 0.10.0+) — v-key 版 wildcard (`input = "v-key"`)。
-  **[[fallbacks]] でだけ legal**。未割当の全 v-key にマッチ
+- `.key(UInt16)` — a keyboard key (keycode)
+- `.mouseButton(MouseButton)` — a mouse button
+- `.scroll(ScrollDirection)` — a scroll-wheel direction
+- `.anyKey` — the wildcard. **Legal only in [[fallbacks]]**
+- `.modifiersOnly` (chord 0.9.0+) — no primary key; fires on the entry/exit
+  transition of a modifier mask
+- `.vkey(UInt8)` (chord 0.10.0+) — a vendor-HID v-key: the selector id
+  (1–255) canon sends via `&vkey <id>`. Carries no modifiers; referenced by a
+  bare `input = "NAME"` through [`[v-key-aliases]`](#sections). See §5
+  [VKeyHIDSource](#vkeyhidsource) / §6
+- `.anyVKey` (chord 0.10.0+) — the v-key wildcard (`input = "v-key"`).
+  **Legal only in [[fallbacks]]**; matches every unassigned v-key
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `Trigger`
 - schema: `trigger.kind` (frozen — §3)
-- **Don't call it**: input (config の TOML key と紛らわしい), primary-token。
-  v-key の概念名は **v-key**（hyphen 付き・TOML/prose）、コード識別子は **vkey**
-  (`Trigger.vkey` / `VKeyHIDSource`)。"original key" は説明語であって概念名ではない
+- **Don't call it**: input (confusable with the TOML config key),
+  primary-token. The v-key's concept name is **v-key** (hyphenated, in
+  TOML/prose); the code identifier is **vkey** (`Trigger.vkey` /
+  `VKeyHIDSource`). "original key" is a descriptive phrase, not a concept name
 
 ### MouseButton / ScrollDirection
 
-| 型 | 値 |
+| Type | Values |
 |---|---|
 | `MouseButton` | `left`, `right`, `middle`, `side1`, `side2`, `other5`, `other6`, `other7` |
 | `ScrollDirection` | `up`, `down`, `left`, `right` |
 
-`side1` / `side2` は通常マウスの "back" / "forward" ボタンを指す。
+`side1` / `side2` are the "back" / "forward" buttons of an ordinary mouse.
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift)
 
 ### Action
 
-binding が hit したときの **副作用**。
+The **side effect** when a binding hits.
 
-| ケース | 動作 |
+| Case | Behavior |
 |---|---|
-| `.keys(Modifiers, UInt16)` | 合成キーイベントを post |
-| `.shell(String)` | `/bin/zsh -l -c` でコマンド実行 |
-| `.noop` | イベントを吸収するだけ |
-| `.setVariable(name, value)` | state-var を書き換え |
-| `.toggleVariable(name)` | state-var を 0↔1 反転 (chord 0.9.0+) |
+| `.keys(Modifiers, UInt16)` | post a synthetic key event |
+| `.shell(String)` | run a command via `/bin/zsh -l -c` |
+| `.noop` | absorb the event, nothing else |
+| `.setVariable(name, value)` | write a state-var |
+| `.toggleVariable(name)` | flip a state-var 0↔1 (chord 0.9.0+) |
 
-binding は `action` 1 つに加えて **`extraDownActions[]`** を持つ
-(v0.4.0+、`action-shell + action-keys` 同時発火)。
+A binding holds one `action` plus **`extraDownActions[]`** (v0.4.0+ —
+`action-shell + action-keys` firing together).
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `Action`
 - schema: `action.kind` (frozen — §3)
-- **Don't call it**: action-kind (TOML config の `action-*` プレフィックス
-  と混同を招くので、概念名は Action)
+- **Don't call it**: action-kind (invites confusion with the TOML config's
+  `action-*` prefix; the concept name is Action)
 
 ### Condition
 
-binding を発火させる **state ゲート述語**。2 形:
+The **state-gate predicate** on a binding's firing. Two forms:
 
-- `.variable(name: String, equals: Int)` — 単一変数等価 (v2)
-- `.conjunction([Condition])` — 2 件以上の AND ゲート (chord 0.9.0+)。
-  `when-vars = { a = 1, b = 2 }` inline-table から生成。wire では
-  `kind: "all"` + 再帰 `conditions[]` として出力。
+- `.variable(name: String, equals: Int)` — single-variable equality (v2)
+- `.conjunction([Condition])` — an AND gate over 2+ entries (chord 0.9.0+).
+  Built from the `when-vars = { a = 1, b = 2 }` inline table. On the wire it
+  serializes as `kind: "all"` + recursive `conditions[]`.
 
-OR / NOT は意図的に対象外 (式文法化を避ける)。`a == 1 && b == 2` を
-将来検討としていた issue #19 は `when-vars` 出荷で解消済。
+OR / NOT are deliberately out (avoiding an expression grammar). Issue #19,
+which considered `a == 1 && b == 2` for the future, was resolved by shipping
+`when-vars`.
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `Condition`
 - **Don't call it**: state-predicate, when-var-clause
 
 ### Binding
 
-trigger + modifiers + optional `apps` → action の **1 行**。
-runtime フィールド (`action`, `condition`, `holdWhile`,
-`holdWhileTimeoutMs`, `onUpAction`, `extraDownActions`,
-`inputSource`, `passthrough`, `repeatStrategy` — 後 3 つは chord
-0.9.0+) と metadata フィールド (`inputRaw`, `actionRaw`,
-`aliasName`, `sourceLine`) を持つ。
+**One line**: trigger + modifiers + optional `apps` → action. Carries the
+runtime fields (`action`, `condition`, `holdWhile`, `holdWhileTimeoutMs`,
+`onUpAction`, `extraDownActions`, `inputSource`, `passthrough`,
+`repeatStrategy` — the last three chord 0.9.0+) and the metadata fields
+(`inputRaw`, `actionRaw`, `aliasName`, `sourceLine`).
 
-metadata は **Matcher が無視** し、`config --show --json` だけが使う。
+The metadata is **ignored by the Matcher**; only `config --show --json` uses
+it.
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `Binding`
 
 ### StateSnapshot
 
-[VariableStore](#variablestore) の `[String: Int]` 変数ストアの
-**値型コピー**。tap スレッドが lock-free に読むため、Event に乗せて渡す。
-**unset == 0**。
+A **value-type copy** of [VariableStore](#variablestore)'s `[String: Int]`
+variable store, carried on the Event so the tap thread reads it lock-free.
+**unset == 0**.
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `StateSnapshot`
-- **Don't call it**: state-dict, state-store (それは容器の概念)
+- **Don't call it**: state-dict, state-store (that names the container)
 
 ### ChordConfig / ChordConfig.Options
 
-`config.toml` を読んだ結果の **whole-program 設定**。
+The **whole-program configuration** parsed from `config.toml`.
 
 ```
 ChordConfig
 ├── options          (passthroughUnmatched, excludeApps, fnAutoArrows)
 ├── bindings         [Binding]
-├── fallbacks        [Binding]   ← trigger に .anyKey を許す
+├── fallbacks        [Binding]   ← the one place .anyKey triggers are allowed
 ├── actionAliases    [String: String]
 └── inputAliases     [String: String]
 ```
 
-`fnAutoArrows` (chord 0.8.0+): true (default) のとき、arrow / nav キー
-([KeyCodes.fnAutoNavKeycodes](../Sources/ChordCore/KeyCodes.swift) の 9 key)
-の matching で `fn` 比較をスキップする。macOS が arrow に常に
-`NSEventModifierFlagFunction` を付与する都合への対応。
+`fnAutoArrows` (chord 0.8.0+): when true (the default), matching skips the
+`fn` comparison for the arrow / nav keys (the 9 keys in
+[KeyCodes.fnAutoNavKeycodes](../Sources/ChordCore/KeyCodes.swift)) —
+accommodating macOS always stamping `NSEventModifierFlagFunction` on arrows.
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `ChordConfig`
 
 ---
 
-## 2. Config concepts (TOML レイヤ)
+## 2. Config concepts (the TOML layer)
 
-ユーザが `config.toml` に書くトークン群。全て **frozen** (rename は schema major bump = v4)。
+The tokens users write in `config.toml`. All **frozen** (a rename is a schema
+major bump = v4).
 
 ### Sections
 
-| Section | 役割 |
+| Section | Role |
 |---|---|
-| `[options]` | グローバル設定 (`passthrough-unmatched`, `exclude-apps`, `fn-auto-arrows`)。chord 0.9.0+ では未知キーが `unknown-option-key` warning で surface する (silent drop しない) |
-| `[[bindings]]` | 通常 binding (document order, first-match-wins) |
-| `[[fallbacks]]` | bindings が全 miss した時だけ評価される binding 群。`*` ワイルドカードが許される唯一の場所 |
-| `[[sequence]]` | leader-key 用 sugar (chord 0.7.0+)。`prefix` + 子 `[[sequence.bindings]]` + `timeout-ms` から **state-var binding 群に parse 時展開**。詳細は §4 [sequence (leader-key sugar)](#sequence-leader-key-sugar) |
-| `[[remap]]` | 1 対 1 リマップ用 sugar (chord 0.8.0+)。`modifiers` + `map = { k1 = "a", k2 = "b" }` から N 個の `.keys` binding に parse 時展開 |
-| `[[bindings.per-app]]` | per-OS 分岐 sugar (chord 0.8.0+)。`[[bindings]]` 親に nested AoT で N 個の per-app 子を書き、各子は `apps = [bundle-id]` 付きの binding に展開 |
-| `[action-aliases]` | `@name → shell command` の置換テーブル |
-| `[input-aliases]` | `$name → "mod1 + mod2"` の置換テーブル |
-| `[v-key-aliases]` | `NAME → vendor-HID id (1–255)` の置換テーブル (chord 0.10.0+)。binding は bare `input = "NAME"` で参照（`$` 無し）。名前は大小無視・first-wins、builtin key/modifier/`v-key` wildcard を shadow すると reject |
+| `[options]` | global settings (`passthrough-unmatched`, `exclude-apps`, `fn-auto-arrows`). chord 0.9.0+ surfaces unknown keys as an `unknown-option-key` warning (no silent drop) |
+| `[[bindings]]` | ordinary bindings (document order, first-match-wins) |
+| `[[fallbacks]]` | bindings evaluated only when every [[bindings]] entry missed. The one place the `*` wildcard is allowed |
+| `[[sequence]]` | leader-key sugar (chord 0.7.0+): `prefix` + child `[[sequence.bindings]]` + `timeout-ms`, **expanded at parse time into state-var bindings**. See §4 [sequence (leader-key sugar)](#sequence-leader-key-sugar) |
+| `[[remap]]` | 1:1 remap sugar (chord 0.8.0+): `modifiers` + `map = { k1 = "a", k2 = "b" }` expands at parse time into N `.keys` bindings |
+| `[[bindings.per-app]]` | per-app branching sugar (chord 0.8.0+): nested AoT under a `[[bindings]]` parent; each child expands to a binding with `apps = [bundle-id]` |
+| `[action-aliases]` | the `@name → shell command` substitution table |
+| `[input-aliases]` | the `$name → "mod1 + mod2"` substitution table |
+| `[v-key-aliases]` | the `NAME → vendor-HID id (1–255)` substitution table (chord 0.10.0+). Bindings reference it by bare `input = "NAME"` (no `$`). Names are case-insensitive, first-wins; shadowing a builtin key/modifier/`v-key` wildcard is rejected |
 
 ### Per-binding fields
 
-| Token | 意味 | 備考 |
+| Token | Meaning | Notes |
 |---|---|---|
-| `input` | trigger + modifiers の文字列表現 | `"$ULTRA_LL - c"` `"mouse.side1"` `"ctrl - scroll.up"` |
-| `action-shell` | shell command | `@name` で alias 参照 |
-| `action-keys` | 合成キー文字列 | `"cmd + shift - tab"` |
-| `action-noop` | true で吸収のみ | |
-| `action-set-var` | 書き換える変数名 | |
-| `action-set-value` | 書き込む値 (省略時 1, 0 で clear) | |
-| `action-toggle-var` | 押すたび 0↔1 反転 (chord 0.9.0+) | 値・hold-while* 系・on-up と相互排他 |
-| `action-hold-var` | down で 1, paired up で 0 を自動 set (chord 0.9.0+) | 暗黙の on-up を所有、他の on-up と相互排他 |
-| `action-mission-control` | `"show-all-windows"` / `"show-app-windows"` (chord 0.9.0+) | macOS default shortcut (Ctrl+↑ / Ctrl+↓) に desugar |
-| `action-screenshot` | `"selection"` / `"screen"` (chord 0.9.0+) | macOS default (Cmd+Shift+4 / Cmd+Shift+3) に desugar |
-| `action-spotlight` | `true` で Spotlight 起動 (chord 0.9.0+) | macOS default (Cmd+Space) に desugar |
-| `when-var` | 発火を gate する変数名 | 等価値は `when-var-value` (省略時 1) |
-| `when-vars` | 複数変数 AND ゲート (chord 0.9.0+) | `{ a = 1, b = 2 }` inline-table。`when-var` と相互排他、1 要素は `.variable` に collapse |
-| `hold-while` | 修飾保持中だけ var 維持 | `hold-while-timeout` と相互排他 |
-| `hold-while-timeout` | inactivity ms 経過で var clear | `hold-while` と相互排他 |
-| `action-*-on-up` | 対の key-up で発火する action | `action-keys-on-up` 等 |
-| `apps` | bundle id glob 配列 | `["*"]` は nil 扱い、`"!com.example"` で除外 |
-| `input-source` | macOS keyboard input source id glob 配列 (chord 0.9.0+) | `apps` と同じ semantics、string 単独形は 1 要素配列に sugar |
-| `passthrough` | `true` で原イベントを OS にも流す (chord 0.9.0+) | `action-shell` / `action-set-var` / `action-toggle-var` のみ可、`action-keys` / `on-up` / `noop` とは相互排他 |
-| `repeat` | typematic autorepeat 戦略 (chord 0.9.0+) | `"fire-each"` (default) / `"ignore"` (1回のみ発火) / `"passthrough"` (発火後は OS に流す) |
+| `input` | string form of trigger + modifiers | `"$ULTRA_LL - c"` `"mouse.side1"` `"ctrl - scroll.up"` |
+| `action-shell` | shell command | `@name` references an alias |
+| `action-keys` | synthetic-key string | `"cmd + shift - tab"` |
+| `action-noop` | true = absorb only | |
+| `action-set-var` | variable name to write | |
+| `action-set-value` | value to write (default 1; 0 clears) | |
+| `action-toggle-var` | flip 0↔1 on each press (chord 0.9.0+) | mutually exclusive with a value, the hold-while* family, and on-up |
+| `action-hold-var` | auto-set 1 on down, 0 on the paired up (chord 0.9.0+) | owns an implicit on-up; mutually exclusive with other on-up |
+| `action-mission-control` | `"show-all-windows"` / `"show-app-windows"` (chord 0.9.0+) | desugars to the macOS default shortcut (Ctrl+↑ / Ctrl+↓) |
+| `action-screenshot` | `"selection"` / `"screen"` (chord 0.9.0+) | desugars to the macOS default (Cmd+Shift+4 / Cmd+Shift+3) |
+| `action-spotlight` | `true` opens Spotlight (chord 0.9.0+) | desugars to the macOS default (Cmd+Space) |
+| `when-var` | variable name gating the firing | the compared value is `when-var-value` (default 1) |
+| `when-vars` | multi-variable AND gate (chord 0.9.0+) | `{ a = 1, b = 2 }` inline table; mutually exclusive with `when-var`; one entry collapses to `.variable` |
+| `hold-while` | keep the var only while modifiers are held | mutually exclusive with `hold-while-timeout` |
+| `hold-while-timeout` | clear the var after N ms of inactivity | mutually exclusive with `hold-while` |
+| `action-*-on-up` | action fired on the paired key-up | `action-keys-on-up` etc. |
+| `apps` | bundle-id glob array | `["*"]` is treated as nil; `"!com.example"` excludes |
+| `input-source` | macOS keyboard input-source id glob array (chord 0.9.0+) | same semantics as `apps`; a lone string sugars to a 1-element array |
+| `passthrough` | `true` also lets the original event through to the OS (chord 0.9.0+) | allowed only with `action-shell` / `action-set-var` / `action-toggle-var`; mutually exclusive with `action-keys` / `on-up` / `noop` |
+| `repeat` | typematic autorepeat strategy (chord 0.9.0+) | `"fire-each"` (default) / `"ignore"` (fire once) / `"passthrough"` (fire, then let repeats through) |
 
 ### Reference syntax
 
-| 記法 | 意味 | 出現場所 |
+| Notation | Meaning | Where it appears |
 |---|---|---|
-| `@name` | action-alias 参照 (引数なし alias 用) | `action-shell` の値 |
-| `@name(arg1, "arg 2")` | action-alias 引数付き (chord 0.9.0+)。alias body の `{{1}}` `{{2}}` …プレースホルダに **literal 置換** (escape なし、quote はユーザ責任) | `action-shell` の値 |
-| `$name` | input-alias 参照 | `input` の値 |
-| `NAME` (bare) | v-key-alias 参照（`$` 無し、それ単体で完結トリガ） | `[[bindings]]` / `[[fallbacks]]` の `input` |
-| `*` | wildcard primary key | `[[fallbacks]]` の `input` のみ |
-| `v-key` / `vkey` | any-vkey wildcard (`.anyVKey`) | `[[fallbacks]]` の `input` のみ |
-| `keycode-NN` | 生 `CGKeyCode` の脱出口 | `input` / `action-keys` の key 部 |
+| `@name` | action-alias reference (for argument-less aliases) | `action-shell` values |
+| `@name(arg1, "arg 2")` | action-alias call with arguments (chord 0.9.0+): **literal substitution** into the alias body's `{{1}}` `{{2}}` … placeholders (no escaping; quoting is the user's job) | `action-shell` values |
+| `$name` | input-alias reference | `input` values |
+| `NAME` (bare) | v-key-alias reference (no `$`; a complete trigger by itself) | `input` of `[[bindings]]` / `[[fallbacks]]` |
+| `*` | wildcard primary key | `input` of `[[fallbacks]]` only |
+| `v-key` / `vkey` | any-vkey wildcard (`.anyVKey`) | `input` of `[[fallbacks]]` only |
+| `keycode-NN` | escape hatch to a raw `CGKeyCode` | the key part of `input` / `action-keys` |
 
 **Don't call it**:
-- `[action-aliases]` ↔ `[input-aliases]` を bare "alias" と呼ばない。**必ず
-  "input" / "action" を冠する**。混同が頻発する。
-- `[aliases]` (v0.5 までの旧名) は dead — `[action-aliases]` を使う。
-- `$prefix` は記法名 (alias 参照の構文) であって概念名ではない。概念名は
-  **input-alias**。
-- `[v-key-aliases]` ↔ `[input-aliases]` を混同しない。前者は **vendor-HID id**
-  への名前付け（bare 参照）、後者は **修飾子セット**への名前付け（`$` 参照）。
+- Never call `[action-aliases]` ↔ `[input-aliases]` a bare "alias" —
+  **always prefix "input" / "action"**. This confusion recurs.
+- `[aliases]` (the pre-v0.5 name) is dead — use `[action-aliases]`.
+- `$prefix` names the notation (alias-reference syntax), not the concept. The
+  concept name is **input-alias**.
+- Don't conflate `[v-key-aliases]` ↔ `[input-aliases]`: the former names a
+  **vendor-HID id** (bare reference), the latter a **modifier set** (`$`
+  reference).
 
 ---
 
 ## 3. Schema enum values (frozen)
 
-`docs/schema/chord.bindings.v3.json` の enum 値 (v1 は history 用に残置; v2 は別ファイル未発行)。
-**rename はすべて schema major bump**。新規追加は forward-compatible (既存 consumer
-が unknown を許容する前提)。
+The enum values of `docs/schema/chord.bindings.v3.json` (v1 is kept for
+history; no separate v2 file was published). **Every rename is a schema major
+bump.** Additions are forward-compatible (existing consumers are expected to
+tolerate unknowns).
 
 ### `trigger.kind`
 
-| 値 | 意味 |
+| Value | Meaning |
 |---|---|
-| `"key"` | キーボードキー (carries keycode) |
-| `"mouseButton"` | マウスボタン |
-| `"scroll"` | スクロールホイール |
-| `"anyKey"` | wildcard ([[fallbacks]] 専用) |
-| `"modifiersOnly"` | primary key 無しの修飾 mask 専用トリガ (chord 0.9.0+) |
-| `"vkey"` | vendor-HID v-key。`name` = `"0x%02X"`、`keycode` = id (1–255) (chord 0.10.0+) |
-| `"anyVKey"` | v-key 版 wildcard ([[fallbacks]] 専用) (chord 0.10.0+) |
+| `"key"` | keyboard key (carries keycode) |
+| `"mouseButton"` | mouse button |
+| `"scroll"` | scroll wheel |
+| `"anyKey"` | wildcard ([[fallbacks]] only) |
+| `"modifiersOnly"` | modifier-mask-only trigger, no primary key (chord 0.9.0+) |
+| `"vkey"` | vendor-HID v-key: `name` = `"0x%02X"`, `keycode` = id (1–255) (chord 0.10.0+) |
+| `"anyVKey"` | v-key wildcard ([[fallbacks]] only) (chord 0.10.0+) |
 
 ### `action.kind`
 
-| 値 | 意味 |
+| Value | Meaning |
 |---|---|
-| `"keys"` | 合成キー post |
+| `"keys"` | post synthetic keys |
 | `"shell"` | shell command |
-| `"noop"` | 吸収のみ |
-| `"set-variable"` | state-var 書き換え (v2+) |
-| `"toggle-variable"` | state-var を 0↔1 反転 (chord 0.9.0+, [action-toggle-var]) |
+| `"noop"` | absorb only |
+| `"set-variable"` | write a state-var (v2+) |
+| `"toggle-variable"` | flip a state-var 0↔1 (chord 0.9.0+, [action-toggle-var]) |
 
 ### `modifier_sides`
 
-| 値 | 意味 |
+| Value | Meaning |
 |---|---|
-| `"absent"` | 両側 unpressed |
-| `"any"` | どちらかの側が held |
-| `"left"` | 左側のみ |
-| `"right"` | 右側のみ |
-| `"both"` | 両側 held |
+| `"absent"` | both sides unpressed |
+| `"any"` | either side held |
+| `"left"` | left side only |
+| `"right"` | right side only |
+| `"both"` | both sides held |
 
 ### `modifier_token`
 
@@ -301,94 +310,98 @@ strict-side: `"lcmd"`, `"rcmd"`, `"lopt"`, `"ropt"`, `"lctrl"`, `"rctrl"`, `"lsh
 
 ### `ConfigWarning.Kind`
 
-| 値 | 発生条件 |
+| Value | Raised when |
 |---|---|
-| `"config-not-found"` | config ファイル欠如 (非致命) |
-| `"missing-input"` | binding 行に `input` 欠如 |
-| `"missing-action"` | binding 行に action-* 欠如 |
-| `"unknown-input-token"` | 修飾/キー名の typo |
-| `"action-keys-parse-error"` | `action-keys` 文字列パース失敗 |
-| `"action-keys-delay-parse-error"` | `action-keys-delay-ms` が正整数でない |
-| `"action-alias-non-string"` | `[action-aliases]` の値が non-string |
-| `"undefined-action-alias"` | `@name` が `[action-aliases]` にない |
-| `"input-alias-non-string"` | `[input-aliases]` の値が non-string |
-| `"input-alias-shadows-modifier"` | alias 名が builtin modifier と衝突 |
-| `"input-alias-invalid-body"` | `[input-aliases]` の値がパース不能 |
-| `"undefined-input-alias"` | `$name` が `[input-aliases]` にない |
-| `"condition-parse-error"` | `when-var` 不正 |
-| `"hold-while-parse-error"` | `hold-while` / `hold-while-timeout` 不正 |
-| `"action-set-parse-error"` | `action-set-var` / `action-set-value` 不正 |
-| `"sequence-parse-error"` | `[[sequence]]` 行不正、または regular binding が sequence prefix と衝突 (chord 0.7.0+) |
-| `"remap-parse-error"` | `[[remap]]` 行不正 (modifiers 欠如・map 非 inline-table・値 non-string 等) (chord 0.8.0+) |
-| `"per-app-parse-error"` | `[[bindings.per-app]]` 行不正 (bundle-id 欠如、`apps` と相互排他違反) (chord 0.8.0+) |
-| `"action-alias-call-error"` | `@name(args)` の引数不足・arg 解析失敗 (chord 0.9.0+) |
-| `"unknown-option-key"` | `[options]` 内に既知でないキー (typo 検出。chord 0.9.0+) |
-| `"unknown-key"` | `[[bindings]]` / `[[fallbacks]]` / `[[sequence]]` / `[[remap]]`（および nested `per-app` / `sequence.bindings`）行に descriptor 未知のキー (typo: `actoin-shell` 等)、**または top-level section header 自体の typo (`[[bindigs]]` / `[optoins]`)**。いずれも runtime は黙って無視・`--strict` で exit 1。既知目録 (section 名 + 各 section のキー) は `--emit-schema` を駆動する `ChordConfigSchema` descriptor と同一 (#52-bounded) |
-| `"duplicate-binding-name"` | ユーザ命名の `[[bindings]]` 行が同名で複数 (synth `binding-N` 名は除外) |
-| `"v-key-alias-invalid"` | `[v-key-aliases]` の値が非整数 / 範囲外 (1–255 外) / 名前が builtin key・modifier・`v-key` wildcard を shadow (chord 0.10.0+) |
-| `"field-type-mismatch"` | optional な `[options]` / `[[bindings]]` field が**存在するが期待 TOML 型でない** (例: `passthrough = "true"`・`input-source = 3`)。loader は `?.asBool` / `?.asArray` で読むため誤型は黙ってスキップ→default 据え置きで「効かない」ように見える。array field の非 string 要素 (compactMap で黙殺) も同 kind で 1 件報告。`--strict` で exit 1 (chord 0.10.0+) |
-| `"other"` | 将来の catch-all |
+| `"config-not-found"` | config file missing (non-fatal) |
+| `"missing-input"` | a binding line lacks `input` |
+| `"missing-action"` | a binding line lacks any action-* |
+| `"unknown-input-token"` | a typo in a modifier/key name |
+| `"action-keys-parse-error"` | the `action-keys` string fails to parse |
+| `"action-keys-delay-parse-error"` | `action-keys-delay-ms` is not a positive integer |
+| `"action-alias-non-string"` | an `[action-aliases]` value is non-string |
+| `"undefined-action-alias"` | `@name` is not in `[action-aliases]` |
+| `"input-alias-non-string"` | an `[input-aliases]` value is non-string |
+| `"input-alias-shadows-modifier"` | an alias name collides with a builtin modifier |
+| `"input-alias-invalid-body"` | an `[input-aliases]` value fails to parse |
+| `"undefined-input-alias"` | `$name` is not in `[input-aliases]` |
+| `"condition-parse-error"` | invalid `when-var` |
+| `"hold-while-parse-error"` | invalid `hold-while` / `hold-while-timeout` |
+| `"action-set-parse-error"` | invalid `action-set-var` / `action-set-value` |
+| `"sequence-parse-error"` | an invalid `[[sequence]]` line, or a regular binding colliding with a sequence prefix (chord 0.7.0+) |
+| `"remap-parse-error"` | an invalid `[[remap]]` line (missing modifiers, non-inline-table map, non-string values, …) (chord 0.8.0+) |
+| `"per-app-parse-error"` | an invalid `[[bindings.per-app]]` line (missing bundle-id, mutual-exclusion violation with `apps`) (chord 0.8.0+) |
+| `"action-alias-call-error"` | `@name(args)` with missing arguments / unparsable args (chord 0.9.0+) |
+| `"unknown-option-key"` | an unrecognized key inside `[options]` (typo detection; chord 0.9.0+) |
+| `"unknown-key"` | a key unknown to the descriptor on a `[[bindings]]` / `[[fallbacks]]` / `[[sequence]]` / `[[remap]]` (and nested `per-app` / `sequence.bindings`) line (typos like `actoin-shell`), **or a typo in a top-level section header itself (`[[bindigs]]` / `[optoins]`)**. Either way the runtime silently ignores it; `--strict` exits 1. The known catalog (section names + each section's keys) is the same `ChordConfigSchema` descriptor that drives `--emit-schema` (#52-bounded) |
+| `"duplicate-binding-name"` | multiple user-named `[[bindings]]` lines share a name (synthetic `binding-N` names excluded) |
+| `"v-key-alias-invalid"` | a `[v-key-aliases]` value is non-integer / out of range (outside 1–255) / a name shadows a builtin key, modifier, or the `v-key` wildcard (chord 0.10.0+) |
+| `"field-type-mismatch"` | an optional `[options]` / `[[bindings]]` field **exists but has the wrong TOML type** (e.g. `passthrough = "true"`, `input-source = 3`). The loader reads via `?.asBool` / `?.asArray`, so a mistyped field silently skips → the default stays and the field "does nothing". A non-string element in an array field (silently dropped by compactMap) reports one entry under the same kind. `--strict` exits 1 (chord 0.10.0+) |
+| `"other"` | future catch-all |
 
 ---
 
 ## 4. State lifecycle
 
-v2 state machine は **flat `[String: Int]` + 単一変数等価（または
-`when-vars` AND 連言）** という narrow な surface。寿命の選択肢は 3 つ:
+The v2 state machine is a deliberately narrow surface: **flat
+`[String: Int]` + single-variable equality (or a `when-vars` AND
+conjunction)**. A variable's lifetime has three options:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Unset: 起動時 / daemon --reload
+  [*] --> Unset: startup / daemon --reload
   Unset --> Set: action-set-var
   Set --> Unset: action-set-value = 0
-  Set --> Unset: hold-while の修飾離脱
-  Set --> Unset: hold-while-timeout 経過
+  Set --> Unset: hold-while modifiers released
+  Set --> Unset: hold-while-timeout elapsed
   Set --> Set: gated binding fire (reset-on-use)
 ```
 
 ### state-var
 
-`VariableStore` の `[String: Int]` ストアのエントリ。**unset = 0**。
-`Condition.variable(name, equals: 0)` で "mode cleared" を表現するのが
-イディオム。書き込みは `action-set-var` (+ `action-set-value`) /
-`action-toggle-var` で行う。
+An entry in `VariableStore`'s `[String: Int]` store. **unset = 0**.
+`Condition.variable(name, equals: 0)` is the idiom for "mode cleared".
+Writes happen via `action-set-var` (+ `action-set-value`) /
+`action-toggle-var`.
 
-ストア本体は **ChordCore の [VariableStore](#variablestore)** が所有し、
-Controller が tap スレッドから driveする (`set` / `toggle` / `snapshot` /
-`clearStale` / `extendTimer` / `reset`)。
+The store itself is owned by **ChordCore's [VariableStore](#variablestore)**;
+the Controller drives it from the tap thread (`set` / `toggle` / `snapshot` /
+`clearStale` / `extendTimer` / `reset`).
 
 - code: [Sources/ChordCore/VariableStore.swift](../Sources/ChordCore/VariableStore.swift) `VariableStore`
-- **Don't call it**: variable (一般語で衝突しがち), state-store (容器名
-  としては可、概念名としては state-var)
+- **Don't call it**: variable (a generic word, collides constantly),
+  state-store (fine for the container; the concept name is state-var)
 
 ### hold-while-modifier-bound
 
-`hold-while = "cmd + opt"` 形式で **OS の修飾保持に変数寿命を紐づける**。
-modifier が全部離れた時点で var が clear される。`Modifiers.isStillHeld(in:)`
-は permissive (余分な修飾を許容) なので、shift を追加で押したくらいでは
-解除されない。
+The `hold-while = "cmd + opt"` form: **ties a variable's lifetime to the OS
+modifier hold**. The var clears the moment every listed modifier is released.
+`Modifiers.isStillHeld(in:)` is permissive (extra modifiers tolerated), so
+additionally pressing shift does not end it.
 
 ### hold-while-timeout
 
-`hold-while-timeout = 1500` 形式で **inactivity timer** に変数寿命を紐づける。
-gated binding が発火するたびタイマー reset (= **reset-on-use / B-α**)。
+The `hold-while-timeout = 1500` form: ties the lifetime to an **inactivity
+timer**. Every fire of a gated binding resets the timer (= **reset-on-use /
+B-α**).
 
-ZMK macro が atomic emit する都合で modifier を即座に離す場合、`hold-while`
-だと寿命が一瞬で尽きるので、**timeout 系列が canon 用途では実用解**。
+When a ZMK macro emits atomically and releases its modifiers immediately,
+a `hold-while` lifetime dies within moments — which is why the **timeout
+family is the practical choice for canon use**.
 
 ### reset-on-use (B-α)
 
-Vim の `timeoutlen` セマンティクス。`when-var` で gate される binding が
-発火するたびに `hold-while-timeout` のタイマーが reset される運用。
-**chord 0.4.0 で採用**。
+Vim's `timeoutlen` semantics: every fire of a binding gated by `when-var`
+resets the `hold-while-timeout` timer. **Adopted in chord 0.4.0.**
 
 ### sequence (leader-key sugar)
 
-`[[sequence]]` セクションは **prefix + 子 binding 群 + timeout-ms** を
-1 ブロックで宣言し、parse 時に以下の通常 binding 群に展開する (chord 0.7.0+):
+A `[[sequence]]` section declares **prefix + child bindings + timeout-ms** in
+one block and expands at parse time into ordinary bindings (chord 0.7.0+):
 
-- **prefix binding**: `action-set-var = "_seq_<name>"`, `hold-while-timeout = <timeout-ms>` を持つ無条件 binding
-- **子 binding**: `when-var = "_seq_<name>"` で gate された binding。`input` は **primary-only** で書き、prefix の modset を自動継承
+- **the prefix binding**: an unconditional binding with
+  `action-set-var = "_seq_<name>"`, `hold-while-timeout = <timeout-ms>`
+- **child bindings**: bindings gated by `when-var = "_seq_<name>"`. Their
+  `input` is written **primary-only** and inherits the prefix's modset
 
 ```toml
 [[sequence]]
@@ -405,28 +418,30 @@ timeout-ms = 1500
   action-keys = "backspace"
 ```
 
-Matcher / Controller は展開後の binding しか知らない (= 新しい runtime
-概念は導入しない)。`_seq_` プレフィックスは **予約済み namespace** で、
-ユーザ binding は `action-set-var = "_seq_..."` を書けない (load 時 reject)。
+The Matcher / Controller only ever see the expanded bindings (= no new
+runtime concept). The `_seq_` prefix is a **reserved namespace**: user
+bindings may not write `action-set-var = "_seq_..."` (rejected at load).
 
-prefix が通常 `[[bindings]]` と `(trigger, modifiers)` 衝突する場合、
-**通常 binding が drop され sequence が勝つ** (warning 付き)。
+When a prefix collides with an ordinary `[[bindings]]` entry on
+`(trigger, modifiers)`, **the ordinary binding is dropped and the sequence
+wins** (with a warning).
 
 - code: [Sources/ChordCore/Config.swift](../Sources/ChordCore/Config.swift) `parseSequences`
 - config: `[[sequence]]` + `[[sequence.bindings]]`
-- runtime concept: なし (= ChordConfig.bindings に展開済み)
-- **Don't call it**: leader, layer, modal-state (説明文では可、概念名は sequence)
+- runtime concept: none (= already expanded into ChordConfig.bindings)
+- **Don't call it**: leader, layer, modal-state (fine in prose; the concept
+  name is sequence)
 
 ### pendingUps
 
-Controller の `[Trigger: Binding]` テーブル。`B1 contract` (paired
-down/up consume) のための内部状態。down を consume したときに登録し、
-対応する up が来たら entry を抜き取って `onUpAction` を発火 (あれば)、
-up も consume。
+The Controller's `[Trigger: Binding]` table — internal state for the
+`B1 contract` (paired down/up consume). Registered when a down is consumed;
+when the matching up arrives, the entry is removed, `onUpAction` fires (if
+any), and the up is consumed too.
 
-**(Trigger, Modifiers) ではなく Trigger だけがキー**。ユーザが down と up
-の間に修飾を離す (`cmd` 先に離して `j` を後で離す) ことが多く、event の
-modifier mask は down と up で別物になり得るため。
+**The key is Trigger alone, not (Trigger, Modifiers)**: users often release
+modifiers between down and up (`cmd` first, `j` later), so the event's
+modifier mask can differ between the two halves.
 
 - code: [Sources/ChordApp/Controller.swift](../Sources/ChordApp/Controller.swift) `pendingUps`
 - **Don't call it**: pending-releases, up-queue, release-map
@@ -443,332 +458,358 @@ sequenceDiagram
   Ctrl->>Ctrl: matcher.find → Binding
   Ctrl->>Ctrl: pendingUps[Trigger] = Binding
   Ctrl-->>Tap: .consume
-  Note over OS: keyDown 消失 (OS に届かない)
+  Note over OS: keyDown gone (never reaches the OS)
 
-  OS->>Tap: keyUp (j, mods が違っていても可)
+  OS->>Tap: keyUp (j — mods may differ)
   Tap->>Ctrl: handle(event)
   Ctrl->>Ctrl: pendingUps.removeValue(Trigger)
-  alt onUpAction あり
+  alt onUpAction present
     Ctrl->>Ctrl: dispatch(onUpAction)
   end
   Ctrl-->>Tap: .consume
-  Note over OS: keyUp も消失
+  Note over OS: keyUp gone too
 ```
 
-down を飲んだら up も飲む = OS に "phantom key-up" を残さない原則。
-**modifier が down と up で食い違っても trigger が一致すれば pair を成立**
-させるのがポイント。
+Swallow the down, swallow the up = never leave the OS a "phantom key-up".
+The point: **the pair holds as long as the trigger matches, even when the
+modifiers differ between down and up**.
 
 ---
 
 ## 5. Runtime / Adapter
 
-macOS 層に降りた具体実装側の概念。
+Concepts on the concrete macOS side.
 
 ### CGEventTap
 
-Quartz Core Graphics の event tap。chord は **`.cgSessionEventTap`** に
-**head-insert** で取り付ける。mask は `keyDown | keyUp | flagsChanged |
-mouseDown 系 | scrollWheel` を含む。
+Quartz Core Graphics' event tap. chord attaches to **`.cgSessionEventTap`**
+with **head-insert**. The mask includes `keyDown | keyUp | flagsChanged |
+mouseDown family | scrollWheel`.
 
 - code: [Sources/ChordAdapterMacOS/EventTap.swift](../Sources/ChordAdapterMacOS/EventTap.swift)
-- **Don't call it**: tap-subsystem (具体性なし), event-tap (colloquial、
-  文中の語句としてはよいが概念名は CGEventTap)
+- **Don't call it**: tap-subsystem (says nothing concrete), event-tap
+  (colloquial — fine mid-sentence, but the concept name is CGEventTap)
 
 ### syntheticUserData
 
-ActionDispatcher が post する合成イベントに付ける **sentinel 値**
-`0x43484F524400` (= ASCII "CHORD\0")。`kCGEventSourceUserData` に書く。
-タップが再入時にこの値を見て **自前合成イベントを matcher 投入前に
-short-circuit** する。これがないと無限ループ。
+The **sentinel value** `0x43484F524400` (= ASCII "CHORD\0") the
+ActionDispatcher stamps on every synthetic event it posts, written to
+`kCGEventSourceUserData`. On re-entry the tap sees it and **short-circuits
+our own synthetic events before the matcher** — without it, an infinite
+loop.
 
 - code: [Sources/ChordAdapterMacOS/EventTap.swift:23](../Sources/ChordAdapterMacOS/EventTap.swift) `syntheticUserData`
-- **Don't call it**: marker, tag (説明文では可、概念名は syntheticUserData)
+- **Don't call it**: marker, tag (fine in prose; the concept name is
+  syntheticUserData)
 
 ### NX_DEVICE bits
 
-`CGEventFlags` の raw value 内に潜む **device-dependent 修飾フラグ**
-(L/R 区別)。`0x00000008` = lcmd 等、`IOKit/hidsystem/IOLLEvent.h` 由来。
-chord はこれを読んで strict-side ビットを構築する (abstract mask だけ
-立っていれば left をデフォルトに丸める)。
+The **device-dependent modifier flags** (L/R distinction) hiding in
+`CGEventFlags`' raw value — `0x00000008` = lcmd etc., from
+`IOKit/hidsystem/IOLLEvent.h`. chord reads them to build the strict-side
+bits (when only the abstract mask is set, it rounds to left as the default).
 
 - code: [Sources/ChordAdapterMacOS/EventTap.swift](../Sources/ChordAdapterMacOS/EventTap.swift) `readModifiers`
 
 ### autorepeat (`kCGKeyboardEventAutorepeat`)
 
-長押し中の連続 key-down を示す CGEvent フィールド。chord 0.9.0+ で
-binding 単位の `repeat` プロパティ (= `Binding.repeatStrategy` /
-[RepeatStrategy](../Sources/ChordCore/Models.swift)) として **出荷済**。
-`"fire-each"` (default) / `"ignore"` (1 回のみ発火し repeat は consume) /
-`"passthrough"` (発火後は repeat を OS に流す) の 3 択。
+The CGEvent field marking held-key repeat key-downs. Shipped in chord 0.9.0+
+as the per-binding `repeat` property (= `Binding.repeatStrategy` /
+[RepeatStrategy](../Sources/ChordCore/Models.swift)): `"fire-each"`
+(default) / `"ignore"` (fire once, consume repeats) / `"passthrough"` (fire,
+then let repeats through to the OS).
 
 - code: [Sources/ChordCore/Models.swift](../Sources/ChordCore/Models.swift) `RepeatStrategy`
 
 ### frontmost
 
-NSWorkspace が報告する **最前面アプリの bundle id**。binding の `apps`
-フィルタはこれと glob 比較する。
+The **frontmost app's bundle id** as reported by NSWorkspace. A binding's
+`apps` filter glob-compares against it.
 
 - code: [Sources/ChordAdapterMacOS/FrontmostTracker.swift](../Sources/ChordAdapterMacOS/FrontmostTracker.swift)
 - **Don't call it**: active-app, front-app
 
 ### AX permission (Accessibility grant)
 
-CGEventTap が動くのに必須の権限。System Settings → Privacy & Security →
-Accessibility で grant。**TCC はコード署名 identity に紐づく**ので、
-ad-hoc 署名ではビルドのたびに grant が剥がれる
-(`setup-signing-cert.sh` で永続 cert を作るのが対策)。
+The permission CGEventTap requires: System Settings → Privacy & Security →
+Accessibility. **TCC binds to the code-signing identity**, so with ad-hoc
+signing the grant falls off on every rebuild (`setup-signing-cert.sh`
+creates a persistent cert as the fix).
 
 - code: [Sources/ChordAdapterMacOS/Permissions.swift](../Sources/ChordAdapterMacOS/Permissions.swift)
-- **Don't call it**: a11y (colloquial だが説明文では可), accessibility
-  (一般語、概念名としては AX permission)
+- **Don't call it**: a11y (colloquial — fine in prose), accessibility (a
+  generic word; the concept name is AX permission)
 
 ### Input Monitoring (kTCCServiceListenEvent)
 
-v-key の vendor-HID 読み取り (IOHIDManager) に必須の権限 (chord 0.10.0+)。
-**AX permission とは別の TCC grant**。System Settings → Privacy & Security →
-Input Monitoring で grant。`IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)` で
-check、`IOHIDRequestAccess(...)` で prompt。**v-key binding がある時だけ要求**
-され (`Controller.maybeStartVKeySource`)、非 v-key ユーザには求められない。
-`config --doctor` の `input monitoring:` 行 / `query --status` の
-`input_monitoring_granted` で可視化。AX を持っていても別途必要。
+The permission the v-key vendor-HID read (IOHIDManager) requires
+(chord 0.10.0+). **A separate TCC grant from AX permission**: System
+Settings → Privacy & Security → Input Monitoring. Checked with
+`IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)`, prompted with
+`IOHIDRequestAccess(...)`. **Requested only when a v-key binding exists**
+(`Controller.maybeStartVKeySource`); non-v-key users are never asked.
+Surfaced by `config --doctor`'s `input monitoring:` line and
+`query --status`'s `input_monitoring_granted`. Holding AX does not cover it.
 
 - code: [Sources/ChordAdapterMacOS/Permissions.swift](../Sources/ChordAdapterMacOS/Permissions.swift) `isInputMonitoringTrusted`
-- **Don't call it**: listen-event grant (概念名は Input Monitoring), IM
+- **Don't call it**: listen-event grant (the concept name is Input
+  Monitoring), IM
 
 ### VKeyHIDSource
 
-v-key を読む **IOHIDManager** ベースの入力源 (chord 0.10.0+)。dongle を
-VID/PID (`0x1D50`/`0x615E`) で match し、report ID `0x20` の 1-byte selector
-(canon vendor usage page `0xFF31`) **だけ**を読む。通常キーボード report は
-読まない。selector `1–255` = press / `0` = release。**`EventSource` には
-conform しない** (vendor report は tap に乗らず consume/pass の返値が無意味)。
-edge 検出 (press / release の latch math) は ChordCore の純粋型
-[VKeyEdgeTracker](#vkeyedgetracker) が持ち、`VKeyHIDSource` は生の
-selector を流すだけ。
+The **IOHIDManager**-based input source that reads v-keys (chord 0.10.0+).
+Matches the dongle by VID/PID (`0x1D50`/`0x615E`) and reads **only** the
+1-byte selector of report ID `0x20` (canon's vendor usage page `0xFF31`) —
+never ordinary keyboard reports. Selector `1–255` = press, `0` = release.
+**Does not conform to `EventSource`** (vendor reports never ride the tap, so
+a consume/pass return value would be meaningless). The edge detection
+(press/release latch math) lives in ChordCore's pure type
+[VKeyEdgeTracker](#vkeyedgetracker); `VKeyHIDSource` just streams raw
+selectors.
 
 - code: [Sources/ChordAdapterMacOS/VKeyHIDSource.swift](../Sources/ChordAdapterMacOS/VKeyHIDSource.swift)
 - schema: `trigger.kind = "vkey"` / `"anyVKey"` (§3)
-- **Don't call it**: HID tap, vkey-tap (CGEventTap ではない), original-key-source
+- **Don't call it**: HID tap, vkey-tap (it is not a CGEventTap),
+  original-key-source
 
 ### VKeyEdgeTracker
 
-v-key の press/release **edge / latch math** を持つ ChordCore の純粋型
-(unit-test 済)。release report は id を持たないので、どの `.vkey(id)` の
-`.up` を合成するかを latch で覚える。同 id の連続は無視、`A → B` roll は
-A を release してから B を press。Controller は raw selector を
-`events(for:)` に渡すだけで、HID 依存コードは持たない。
+The pure ChordCore type holding the v-key press/release **edge / latch
+math** (unit-tested). A release report carries no id, so a latch remembers
+which `.vkey(id)`'s `.up` to synthesize. Repeats of the same id are ignored;
+an `A → B` roll releases A before pressing B. The Controller just feeds raw
+selectors to `events(for:)`; no HID-dependent code here.
 
 - code: [Sources/ChordCore/VKeyEdgeTracker.swift](../Sources/ChordCore/VKeyEdgeTracker.swift) `VKeyEdgeTracker`
 - **Don't call it**: vkey-state-machine
 
 ### VariableStore
 
-state-var ストアの本体 (chord 0.10.0 era で Controller の file-private
-globals から抽出)。**ChordCore が所有・Controller が drive**。flat
-`[String: Int]` を自前の `NSLock` で守る `final class` (`@unchecked
-Sendable`)。`snapshot()` (tap スレッド読み) / `set(name:value:holdWhile:
-timeoutMs:)` / `toggle(name:)` (単一 lock window で 0↔1) / `extendTimer
-(name:)` (B-α reset-on-use) / `clearStale(currentMods:)` (修飾離脱
-cleanup) / `reset()` (reload wipe) を公開。B-α inactivity timer は注入
-された `StateScheduler` 経由 (production は `"chord.state.timer"` 直列
-queue 上の `DispatchSourceTimer`)。**actor に置き換えてはいけない** —
-tap スレッドは `await` できない。
+The state-var store proper (extracted from the Controller's file-private
+globals in the chord 0.10.0 era). **ChordCore owns it, the Controller drives
+it.** A `final class` (`@unchecked Sendable`) guarding a flat
+`[String: Int]` with its own `NSLock`. Public surface: `snapshot()` (tap
+thread reads) / `set(name:value:holdWhile:timeoutMs:)` / `toggle(name:)`
+(0↔1 in a single lock window) / `extendTimer(name:)` (B-α reset-on-use) /
+`clearStale(currentMods:)` (modifier-release cleanup) / `reset()` (reload
+wipe). The B-α inactivity timer goes through an injected `StateScheduler`
+(production: a `DispatchSourceTimer` on the serial `"chord.state.timer"`
+queue). **Do not replace it with an actor** — the tap thread cannot
+`await`.
 
 - code: [Sources/ChordCore/VariableStore.swift](../Sources/ChordCore/VariableStore.swift) `VariableStore`
 - **Don't call it**: state-machine, variable-actor
 
 ### EventSource
 
-ChordCore と Adapter の seam (シーム) になる **callback ベース** プロトコル。
-AsyncStream にしてはいけない (tap callback は同期返却が必須)。
+The **callback-based** protocol forming the seam between ChordCore and the
+Adapter. Must not become an AsyncStream (the tap callback requires a
+synchronous return).
 
 - code: [Sources/ChordCore/EventSource.swift](../Sources/ChordCore/EventSource.swift)
-- **Don't call it**: input-source (macOS の IME を指す既存語と衝突, issue
-  #30 で別用途で使う)、event-driver
+- **Don't call it**: input-source (collides with the existing macOS IME
+  term, used for that in issue #30), event-driver
 
 ### DNC (Distributed Notification Center)
 
-macOS の IPC チャネル `com.chord.app.control`。client → daemon に reload /
-quit / pause / resume を fire-and-forget で送る。**返答経路がない**ので、
-daemon 側の status は `/tmp/chord.status` ファイル経由で読む。
+macOS's IPC channel `com.chord.app.control`. The client sends reload / quit
+/ pause / resume to the daemon fire-and-forget. **There is no reply path**,
+so daemon-side status is read via the `/tmp/chord.status` file.
 
 - code: [Sources/ChordApp/Control.swift](../Sources/ChordApp/Control.swift)
-- **Don't call it**: dnc (略しても可だが正式は DNC)
+- **Don't call it**: dnc (abbreviating is fine, but the formal name is DNC)
 
 ---
 
 ## 6. ZMK / canon side
 
-chord の上流 (= キーボード firmware) で出てくる名前。chord の config の
-中にもそのまま現れるので、glossary に載せる。
+Names from chord's upstream (= the keyboard firmware). They appear verbatim
+inside chord configs, hence their place in the glossary.
 
 ### canon
 
-ユーザの ZMK firmware リポジトリ
-([akira-toriyama/canon](https://github.com/akira-toriyama/canon))。
-Cyboard Imprint split keyboard 用。chord 設定の出元 (例: 4 modset の名前は
-canon の `eiji_macros.dtsi` に由来)。
+The user's ZMK firmware repository
+([akira-toriyama/canon](https://github.com/akira-toriyama/canon)), for the
+Cyboard Imprint split keyboard. The origin of chord's configuration (e.g.
+the 4 modset names come from canon's `eiji_macros.dtsi`).
 
 ### &vkey / v-key (vendor-HID)
 
-canon の ZMK behavior `&vkey <id>` (chord 0.10.0+)。既存のどのキー入力とも
-衝突しない vendor usage page (`0xFF31` / report ID `0x20`) で 1-byte selector
-(id 1–255) を送出する「オリジナルキー」。chord 側は §1 `.vkey(UInt8)` トリガ +
-§5 [VKeyHIDSource](#vkeyhidsource) で受ける。canon の `config/vkey-aliases.toml`
-(`scripts/gen-vkey-aliases.py` がキーマップの `&vkey <id>` から生成＝単一ソース)
-が `[v-key-aliases]` ブロックを供給し、ユーザがそれを chord config に貼る。
-chord にとっては入力源で、命名 (`TU_LL_C` 等) は canon 由来。
+canon's ZMK behavior `&vkey <id>` (chord 0.10.0+): an "original key" that
+collides with no existing key input, sending a 1-byte selector (id 1–255) on
+vendor usage page `0xFF31` / report ID `0x20`. chord receives it via §1's
+`.vkey(UInt8)` trigger + §5's [VKeyHIDSource](#vkeyhidsource). canon's
+`config/vkey-aliases.toml` (generated from the keymap's `&vkey <id>` uses by
+`scripts/gen-vkey-aliases.py` = single source) supplies the
+`[v-key-aliases]` block, which the user pastes into their chord config. To
+chord it is an input source; the names (`TU_LL_C` etc.) are canon's.
 
-- **Don't call it**: original key (説明語。概念名は v-key), custom keycode
+- **Don't call it**: original key (descriptive phrase; the concept name is
+  v-key), custom keycode
 
 ### ULTRA_LL / MIRACLE_LM / MEGA_RM / WONDER_RR
 
-ZMK macro 名 4 種。それぞれ右側 3 修飾の異なる組み合わせ:
+The 4 ZMK macro names, each a different combination of three right-hand
+modifiers:
 
-| Macro | 修飾セット |
+| Macro | Modifier set |
 |---|---|
 | `ULTRA_LL` | `rctrl + ralt + rshift` |
 | `MIRACLE_LM` | `rctrl + rcmd + rshift` |
 | `MEGA_RM` | `rctrl + rcmd + ralt` |
 | `WONDER_RR` | `rcmd + ralt + rshift` |
 
-`private_config.toml` の `[input-aliases]` で論理名化されている。
+Given logical names in `private_config.toml`'s `[input-aliases]`.
 
 ### atomic chord
 
-ZMK macro 等が **修飾 + primary key を 1 HID report に詰めて発信**する
-振る舞い。primary を離した直後に修飾も離れるので、chord 側から見ると
-**修飾保持時間が 1-2ms** しかない。`hold-while` ベースの v2 lifecycle が
-使えない直接の原因 = `hold-while-timeout` を作る動機。
+The behavior of a ZMK macro (or similar) **packing modifiers + primary key
+into one HID report**. The modifiers release right after the primary does,
+so from chord's side the **modifier hold lasts 1-2ms** — the direct reason
+the `hold-while`-based v2 lifecycle fails here, and the motivation for
+`hold-while-timeout`.
 
 ### F21-F24 (HID 0x70-0x73)
 
-Apple が `kVK_*` 定数を割り当てていないキー。Karabiner / 一部 firmware
-remapper の慣習で HID usage `0x70-0x73` に対応する keycode を使う。chord は
-これを **受信側のみ** サポート (発信は CGEvent の制約で不能、issue I (skip)
-参照)。
+Keys Apple never assigned `kVK_*` constants for. By the convention of
+Karabiner and some firmware remappers, keycodes corresponding to HID usage
+`0x70-0x73` are used. chord supports them **receive-side only** (emitting is
+impossible under CGEvent's constraints — see issue I (skip)).
 
 ### ZMK macro
 
-ZMK firmware で複数 HID 出力を 1 トリガに束ねる仕組み。chord にとっては
-"入力源" であって chord 内部の概念ではない (= chord docs で頻出するが
-chord 用語ではない)。
+ZMK firmware's mechanism bundling several HID outputs behind one trigger.
+To chord it is an "input source", not an internal concept (= it recurs in
+chord docs but is not a chord term).
 
 ---
 
 ## 7. CLI / lifecycle
 
-yabai 式 `chord <domain> --<verb> [--mod]`（atelier Phase 3 M4）。bare `chord` は daemon を起動。
-`--help`/`-h`・`--version`/`-V` は domain 不要の top-level carve-out。
+yabai-style `chord <domain> --<verb> [--mod]` (atelier Phase 3 M4). Bare
+`chord` starts the daemon. `--help`/`-h` and `--version`/`-V` are top-level
+carve-outs needing no domain.
 
-### `config` domain（standalone・daemon 不要）
+### `config` domain (standalone — no daemon needed)
 
-| Verb | 動作 | Exit code |
+| Verb | Behavior | Exit code |
 |---|---|---|
-| `config --validate` | config をパース、warning/drop を報告 (`--strict` / `--json` 受理) | 0 / 1 (strict + issues) / 2 (parse error) |
-| `config --show` | 現行パース結果を出力 (`--json` / `--include-dropped` 受理・旧 `--list`) | 0 / 2 |
-| `config --doctor` | validate + AX 権限 + daemon liveness | 0 / 1 (何か NG) |
-| `config --emit-schema` | config.toml の INPUT JSON Schema (Draft-07) を stdout に（taplo 補完用・`ChordConfigSchema` descriptor から生成。committed copy は `chord config --emit-schema > config.schema.json` で再生成） | 0 |
+| `config --validate` | parse the config, report warnings/drops (accepts `--strict` / `--json`) | 0 / 1 (strict + issues) / 2 (parse error) |
+| `config --show` | print the current parse result (accepts `--json` / `--include-dropped`; formerly `--list`) | 0 / 2 |
+| `config --doctor` | validate + AX permission + daemon liveness | 0 / 1 (anything NG) |
+| `config --emit-schema` | print the config.toml INPUT JSON Schema (Draft-07) to stdout (for taplo completion; generated from the `ChordConfigSchema` descriptor. Regenerate the committed copy with `chord config --emit-schema > config.schema.json`) | 0 |
 
-### `daemon` domain（lifecycle・大半は DNC で daemon と通信・no daemon は exit 3）
+### `daemon` domain (lifecycle — mostly talks to the daemon over DNC; no daemon is exit 3)
 
-| Verb | 動作 | Exit code |
+| Verb | Behavior | Exit code |
 |---|---|---|
-| `daemon --reload` | config 再読込を要求 (`--dry-run` で IPC せず diff のみ) | 0 / 3 (no daemon) |
-| `daemon --quit` | daemon 停止 | 0 / 3 |
-| `daemon --pause` / `daemon --resume` | 全 binding を passthrough に / 復帰 | 0 / 3 |
-| `daemon --toggle` | `/tmp/chord.status` を見て pause/resume を反転 | 0 / 3 |
-| `daemon --show` | `/tmp/chord.status` の中身を print（旧 `--status`） | 0 / 3 |
-| `daemon --watch` | live per-event trace — `/tmp/chord-watch.log` を truncate して `tail -F`、daemon は存在する間だけ書く | 0 / 1 (spawn 失敗) |
-| `daemon --resign` | brew sandbox 後の Chord.app 再署名 + 再起動（DNC ではなく codesign + restart） | 0 (署名成功なら) |
+| `daemon --reload` | request a config reload (`--dry-run` diffs without IPC) | 0 / 3 (no daemon) |
+| `daemon --quit` | stop the daemon | 0 / 3 |
+| `daemon --pause` / `daemon --resume` | make every binding passthrough / restore | 0 / 3 |
+| `daemon --toggle` | flip pause/resume based on `/tmp/chord.status` | 0 / 3 |
+| `daemon --show` | print the contents of `/tmp/chord.status` (formerly `--status`) | 0 / 3 |
+| `daemon --watch` | live per-event trace — truncate `/tmp/chord-watch.log` and `tail -F` it; the daemon writes only while the file exists | 0 / 1 (spawn failure) |
+| `daemon --resign` | re-sign + restart Chord.app after a brew sandbox (codesign + restart, not DNC) | 0 (if signing succeeds) |
 
-### `query` domain（live runtime 状態を JSON で・daemon 必須・no daemon は exit 3）
+### `query` domain (live runtime state as JSON — daemon required; no daemon is exit 3)
 
-DNC（write-only）や status file と別の **AF_UNIX req/res socket**（`/tmp/chord-query.sock`）越しに daemon の生状態を読む structured-read 口。出力は常に `chord.query.v1` JSON（parse 済 config の `chord.bindings.v3` とは別物）。
+The structured-read mouth into the daemon's live state, over an **AF_UNIX
+req/res socket** (`/tmp/chord-query.sock`) — separate from DNC (write-only)
+and the status file. Output is always `chord.query.v1` JSON (distinct from
+the parsed config's `chord.bindings.v3`).
 
-| Verb | 動作 | Exit code |
+| Verb | Behavior | Exit code |
 |---|---|---|
-| `query --status` | live state（paused / ax-granted / uptime / config-loaded-at） | 0 / 3 (no daemon) |
-| `query --vars` | 現在の state-variable 値 | 0 / 3 |
-| `query --loaded-bindings` | binding / fallback / alias の件数 | 0 / 3 |
-| `query --recent-fires [--limit N]` | 最近 fire した binding（新しい順・`--limit N` で件数上限＝chord 唯一の value-taking modifier） | 0 / 3 |
+| `query --status` | live state (paused / ax-granted / uptime / config-loaded-at) | 0 / 3 (no daemon) |
+| `query --vars` | current state-variable values | 0 / 3 |
+| `query --loaded-bindings` | binding / fallback / alias counts | 0 / 3 |
+| `query --recent-fires [--limit N]` | recently fired bindings (newest first; `--limit N` caps the count = chord's only value-taking modifier) | 0 / 3 |
 
 ### Dispatch contract (chord 0.9.0+)
 
-`dispatch(_:)` が先頭トークン（domain noun）を peel し、`config` / `daemon` / `query` の per-domain verb テーブル
-(`configVerbs` / `daemonVerbs` / `queryVerbs`) へ `dispatchDomain` で routing する (`Sources/ChordApp/Main.swift`)。共有 tokenizer
-**sill `CLIKit`** が argv を解析（未知 flag は loud reject + nearest-match hint・`-h`/`-V` carve-out）。chord 側の policy:
+`dispatch(_:)` peels the leading token (the domain noun) and routes via
+`dispatchDomain` to the per-domain verb tables (`configVerbs` /
+`daemonVerbs` / `queryVerbs`) (`Sources/ChordApp/Main.swift`). The shared
+tokenizer **sill `CLIKit`** parses argv (unknown flags are loudly rejected
+with a nearest-match hint; `-h`/`-V` carve-out). chord-side policy:
 
-- **domain ごとに verb はちょうど 1 つ**。verb が 0 個 / 2 個以上は exit 2。
-- その verb が honour しない modifier を併用すると exit 2（silent drop しない）。
-- domain 違いの flag（例 `chord config --reload`）や完全に未知の flag は CLIKit が unknown-flag として exit 2。
-  旧フラット flag（先頭が `-`、例 `chord --validate`）も exit 2 で新しい domain を案内（後方互換シムなし）。
-- 全ハンドラは `SubcommandOutcome` を return し、`exit()` は唯一 `applyOutcome` で呼ぶ（dispatch を unit-test 可能に保つ）。bare `chord`（argv 空）のときだけ `dispatch` が nil を返し server mode へ。
+- **Exactly one verb per domain.** Zero or two-plus verbs is exit 2.
+- Combining a modifier the verb does not honour is exit 2 (no silent drop).
+- A flag from the wrong domain (e.g. `chord config --reload`) or a fully
+  unknown flag is CLIKit's unknown-flag, exit 2. Old flat flags (leading
+  `-`, e.g. `chord --validate`) also exit 2 and point at the new domain (no
+  backward-compat shim).
+- Every handler returns a `SubcommandOutcome`; `exit()` is called only in
+  `applyOutcome` (keeping dispatch unit-testable). Only bare `chord` (empty
+  argv) makes `dispatch` return nil → server mode.
 
 - code: [Sources/ChordApp/Main.swift](../Sources/ChordApp/Main.swift) `dispatch` / `dispatchDomain` / `applyOutcome`
-- **Don't call it**: command / option (どちらも一般語で衝突)
+- **Don't call it**: command / option (both generic words, both collide)
 
-### 環境変数
+### Environment variables
 
-- **`CHORD_DEBUG`** — 設定されると `Log.debugMode = true` で `/tmp/chord.log`
-  への書き込みに加え stderr ミラー。`run.sh` が `=1` で設定。brew / raw
-  launch ではセットされず静か。
+- **`CHORD_DEBUG`** — when set, `Log.debugMode = true`: writes to
+  `/tmp/chord.log` plus a stderr mirror. `run.sh` sets it to `=1`; brew /
+  raw launches leave it unset and quiet.
 
-### ファイルパス
+### File paths
 
-| Path | 役割 |
+| Path | Role |
 |---|---|
-| `/tmp/chord.log` | persistent log。常時書く、CHORD_DEBUG で stderr mirror |
-| `/tmp/chord.status` | daemon 状態の逆方向 IPC ファイル (DNC 単方向の補完) |
-| `/tmp/chord-loaded.json` | 直近 reload 時の binding スナップショット。`daemon --reload --dry-run` の diff 元 |
-| `/tmp/chord-watch.log` | `chord daemon --watch` 用 per-event structured log (chord 0.9.0+)。**ファイル存在 = subscribe シグナル**。daemon は存在する間だけ書く。`rm` で daemon を silent に |
+| `/tmp/chord.log` | persistent log; always written, stderr-mirrored under CHORD_DEBUG |
+| `/tmp/chord.status` | reverse-direction IPC file for daemon state (complements one-way DNC) |
+| `/tmp/chord-loaded.json` | binding snapshot from the last reload; the diff base for `daemon --reload --dry-run` |
+| `/tmp/chord-watch.log` | per-event structured log for `chord daemon --watch` (chord 0.9.0+). **File existence = the subscribe signal**; the daemon writes only while it exists; `rm` silences it |
 
 ### DNC channel
 
-`com.chord.app.control` — Control.swift で `reload` / `quit` / `pause` /
-`resume` のいずれかを `name` フィールドに乗せて post。
+`com.chord.app.control` — Control.swift posts one of `reload` / `quit` /
+`pause` / `resume` in the `name` field.
 
 ---
 
 ## Entry addition rules
 
-新しい用語を入れたい時の手順:
+To add a new term:
 
-1. **コード変更 PR と同じ PR でこのファイルを更新する**。後追いしない
-   (= PR template の glossary checkbox に該当)
-2. 該当 section に追加。section をまたぐ場合 (例: 型 + config token)、
-   主たる方に entry を置き、もう一方からはリンクで参照する
-3. 既存用語の **rename / 意味変更** は、`Don't call it:` 欄に旧名を追加する
-   (= 旧名が CR で再登場することを防ぐ)
-4. **schema enum 値** (§3) の rename は、必ず `chord.bindings.v3.json` の
-   version bump とセットで議論する（値の追加は forward-compatible）
-5. 新規 entry が `Don't call it:` 持ちなら、**1 件以上 forbidden 同義語を
-   挙げる**。「これとは呼ぶな」を明示しないと結局揺れる
+1. **Update this file in the same PR as the code change.** No catching up
+   later (= the PR template's glossary checkbox)
+2. Add it to the appropriate section. When it spans sections (e.g. a type +
+   a config token), put the entry under the primary one and link from the
+   other
+3. On a **rename / meaning change** of an existing term, add the old name to
+   the `Don't call it:` field (= stops the old name resurfacing in CR)
+4. A rename of a **schema enum value** (§3) is always discussed together
+   with a `chord.bindings.v3.json` version bump (additions are
+   forward-compatible)
+5. If a new entry carries `Don't call it:`, **name at least one forbidden
+   synonym**. Without an explicit "don't call it this", the drift returns
 
-### Entry の最小書式
+### Minimal entry format
 
 ```markdown
 ### <CanonicalName>
 
-<日本語 1-3 行で定義。必要なら例も>
+<A 1-3 line English definition. An example if needed>
 
 - code: [path/to/file.swift](../path/to/file.swift) `Symbol`
 - schema: `enum_value` (frozen?)
 - **Don't call it**: <forbidden synonym 1>, <forbidden synonym 2>
 ```
 
-`code` / `schema` / `Don't call it` のうち **該当しないものは省略可**。
-ただし `Don't call it` を省略する場合は **「同義語の混同がそもそも起きない」
-ことを self-review** すること。
+Of `code` / `schema` / `Don't call it`, **omit what does not apply** — but
+when omitting `Don't call it`, **self-review that synonym confusion truly
+cannot arise**.
 
 ---
 
-## 関連ドキュメント
+## Related documents
 
-- [docs/non-goals.md](non-goals.md) — chord が **意図的に持たない機能**。
-  この glossary に登場しない概念がなぜ登場しないかの説明
-- [docs/architecture.md](architecture.md) — 層構造の詳細
-- [docs/schema/chord.bindings.v3.json](schema/chord.bindings.v3.json) —
-  live な OUTPUT wire schema 契約 (このファイルの §3 と相互参照。`v1.json` は履歴)
-- [CLAUDE.md](../CLAUDE.md) — 設計判断と不変条件の出典
+- [docs/non-goals.md](non-goals.md) — the features chord **deliberately does
+  not have**; explains why some concepts never appear in this glossary
+- [docs/architecture.md](architecture.md) — the layer structure in detail
+- [docs/schema/chord.bindings.v3.json](schema/chord.bindings.v3.json) — the
+  live OUTPUT wire-schema contract (cross-referenced with §3 of this file;
+  `v1.json` is history)
+- [CLAUDE.md](../CLAUDE.md) — the source for design decisions and
+  invariants
