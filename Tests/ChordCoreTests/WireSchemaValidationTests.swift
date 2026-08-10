@@ -23,8 +23,8 @@ import Testing
 /// `additionalProperties:false` (emitted keys ⊆ declared properties — the
 /// check that catches a forgotten field), `required`, and `const`/`enum`.
 /// Value formats and numeric bounds are intentionally NOT enforced — this
-/// is a key/shape conformance guard, matching the ledger's "全キー/kind を
-/// 照合" scope. `ConfigSchemaDriftTests` is the on-disk-read precedent.
+/// is a key/shape conformance guard, matching the ledger's "verify every
+/// key/kind" scope. `ConfigSchemaDriftTests` is the on-disk-read precedent.
 @Suite struct WireSchemaValidationTests {
 
     /// A single config whose emitted document touches every wire shape the
