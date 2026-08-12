@@ -168,7 +168,7 @@ fn-auto-arrows = true
 
 
 # =====================================================================
-# Pattern 2a — drag-scroll (chord 0.12.0+)
+# Pattern 2a — drag-scroll (chord 3.0.0+)
 # =====================================================================
 # Hold the trigger and move the mouse to SCROLL; the cursor stays put.
 # The mode lasts exactly as long as the press — the key-down opens it,

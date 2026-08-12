@@ -31,7 +31,7 @@ The `ChordAdapterMacOS` box lists a representative subset (the
 `EventTap`, `FrontmostTracker`, `ActionDispatcher`, `Permissions`,
 `InputSourceTracker`, `SideMaskTable`, `VKeyHIDSource`
 (chord 0.10.0+, the vendor-HID v-key reader), and `MotionTap`
-(chord 0.12.0+, the gated relative-pointer-motion tap behind
+(chord 3.0.0+, the gated relative-pointer-motion tap behind
 `action-drag-scroll`).
 
 `MotionSource` is `ChordCore`'s **second port**, alongside

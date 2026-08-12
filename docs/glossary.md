@@ -127,7 +127,7 @@ The **side effect** when a binding hits.
 | `.noop` | absorb the event, nothing else |
 | `.setVariable(name, value)` | write a state-var |
 | `.toggleVariable(name)` | flip a state-var 0↔1 (chord 0.9.0+) |
-| `.dragScroll(DragScrollSpec)` | open [drag-scroll](#drag-scroll) for the length of the press (chord 0.12.0+) |
+| `.dragScroll(DragScrollSpec)` | open [drag-scroll](#drag-scroll) for the length of the press (chord 3.0.0+) |
 
 A binding holds one `action` plus **`extraDownActions[]`** (v0.4.0+ —
 `action-shell + action-keys` firing together).
@@ -293,7 +293,7 @@ tolerate unknowns).
 | `"noop"` | absorb only |
 | `"set-variable"` | write a state-var (v2+) |
 | `"toggle-variable"` | flip a state-var 0↔1 (chord 0.9.0+, [action-toggle-var]) |
-| `"drag-scroll"` | pointer motion → scroll while held (chord 0.12.0+, `action-drag-scroll`); carries the nested `drag_scroll` object |
+| `"drag-scroll"` | pointer motion → scroll while held (chord 3.0.0+, `action-drag-scroll`); carries the nested `drag_scroll` object |
 
 ### `modifier_sides`
 
@@ -577,7 +577,7 @@ selectors.
 
 ### drag-scroll
 
-The mode `action-drag-scroll = true` opens (chord 0.12.0+): while the
+The mode `action-drag-scroll = true` opens (chord 3.0.0+): while the
 binding's trigger is **held**, chord pins the cursor and converts relative
 pointer motion into scroll events. The only action with a **duration** —
 key-down opens it, the paired key-up closes it — which is why the

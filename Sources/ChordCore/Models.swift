@@ -224,7 +224,7 @@ public enum Action: Hashable, Sendable {
     /// toggle"). Single, value-less variant — `action-set-value` is
     /// rejected for this action.
     case toggleVariable(name: String)
-    /// chord 0.12.0+: while the trigger is held, pin the cursor and turn
+    /// chord 3.0.0+: while the trigger is held, pin the cursor and turn
     /// pointer motion into scroll events. The only action with a
     /// *duration* — it opens a mode on key-down and closes it on the
     /// paired key-up. Intercepted by the Controller (which owns the

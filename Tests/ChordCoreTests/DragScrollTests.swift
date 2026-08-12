@@ -2,7 +2,7 @@ import Testing
 
 @testable import ChordCore
 
-/// chord 0.12.0+ `action-drag-scroll`: hold the trigger, pin the cursor,
+/// chord 3.0.0+ `action-drag-scroll`: hold the trigger, pin the cursor,
 /// turn pointer motion into scrolling.
 ///
 /// Two things are pinned here. The **arithmetic** (`DragScrollAccumulator`)

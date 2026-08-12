@@ -16,6 +16,16 @@ import Foundation
 ///     daemon version
 ///   • Info.plist is NOT a consumer — it's a parallel declaration
 ///     whose drift against this constant is checked, not derived
+///
+/// **The guard only compares these two against EACH OTHER**, so both
+/// standing still is invisible to it — and that is exactly what
+/// happened: this constant said `0.10.0` through the v0.11.0, v1.0.0
+/// and v2.0.0 releases (measured against the tags on 2026-08-13),
+/// because glyph's rolling draft cuts the tag without touching the
+/// source. `chord --version` under-reported by two majors. When you
+/// publish a release, bump this and `Info.plist` in the same change.
 public enum ChordVersion {
-    public static let current = "0.10.0"
+    /// The version the next release will carry — glyph's rolling draft
+    /// is the authority for what that is (`gh release list`).
+    public static let current = "3.0.0"
 }
