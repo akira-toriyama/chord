@@ -40,7 +40,32 @@ public enum ActionDispatcher {
             // Same safety net as setVariable — Controller owns the
             // store and intercepts toggleVariable before dispatch.
             Log.debug("dispatch.toggleVariable: \(name) → \(varName)")
+        case .dragScroll:
+            // Same safety net again — the Controller owns the MotionSource
+            // and intercepts dragScroll before dispatch. A mode with a
+            // lifetime has no meaning as a fire-and-forget dispatch.
+            Log.debug("dispatch.dragScroll: \(name) (no-op — Controller owns the mode)")
         }
+    }
+
+    /// Post one synthetic scroll event for a drag-scroll tick. Pixel units
+    /// (not wheel clicks) so the scrolling tracks the pointer smoothly.
+    /// Tagged with the same sentinel as [postKeys] so our own tap
+    /// short-circuits it instead of re-matching a `scroll.*` binding.
+    public static func postScroll(_ tick: ScrollTick) {
+        guard
+            let event = CGEvent(
+                scrollWheelEvent2Source: source,
+                units: .pixel,
+                wheelCount: 2,
+                wheel1: tick.vertical,
+                wheel2: tick.horizontal,
+                wheel3: 0)
+        else { return }
+        event.setIntegerValueField(
+            .eventSourceUserData,
+            value: EventTap.syntheticUserData)
+        event.post(tap: .cghidEventTap)
     }
 
     nonisolated(unsafe) private static let source =

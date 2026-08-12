@@ -12,7 +12,7 @@ import Foundation
 ///   (`undefined-alias`, `unknown-input-token`, …) without having
 ///   to grep the message string. The raw values are part of the
 ///   schema's wire contract; renaming requires a schema major bump
-///   (e.g. `chord.bindings.v3` → `v4`). Adding new values is
+///   (e.g. `chord.bindings.v4` → `v5`). Adding new values is
 ///   forward-compatible if consumers branch defensively.
 /// * `message` — the human-readable line; `description` returns it
 ///   verbatim so existing callers (`print("warning: \(w)")`)
@@ -31,7 +31,7 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
 
     /// Stable identifiers exposed in the JSON schema. Renaming any
     /// value is a breaking change for consumers — bump the schema
-    /// major (`chord.bindings.v3` → `v4`) instead.
+    /// major (`chord.bindings.v4` → `v5`) instead.
     public enum Kind: String, Sendable, Codable, CaseIterable {
         case configNotFound = "config-not-found"
         case missingInput = "missing-input"
@@ -41,6 +41,12 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// `action-keys-delay-ms` is present but not a positive integer
         /// (inter-key delay for a multi-key `action-keys` array).
         case actionKeysDelayParseError = "action-keys-delay-parse-error"
+        /// `action-drag-scroll` is malformed: not `true`, spelled with the
+        /// `-on-up` suffix, combined with another `action-*`, given an
+        /// out-of-domain `-speed` / `-axis` / `-invert` / `-max-ms`, or
+        /// one of those tuning keys appears with no `action-drag-scroll`
+        /// to tune.
+        case dragScrollParseError = "drag-scroll-parse-error"
         /// `[action-aliases]` entry whose value isn't a string.
         /// (was `aliasNonString` / `alias-non-string` before the split)
         case actionAliasNonString = "action-alias-non-string"

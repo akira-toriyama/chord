@@ -12,7 +12,7 @@ cost of agreement. This dictionary exists to kill that at the root.
 
 1. **When a code change coins / renames / re-defines a term, update this file
    in the same PR** (per the PR template checkbox).
-2. For the **schema contract** (`docs/schema/chord.bindings.v3.json`) enums,
+2. For the **schema contract** (`docs/schema/chord.bindings.v4.json`) enums,
    **adding values is forward-compatible**; renaming an existing value is the
    signal for a schema version bump.
 3. Keep **English names 1:1 with code identifiers**. Swift types stay
@@ -127,6 +127,7 @@ The **side effect** when a binding hits.
 | `.noop` | absorb the event, nothing else |
 | `.setVariable(name, value)` | write a state-var |
 | `.toggleVariable(name)` | flip a state-var 0↔1 (chord 0.9.0+) |
+| `.dragScroll(DragScrollSpec)` | open [drag-scroll](#drag-scroll) for the length of the press (chord 0.12.0+) |
 
 A binding holds one `action` plus **`extraDownActions[]`** (v0.4.0+ —
 `action-shell + action-keys` firing together).
@@ -266,9 +267,9 @@ major bump = v4).
 
 ## 3. Schema enum values (frozen)
 
-The enum values of `docs/schema/chord.bindings.v3.json` (v1 is kept for
-history; no separate v2 file was published). **Every rename is a schema major
-bump.** Additions are forward-compatible (existing consumers are expected to
+The enum values of `docs/schema/chord.bindings.v4.json` (v1 and v3 are kept
+for history; no separate v2 file was published). **Every rename is a schema
+major bump.** Additions are forward-compatible (existing consumers are expected to
 tolerate unknowns).
 
 ### `trigger.kind`
@@ -292,6 +293,7 @@ tolerate unknowns).
 | `"noop"` | absorb only |
 | `"set-variable"` | write a state-var (v2+) |
 | `"toggle-variable"` | flip a state-var 0↔1 (chord 0.9.0+, [action-toggle-var]) |
+| `"drag-scroll"` | pointer motion → scroll while held (chord 0.12.0+, `action-drag-scroll`); carries the nested `drag_scroll` object |
 
 ### `modifier_sides`
 
@@ -318,6 +320,7 @@ strict-side: `"lcmd"`, `"rcmd"`, `"lopt"`, `"ropt"`, `"lctrl"`, `"rctrl"`, `"lsh
 | `"unknown-input-token"` | a typo in a modifier/key name |
 | `"action-keys-parse-error"` | the `action-keys` string fails to parse |
 | `"action-keys-delay-parse-error"` | `action-keys-delay-ms` is not a positive integer |
+| `"drag-scroll-parse-error"` | an `action-drag-scroll*` key is malformed, combined with another action, or on a trigger with no paired release |
 | `"action-alias-non-string"` | an `[action-aliases]` value is non-string |
 | `"undefined-action-alias"` | `@name` is not in `[action-aliases]` |
 | `"input-alias-non-string"` | an `[input-aliases]` value is non-string |
@@ -572,6 +575,58 @@ selectors.
 - **Don't call it**: HID tap, vkey-tap (it is not a CGEventTap),
   original-key-source
 
+### drag-scroll
+
+The mode `action-drag-scroll = true` opens (chord 0.12.0+): while the
+binding's trigger is **held**, chord pins the cursor and converts relative
+pointer motion into scroll events. The only action with a **duration** —
+key-down opens it, the paired key-up closes it — which is why the
+Controller owns it rather than the dispatcher, and why triggers with no
+paired release (`scroll.*`, a bare modifier chord) are rejected at load.
+
+Explicitly **not a gesture**: no path, shape, or history is examined (see
+[non-goals.md §7](non-goals.md)). Tuned by the sibling keys
+`action-drag-scroll-speed` / `-axis` / `-invert` / `-max-ms`.
+
+- code: [Sources/ChordCore/DragScroll.swift](../Sources/ChordCore/DragScroll.swift)
+  `DragScrollSpec` / [Controller+DragScroll.swift](../Sources/ChordApp/Controller+DragScroll.swift)
+- schema: `action.kind = "drag-scroll"` + the `drag_scroll` object (§3)
+- **Don't call it**: drag gesture, pan, grab-scroll (chord has exactly one
+  spelling, and "gesture" is the thing this deliberately is not)
+
+### cursor pin
+
+Holding the cursor still during [drag-scroll](#drag-scroll) by warping it
+back to the **anchor** (the position latched when the mode opened) on every
+motion event. Consuming motion events does *not* stop the cursor — the
+WindowServer moves the pointer from the HID stream, upstream of the session
+tap — so the warp is what makes it a scroll instead of a drag.
+`CGWarpMouseCursorPosition` generates no tap-visible event of its own
+(measured: 100 warps with the mouse still produced 0 `mouseMoved`), so the
+pin cannot feed itself. Chosen over
+`CGAssociateMouseAndMouseCursorPosition(false)` because disassociation is
+process-external global state: a crash mid-drag would leave the pointer
+dead until logout.
+
+- code: [Sources/ChordAdapterMacOS/MotionTap.swift](../Sources/ChordAdapterMacOS/MotionTap.swift)
+- **Don't call it**: cursor lock, pointer capture, mouse grab
+
+### MotionSource
+
+The seam carrying **relative pointer motion**, separate from
+[EventSource](#eventsource) on purpose: motion is continuous, never
+reaches the Matcher, and while armed is consumed unconditionally, so a
+consume/pass return value would be meaningless. Installed **disarmed** and
+armed only for the span a drag-scroll trigger is held — and not installed at
+all unless the config declares such a binding (same gated shape as
+[VKeyHIDSource](#vkeyhidsource)). Production conformer:
+`MacOSMotionSource`, a second CGEventTap over `mouseMoved` + the three
+`*Dragged` variants.
+
+- code: [Sources/ChordCore/MotionSource.swift](../Sources/ChordCore/MotionSource.swift)
+- **Don't call it**: motion tap (that is the macOS *conformer*, not the
+  seam), pointer source
+
 ### VKeyEdgeTracker
 
 The pure ChordCore type holding the v-key press/release **edge / latch
@@ -716,7 +771,7 @@ carve-outs needing no domain.
 The structured-read mouth into the daemon's live state, over an **AF_UNIX
 req/res socket** (`/tmp/chord-query.sock`) — separate from DNC (write-only)
 and the status file. Output is always `chord.query.v1` JSON (distinct from
-the parsed config's `chord.bindings.v3`).
+the parsed config's `chord.bindings.v4`).
 
 | Verb | Behavior | Exit code |
 |---|---|---|
@@ -780,7 +835,7 @@ To add a new term:
 3. On a **rename / meaning change** of an existing term, add the old name to
    the `Don't call it:` field (= stops the old name resurfacing in CR)
 4. A rename of a **schema enum value** (§3) is always discussed together
-   with a `chord.bindings.v3.json` version bump (additions are
+   with a `chord.bindings.v4.json` version bump (additions are
    forward-compatible)
 5. If a new entry carries `Don't call it:`, **name at least one forbidden
    synonym**. Without an explicit "don't call it this", the drift returns
@@ -808,8 +863,8 @@ cannot arise**.
 - [docs/non-goals.md](non-goals.md) — the features chord **deliberately does
   not have**; explains why some concepts never appear in this glossary
 - [docs/architecture.md](architecture.md) — the layer structure in detail
-- [docs/schema/chord.bindings.v3.json](schema/chord.bindings.v3.json) — the
+- [docs/schema/chord.bindings.v4.json](schema/chord.bindings.v4.json) — the
   live OUTPUT wire-schema contract (cross-referenced with §3 of this file;
-  `v1.json` is history)
+  `v1.json` / `v3.json` are history — don't edit them)
 - [CLAUDE.md](../CLAUDE.md) — the source for design decisions and
   invariants

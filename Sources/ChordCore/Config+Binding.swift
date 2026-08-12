@@ -70,6 +70,15 @@ extension Config {
                     source: span, bindingName: name))
             return nil
         }
+        // `action-drag-scroll-*` tuning with no `action-drag-scroll` to tune.
+        // Checked ahead of parseAction so the message names the orphan key
+        // instead of the generic "no action-* key provided".
+        if rejectOrphanDragScrollTuning(
+            row: row, section: section, name: name,
+            spans: spans, warnings: &warnings)
+        {
+            return nil
+        }
         let actionResult = parseAction(
             row: row,
             section: section,
@@ -81,6 +90,33 @@ extension Config {
             allowReservedVarNames: allowReservedVarNames,
             warnings: &warnings)
         guard let parsedAction = actionResult else { return nil }
+
+        // Drag-scroll is bounded by its own release. A trigger that has no
+        // paired release would open a mode only the watchdog could ever
+        // close — the cursor would stay pinned for `max-ms` with nothing
+        // the user could press to stop it. `.scroll` has no up half at all
+        // (registerPendingUp skips it), and `.modifiersOnly` reports mask
+        // transitions rather than a down/up pair.
+        if case .dragScroll = parsedAction.action {
+            let unpaired: String?
+            switch parsed.trigger {
+            case .scroll: unpaired = "a scroll trigger"
+            case .modifiersOnly: unpaired = "a modifiers-only trigger"
+            case .key, .mouseButton, .vkey, .anyKey, .anyVKey: unpaired = nil
+            }
+            if let unpaired {
+                let span = spans.value("action-drag-scroll") ?? spans.header
+                warnings.append(
+                    ConfigWarning(
+                        kind: .dragScrollParseError,
+                        message:
+                            "\(section) '\(name)'\(sourceTag(span)): "
+                            + "action-drag-scroll needs a trigger with a paired "
+                            + "release; \(unpaired) has none",
+                        source: span, bindingName: name))
+                return nil
+            }
+        }
 
         // Multi-action on down. Three sources combine here:
         //   1. action-shell as primary + sibling action-keys (string or
@@ -298,6 +334,17 @@ extension Config {
                             + "(noop = absorb; passthrough = relay)",
                         source: span, bindingName: name))
                 return nil
+            case .dragScroll:
+                warnings.append(
+                    ConfigWarning(
+                        kind: .dragScrollParseError,
+                        message:
+                            "\(section) '\(name)'\(sourceTag(span)): "
+                            + "passthrough is incompatible with action-drag-scroll "
+                            + "(the mode ends on the paired release, which "
+                            + "passthrough never captures)",
+                        source: span, bindingName: name))
+                return nil
             case .shell, .setVariable, .toggleVariable:
                 break
             }
@@ -347,7 +394,8 @@ extension Config {
             "action-noop-on-up",
             "action-set-var-on-up",
             "action-toggle-var-on-up",
-            "action-hold-var-on-up"
+            "action-hold-var-on-up",
+            "action-drag-scroll-on-up"
         ]
         return onUpKeys.first { row[$0] != nil }
     }
