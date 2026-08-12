@@ -68,14 +68,19 @@ let package = Package(
         // `.value` arity + the D0 verbatim-value path (a `-`-leading arg
         // after `--limit` is a value, not a flag).
         //
-        // Floor 5.0.0. chord consumes CLIKit and ConfigSchema and NOTHING
-        // theme-shaped, which is why crossing sill 2/3/4/5 costs nothing here:
-        // every one of those majors landed in the theming surface (macOS floor,
-        // ThemeKitUI reshape, typed theme catalog, ambient SwiftUI widgets).
+        // Floor 8.0.0. chord consumes CLIKit and ConfigSchema and NOTHING
+        // theme-shaped, which is why crossing sill 2 through 8 costs nothing
+        // here: every one of those majors landed in the theming surface (macOS
+        // floor, ThemeKitUI reshape, typed theme catalog, ambient SwiftUI
+        // widgets, SwiftUI-native Themed*Views, ThemedListStyle's capability
+        // gating).
         // Measured, not assumed — `swift build` is clean with zero source
         // changes and `chord config --emit-schema` is byte-identical to the
         // committed schema, because chord's schema enumerates no theme names.
-        // Package.resolved locks the exact commit.
+        // For 6→8 specifically: CLIKit's source is identical modulo deleted
+        // `// MARK:` lines, and ConfigSchema's emitter files are unchanged
+        // blobs, so the tokenizer and the JSON-Schema output cannot have
+        // moved. Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
                  .upToNextMinor(from: "8.0.0")),
     ],

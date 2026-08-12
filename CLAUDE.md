@@ -1085,7 +1085,11 @@ target wiring: [Package.swift](Package.swift) is the truth.
   foundation; design →
   [`docs/DESIGN.md`](https://github.com/akira-toriyama/sill/blob/main/docs/DESIGN.md).
   chord is headless, so it consumes no theming — only `CLIKit` (the CLI
-  tokenizer).
+  tokenizer) and `ConfigSchema` (the descriptor types + the Draft-07
+  lowering behind `config --emit-schema`). Those two products are what
+  [Package.swift](Package.swift) declares, and the only sill modules any
+  `import` in `Sources/` names — which is why sill's theming majors cross
+  for free here.
 - **[swift-toml-edit](https://github.com/akira-toriyama/swift-toml-edit)** —
   the family's only TOML implementation (the `Toml` module, a Swift
   toml_edit). chord uses it to parse config.toml.
