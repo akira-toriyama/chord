@@ -23,18 +23,31 @@ reigniting periodically.
   `configDeclaresVKeys()`); non-v-key users never open IOHIDManager and are
   never prompted for Input Monitoring. **General HID interception /
   per-device routing / DriverKit remain non-goals.**
-- **Single-CGEventTap simplicity**: synchronous first-match-wins. The
-  contract is deciding consume / pass right inside the tap callback.
+- **Single-CGEventTap simplicity for the consume / pass spine**: synchronous
+  first-match-wins. The contract is deciding consume / pass right inside the
+  tap callback. **The single exception is the opt-in drag-scroll motion
+  tap**: `action-drag-scroll` needs relative pointer motion, which is
+  high-rate enough that widening the spine's mask would round-trip every
+  pointer move through chord. So it is a second tap
+  (`MacOSMotionSource`) that is created only for configs declaring such a
+  binding (`Controller.maybeStartMotionSource` gates on
+  `configDeclaresDragScroll()`), `tapEnable`d only while the trigger is
+  held, never reaches the Matcher, and never returns a consume / pass
+  decision. **Additional taps for anything that DOES match belong on the one
+  spine, or nowhere.**
 - **One human-readable TOML config**: no GUI, no code generation —
   `config.toml` is the single source of truth.
 - **A narrow-surface state machine**: single-variable equality only, no
   nested modes. Complex state belongs to ZMK / Karabiner.
 
-Anything that violates these is a **non-goal no matter how popular**. The one
-exception is the v-key (above) — individually justified as an explicit
-opt-in, least-privilege path that only reads a single vendor page from a
-single device. It does not generalize (per-device routing / general HID
-interception / DriverKit stay out).
+Anything that violates these is a **non-goal no matter how popular**. There
+are exactly two exceptions, both above, and each is individually justified as
+an explicit opt-in, least-privilege path that is not installed at all unless
+the config asks for it: the **v-key** (reads a single vendor page from a
+single device) and the **drag-scroll motion tap** (reads relative motion, only
+while a trigger is held). Neither generalizes — per-device routing, general
+HID interception and DriverKit stay out, and so does any second tap that
+participates in matching (§7).
 
 ---
 
@@ -214,6 +227,52 @@ draws on its own — fully separated, outside the daemon's responsibility.
 
 ---
 
+## 7. Continuous pointer input (beyond drag-scroll)
+
+*(reviewed 2026-08-12)*
+
+**Origin**: the `action-drag-scroll` design review — once chord can see
+the pointer move, the question is what else that opens the door to.
+
+Every trigger chord matches is a **discrete event**: one key-down, one
+button-down, one wheel tick. `action-drag-scroll` (chord 0.12.0+) is the
+single exception, and it is deliberately the narrowest one that could
+work:
+
+- It reads relative motion **only while its trigger is held**, and the
+  motion tap is not even installed unless the config declares such a
+  binding (`Controller.maybeStartMotionSource` gates on
+  `configDeclaresDragScroll()`, the same shape as the v-key's Input
+  Monitoring gate). A keyboard-only config pays nothing.
+- It is **not a gesture**. No path, no shape, no direction history, no
+  velocity, no recogniser is involved: each `(dx, dy)` is multiplied by
+  `speed`, folded into a scroll tick, and discarded. There is no state
+  a second delta could consult.
+
+**Still non-goals**, and the reason is the same for all of them —
+each needs *history* across deltas, which is a recogniser, which is a
+different program:
+
+- **Gesture recognition** (mouse gestures, direction sequences like
+  `↓→` for close-tab, shape matching). That is
+  [wand](https://github.com/akira-toriyama/wand)'s entire subject.
+- **Pointer-path bindings** (fire when the cursor enters a screen
+  region, hot corners, edge swipes). Needs an absolute-position model
+  chord does not have.
+- **Drag-and-drop synthesis** (press, move along a path, release) —
+  path-based by definition.
+- **Motion-driven anything else** (pointer velocity as a modifier,
+  acceleration curves, inertia / momentum scrolling). Momentum in
+  particular would mean chord keeps posting scroll after the trigger is
+  released, i.e. a mode with no trigger — the exact shape the
+  drag-scroll watchdog exists to prevent.
+
+**The line**: chord may convert a delta it is *already receiving* into a
+single immediate effect. The moment two deltas have to be compared,
+it belongs to wand.
+
+---
+
 ## When these become Yes
 
 The conditions under which each non-goal **becomes worth reconsidering**:
@@ -226,6 +285,7 @@ The conditions under which each non-goal **becomes worth reconsidering**:
 | 4. BLE | (Impossible in principle. Nothing to reconsider) |
 | 5. JSON config | The TOML parser hits a fatal edge case and switching to JSON becomes smaller than fixing TOML |
 | 6. HUD notification | A requirement `action-shell` delegation cannot possibly satisfy (e.g. zero-latency visuals synchronous with the tap callback) is concretely reported by multiple users |
+| 7. Continuous pointer input | Never, for the recogniser half — that is wand's subject and duplicating it splits one behaviour across two daemons. A *stateless* per-delta conversion (a second `action-drag-*` in the drag-scroll mould, e.g. drag-to-resize) is arguable on the same terms drag-scroll was: gated install, held-trigger only, no history between deltas |
 
 All of them presuppose **a concrete "something worth sacrificing the USP
 for"**. An abstract "would be convenient" does not reopen them.

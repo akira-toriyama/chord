@@ -558,6 +558,60 @@
               "minLength": 1
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "raw",
+            "drag_scroll"
+          ],
+          "description": "chord 0.12.0+: while the trigger is held, the cursor is pinned and pointer motion becomes scrolling (`action-drag-scroll = true`). The only action with a duration — it opens on key-down and closes on the paired release — so it is rejected on `action_on_up` and on triggers that have no paired release (scroll, modifiers-only).",
+          "properties": {
+            "kind": {
+              "const": "drag-scroll"
+            },
+            "raw": {
+              "type": "string",
+              "description": "Always the literal `action-drag-scroll` — the key that selected this action. Unlike the other kinds there is no user-authored value string to preserve; the tuning lives in `drag_scroll`."
+            },
+            "drag_scroll": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "speed",
+                "axis",
+                "invert",
+                "max_ms"
+              ],
+              "description": "Resolved tuning — every field present, defaults filled in, so a consumer never re-implements them.",
+              "properties": {
+                "speed": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Scroll pixels per pointer pixel (`action-drag-scroll-speed`, default 1). Sub-pixel remainders are carried across events, so speed < 1 still scrolls on slow drags."
+                },
+                "axis": {
+                  "enum": [
+                    "both",
+                    "vertical",
+                    "horizontal"
+                  ],
+                  "description": "Which pointer axes are converted (`action-drag-scroll-axis`, default `both`). Motion on a discarded axis is dropped, not banked."
+                },
+                "invert": {
+                  "type": "boolean",
+                  "description": "`action-drag-scroll-invert` (default false). False posts a scroll whose sign matches the pointer delta; true negates both axes."
+                },
+                "max_ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "description": "Watchdog ceiling in ms (`action-drag-scroll-max-ms`, default 30000). The mode stops after this long no matter what, so a release edge that never arrives cannot pin the cursor indefinitely."
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -701,6 +755,7 @@
             "unknown-input-token",
             "action-keys-parse-error",
             "action-keys-delay-parse-error",
+            "drag-scroll-parse-error",
             "undefined-action-alias",
             "action-alias-non-string",
             "input-alias-non-string",

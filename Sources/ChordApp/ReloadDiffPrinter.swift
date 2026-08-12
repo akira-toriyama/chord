@@ -251,6 +251,15 @@ extension ChordApp {
             return "set-variable \(action.variable ?? "")=\(action.value ?? 0)"
         case "toggle-variable":
             return "toggle-variable \(action.variable ?? "")"
+        // Same reason as the two above: the bare kind string would hide
+        // every field a drag-scroll edit actually changes, so a tuning
+        // tweak would diff as "no change".
+        case "drag-scroll":
+            guard let d = action.dragScroll else { return action.kind }
+            let invertTag = d.invert ? " inverted" : ""
+            return
+                "drag-scroll speed=\(d.speed) axis=\(d.axis) "
+                + "max=\(d.maxMs)ms\(invertTag)"
         default: return action.kind
         }
     }

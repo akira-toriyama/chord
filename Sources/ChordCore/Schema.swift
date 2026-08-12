@@ -252,9 +252,26 @@ public enum BindingsSchema {
         public let keycode: UInt16?
     }
 
+    /// `drag-scroll` only — the pointer-mode tuning, mirroring
+    /// [DragScrollSpec]. Nested rather than flattened onto [WireAction]
+    /// so four single-kind fields don't join the top-level namespace.
+    public struct WireDragScroll: Codable, Sendable, Hashable {
+        public let speed: Double
+        /// `"both"` | `"vertical"` | `"horizontal"` (`drag_scroll_axis`).
+        public let axis: String
+        public let invert: Bool
+        public let maxMs: Int
+
+        enum CodingKeys: String, CodingKey {
+            case speed, axis, invert
+            case maxMs = "max_ms"
+        }
+    }
+
     public struct WireAction: Codable, Sendable, Hashable {
         /// `"keys"` | `"shell"` | `"noop"` | `"set-variable"` (v2) |
-        /// `"toggle-variable"` (chord 0.9.0+).
+        /// `"toggle-variable"` (chord 0.9.0+) | `"drag-scroll"`
+        /// (chord 0.12.0+).
         public let kind: String
         /// `action-shell` / `action-keys` / `action-set-var`
         /// original user string. `nil` for `noop`.
@@ -272,6 +289,16 @@ public enum BindingsSchema {
         public let variable: String?
         /// `set-variable` only — value (0 = clear).
         public let value: Int?
+        /// `drag-scroll` only — the pointer-mode tuning.
+        public let dragScroll: WireDragScroll?
+
+        /// Explicit so the multi-word field lands as snake_case like the
+        /// rest of the wire format; the single-word cases are spelled out
+        /// because naming any case opts the whole enum in.
+        enum CodingKeys: String, CodingKey {
+            case kind, raw, modifiers, key, command, alias, variable, value
+            case dragScroll = "drag_scroll"
+        }
 
         /// `kind` is always present; every other field is per-kind and
         /// defaults to `nil` so each [wireAction] case names only the
@@ -284,7 +311,8 @@ public enum BindingsSchema {
             command: String? = nil,
             alias: String? = nil,
             variable: String? = nil,
-            value: Int? = nil
+            value: Int? = nil,
+            dragScroll: WireDragScroll? = nil
         ) {
             self.kind = kind
             self.raw = raw
@@ -294,6 +322,7 @@ public enum BindingsSchema {
             self.alias = alias
             self.variable = variable
             self.value = value
+            self.dragScroll = dragScroll
         }
     }
 
@@ -708,6 +737,15 @@ public enum BindingsSchema {
                 kind: kind,
                 raw: raw,
                 variable: name)
+        case .dragScroll(let spec):
+            return WireAction(
+                kind: kind,
+                raw: raw,
+                dragScroll: WireDragScroll(
+                    speed: spec.speed,
+                    axis: spec.axis.rawValue,
+                    invert: spec.invert,
+                    maxMs: spec.maxMs))
         }
     }
 

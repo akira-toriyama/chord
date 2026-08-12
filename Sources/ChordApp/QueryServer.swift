@@ -150,7 +150,8 @@ extension Controller {
                     version: ChordVersion.current,
                     uptimeS: uptime,
                     configLoadedAt: meta.configLoadedAt.map(QuerySchema.iso),
-                    inputMonitoringGranted: Permissions.isInputMonitoringTrusted()))
+                    inputMonitoringGranted: Permissions.isInputMonitoringTrusted(),
+                    dragScroll: dragScrollStatus()))
         case .vars:
             return QuerySchema.encode(
                 QuerySchema.VarsResponse(

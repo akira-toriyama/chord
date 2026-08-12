@@ -2,7 +2,7 @@
 //
 // chord — global keyboard + mouse hotkey daemon for macOS.
 //
-// Architecture is hexagonal (Ports & Adapters), mirroring stroke /
+// Architecture is hexagonal (Ports & Adapters), mirroring wand /
 // facet's three-layer split. See docs/architecture.md for the
 // diagram.
 //

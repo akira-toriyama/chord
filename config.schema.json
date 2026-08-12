@@ -67,6 +67,11 @@
                 "required" : [
                   "action-spotlight"
                 ]
+              },
+              {
+                "required" : [
+                  "action-drag-scroll"
+                ]
               }
             ]
           },
@@ -120,6 +125,18 @@
           }
         ],
         "dependencies" : {
+          "action-drag-scroll-axis" : [
+            "action-drag-scroll"
+          ],
+          "action-drag-scroll-invert" : [
+            "action-drag-scroll"
+          ],
+          "action-drag-scroll-max-ms" : [
+            "action-drag-scroll"
+          ],
+          "action-drag-scroll-speed" : [
+            "action-drag-scroll"
+          ],
           "action-set-value" : [
             "action-set-var"
           ],
@@ -132,6 +149,46 @@
         },
         "description" : "A key\/chord → action binding.",
         "properties" : {
+          "action-drag-scroll" : {
+            "const" : true,
+            "description" : "While the trigger is held, pin the cursor and turn pointer motion into scrolling. Only `true` is meaningful; the mode ends on the paired release."
+          },
+          "action-drag-scroll-axis" : {
+            "default" : "both",
+            "description" : "Which pointer axes are converted to scrolling.",
+            "enum" : [
+              "both",
+              "vertical",
+              "horizontal"
+            ],
+            "type" : "string",
+            "x-taplo" : {
+              "docs" : {
+                "enumValues" : [
+                  "Both axes (default).",
+                  "Vertical only — horizontal motion is discarded.",
+                  "Horizontal only — vertical motion is discarded."
+                ]
+              }
+            }
+          },
+          "action-drag-scroll-invert" : {
+            "default" : false,
+            "description" : "Flip the mapping. Default (false) posts a scroll whose sign matches the pointer delta; true negates both axes.",
+            "type" : "boolean"
+          },
+          "action-drag-scroll-max-ms" : {
+            "default" : 30000,
+            "description" : "Watchdog ceiling (ms, >0): stop the mode after this long no matter what, so a lost release edge cannot pin the cursor indefinitely.",
+            "exclusiveMinimum" : 0,
+            "type" : "integer"
+          },
+          "action-drag-scroll-speed" : {
+            "default" : 1,
+            "description" : "Scroll pixels per pointer pixel (>0). Below 1 the sub-pixel remainder is carried, so slow drags still scroll.",
+            "exclusiveMinimum" : 0,
+            "type" : "number"
+          },
           "action-hold-var" : {
             "description" : "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer).",
             "type" : "string"
@@ -322,6 +379,18 @@
                 }
               ],
               "dependencies" : {
+                "action-drag-scroll-axis" : [
+                  "action-drag-scroll"
+                ],
+                "action-drag-scroll-invert" : [
+                  "action-drag-scroll"
+                ],
+                "action-drag-scroll-max-ms" : [
+                  "action-drag-scroll"
+                ],
+                "action-drag-scroll-speed" : [
+                  "action-drag-scroll"
+                ],
                 "action-set-value" : [
                   "action-set-var"
                 ],
@@ -334,6 +403,46 @@
               },
               "description" : "Per-app override layered onto the parent binding.",
               "properties" : {
+                "action-drag-scroll" : {
+                  "const" : true,
+                  "description" : "While the trigger is held, pin the cursor and turn pointer motion into scrolling. Only `true` is meaningful; the mode ends on the paired release."
+                },
+                "action-drag-scroll-axis" : {
+                  "default" : "both",
+                  "description" : "Which pointer axes are converted to scrolling.",
+                  "enum" : [
+                    "both",
+                    "vertical",
+                    "horizontal"
+                  ],
+                  "type" : "string",
+                  "x-taplo" : {
+                    "docs" : {
+                      "enumValues" : [
+                        "Both axes (default).",
+                        "Vertical only — horizontal motion is discarded.",
+                        "Horizontal only — vertical motion is discarded."
+                      ]
+                    }
+                  }
+                },
+                "action-drag-scroll-invert" : {
+                  "default" : false,
+                  "description" : "Flip the mapping. Default (false) posts a scroll whose sign matches the pointer delta; true negates both axes.",
+                  "type" : "boolean"
+                },
+                "action-drag-scroll-max-ms" : {
+                  "default" : 30000,
+                  "description" : "Watchdog ceiling (ms, >0): stop the mode after this long no matter what, so a lost release edge cannot pin the cursor indefinitely.",
+                  "exclusiveMinimum" : 0,
+                  "type" : "integer"
+                },
+                "action-drag-scroll-speed" : {
+                  "default" : 1,
+                  "description" : "Scroll pixels per pointer pixel (>0). Below 1 the sub-pixel remainder is carried, so slow drags still scroll.",
+                  "exclusiveMinimum" : 0,
+                  "type" : "number"
+                },
                 "action-hold-var" : {
                   "description" : "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer).",
                   "type" : "string"
@@ -561,6 +670,7 @@
           "[input-aliases] names must not shadow built-in modifier tokens (cmd \/ ctrl \/ shift \/ opt \/ fn and L\/R variants).",
           "Each user-set `name` must be unique across [[bindings]] (auto `binding-N` names are exempt).",
           "`action-set-var` must not use a reserved `_seq_*` name (those are reserved for [[sequence]] state).",
+          "`action-drag-scroll` owns the whole down\/up span: it must be the row's only action-*, must not be combined with passthrough, and needs a trigger that HAS a paired release (not scroll.*, not a bare modifier chord).",
           "A [[bindings]] trigger must not collide with a [[sequence]] prefix; a sequence `name` must not be `_seq_*`."
         ],
         "x-taplo" : {
@@ -642,6 +752,11 @@
                 "required" : [
                   "action-spotlight"
                 ]
+              },
+              {
+                "required" : [
+                  "action-drag-scroll"
+                ]
               }
             ]
           },
@@ -695,6 +810,18 @@
           }
         ],
         "dependencies" : {
+          "action-drag-scroll-axis" : [
+            "action-drag-scroll"
+          ],
+          "action-drag-scroll-invert" : [
+            "action-drag-scroll"
+          ],
+          "action-drag-scroll-max-ms" : [
+            "action-drag-scroll"
+          ],
+          "action-drag-scroll-speed" : [
+            "action-drag-scroll"
+          ],
           "action-set-value" : [
             "action-set-var"
           ],
@@ -707,6 +834,46 @@
         },
         "description" : "A lower-priority binding tried only when no [[bindings]] row matched.",
         "properties" : {
+          "action-drag-scroll" : {
+            "const" : true,
+            "description" : "While the trigger is held, pin the cursor and turn pointer motion into scrolling. Only `true` is meaningful; the mode ends on the paired release."
+          },
+          "action-drag-scroll-axis" : {
+            "default" : "both",
+            "description" : "Which pointer axes are converted to scrolling.",
+            "enum" : [
+              "both",
+              "vertical",
+              "horizontal"
+            ],
+            "type" : "string",
+            "x-taplo" : {
+              "docs" : {
+                "enumValues" : [
+                  "Both axes (default).",
+                  "Vertical only — horizontal motion is discarded.",
+                  "Horizontal only — vertical motion is discarded."
+                ]
+              }
+            }
+          },
+          "action-drag-scroll-invert" : {
+            "default" : false,
+            "description" : "Flip the mapping. Default (false) posts a scroll whose sign matches the pointer delta; true negates both axes.",
+            "type" : "boolean"
+          },
+          "action-drag-scroll-max-ms" : {
+            "default" : 30000,
+            "description" : "Watchdog ceiling (ms, >0): stop the mode after this long no matter what, so a lost release edge cannot pin the cursor indefinitely.",
+            "exclusiveMinimum" : 0,
+            "type" : "integer"
+          },
+          "action-drag-scroll-speed" : {
+            "default" : 1,
+            "description" : "Scroll pixels per pointer pixel (>0). Below 1 the sub-pixel remainder is carried, so slow drags still scroll.",
+            "exclusiveMinimum" : 0,
+            "type" : "number"
+          },
           "action-hold-var" : {
             "description" : "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer).",
             "type" : "string"
@@ -902,6 +1069,7 @@
           "[input-aliases] names must not shadow built-in modifier tokens (cmd \/ ctrl \/ shift \/ opt \/ fn and L\/R variants).",
           "Each user-set `name` must be unique across [[bindings]] (auto `binding-N` names are exempt).",
           "`action-set-var` must not use a reserved `_seq_*` name (those are reserved for [[sequence]] state).",
+          "`action-drag-scroll` owns the whole down\/up span: it must be the row's only action-*, must not be combined with passthrough, and needs a trigger that HAS a paired release (not scroll.*, not a bare modifier chord).",
           "A [[bindings]] trigger must not collide with a [[sequence]] prefix; a sequence `name` must not be `_seq_*`."
         ]
       },
@@ -1037,6 +1205,11 @@
                       "required" : [
                         "action-spotlight"
                       ]
+                    },
+                    {
+                      "required" : [
+                        "action-drag-scroll"
+                      ]
                     }
                   ]
                 },
@@ -1090,6 +1263,18 @@
                 }
               ],
               "dependencies" : {
+                "action-drag-scroll-axis" : [
+                  "action-drag-scroll"
+                ],
+                "action-drag-scroll-invert" : [
+                  "action-drag-scroll"
+                ],
+                "action-drag-scroll-max-ms" : [
+                  "action-drag-scroll"
+                ],
+                "action-drag-scroll-speed" : [
+                  "action-drag-scroll"
+                ],
                 "action-set-value" : [
                   "action-set-var"
                 ],
@@ -1102,6 +1287,46 @@
               },
               "description" : "A binding active only after its sequence prefix is armed.",
               "properties" : {
+                "action-drag-scroll" : {
+                  "const" : true,
+                  "description" : "While the trigger is held, pin the cursor and turn pointer motion into scrolling. Only `true` is meaningful; the mode ends on the paired release."
+                },
+                "action-drag-scroll-axis" : {
+                  "default" : "both",
+                  "description" : "Which pointer axes are converted to scrolling.",
+                  "enum" : [
+                    "both",
+                    "vertical",
+                    "horizontal"
+                  ],
+                  "type" : "string",
+                  "x-taplo" : {
+                    "docs" : {
+                      "enumValues" : [
+                        "Both axes (default).",
+                        "Vertical only — horizontal motion is discarded.",
+                        "Horizontal only — vertical motion is discarded."
+                      ]
+                    }
+                  }
+                },
+                "action-drag-scroll-invert" : {
+                  "default" : false,
+                  "description" : "Flip the mapping. Default (false) posts a scroll whose sign matches the pointer delta; true negates both axes.",
+                  "type" : "boolean"
+                },
+                "action-drag-scroll-max-ms" : {
+                  "default" : 30000,
+                  "description" : "Watchdog ceiling (ms, >0): stop the mode after this long no matter what, so a lost release edge cannot pin the cursor indefinitely.",
+                  "exclusiveMinimum" : 0,
+                  "type" : "integer"
+                },
+                "action-drag-scroll-speed" : {
+                  "default" : 1,
+                  "description" : "Scroll pixels per pointer pixel (>0). Below 1 the sub-pixel remainder is carried, so slow drags still scroll.",
+                  "exclusiveMinimum" : 0,
+                  "type" : "number"
+                },
                 "action-hold-var" : {
                   "description" : "Set the variable to 1 on key-down and back to 0 on key-up (momentary layer).",
                   "type" : "string"
@@ -1293,6 +1518,7 @@
                 "[input-aliases] names must not shadow built-in modifier tokens (cmd \/ ctrl \/ shift \/ opt \/ fn and L\/R variants).",
                 "Each user-set `name` must be unique across [[bindings]] (auto `binding-N` names are exempt).",
                 "`action-set-var` must not use a reserved `_seq_*` name (those are reserved for [[sequence]] state).",
+                "`action-drag-scroll` owns the whole down\/up span: it must be the row's only action-*, must not be combined with passthrough, and needs a trigger that HAS a paired release (not scroll.*, not a bare modifier chord).",
                 "A [[bindings]] trigger must not collide with a [[sequence]] prefix; a sequence `name` must not be `_seq_*`."
               ]
             },

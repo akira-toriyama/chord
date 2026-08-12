@@ -58,6 +58,12 @@ import Testing
         name = "wire-vkey"
         input = "TU_LL_C"
         action-noop = true
+
+        [[bindings]]
+        name = "wire-drag-scroll"
+        input = "mouse.side1"
+        action-drag-scroll = true
+        action-drag-scroll-axis = "vertical"
         """
 
     @Test func emittedWireDocumentConformsToPublishedSchema() throws {
@@ -140,6 +146,21 @@ import Testing
         let trigger = try #require(
             (vkey["input"] as? [String: Any])?["trigger"] as? [String: Any])
         #expect(trigger["kind"] as? String == "vkey")
+
+        // action kind "drag-scroll" — the first action with a NESTED object
+        // on the wire, so `additionalProperties:false` has to be satisfied
+        // one level deeper than every other kind.
+        let drag = try #require(
+            byName["wire-drag-scroll"],
+            "drag-scroll binding was dropped")
+        let dragAction = try #require(drag["action"] as? [String: Any])
+        #expect(dragAction["kind"] as? String == "drag-scroll")
+        let dragSpec = try #require(dragAction["drag_scroll"] as? [String: Any])
+        #expect(dragSpec["axis"] as? String == "vertical")
+        // Defaults are resolved on the wire — a consumer reads them, never
+        // re-derives them.
+        #expect(dragSpec["invert"] as? Bool == false)
+        #expect(dragSpec["max_ms"] as? Int == DragScrollSpec.defaultMaxMs)
 
         // The whole config must parse clean — a stray warning would add a
         // dropped[] row and muddy the conformance walk.

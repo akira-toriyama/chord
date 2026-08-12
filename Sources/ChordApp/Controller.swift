@@ -14,6 +14,13 @@ public final class Controller {
     /// (`input = "<v-key-alias>"`), so non-vkey users are never prompted
     /// for Input Monitoring.
     private let vkeySource: VKeyHIDSource
+    /// Relative-pointer-motion source for `action-drag-scroll`. Like
+    /// [vkeySource] it is started lazily in `loadConfig`, only when the
+    /// config declares a drag-scroll binding — a keyboard-only config
+    /// never installs a motion tap. Internal (not private) so the
+    /// Controller+DragScroll extension can arm / disarm it, same as
+    /// `querySource` is for the QueryServer extension.
+    let motionSource: any MotionSource
     private var matcher: Matcher
     private var config: ChordConfig
     private var observers: [NSObjectProtocol] = []
@@ -23,9 +30,13 @@ public final class Controller {
     /// + tear it down; nil when the query API is disabled (bind failure).
     var querySource: DispatchSourceRead?
 
-    public init(source: any EventSource = MacOSEventSource()) {
+    public init(
+        source: any EventSource = MacOSEventSource(),
+        motionSource: any MotionSource = MacOSMotionSource()
+    ) {
         self.source = source
         self.vkeySource = VKeyHIDSource()
+        self.motionSource = motionSource
         self.config = .init()
         self.matcher = Matcher(bindings: [], excludeApps: [])
     }
@@ -50,8 +61,10 @@ public final class Controller {
     }
 
     public func stop() {
+        stopDragScroll(trigger: nil, reason: "daemon stop")
         source.stop()
         vkeySource.stop()
+        motionSource.stop()
         for o in observers {
             DistributedNotificationCenter.default().removeObserver(o)
         }
@@ -173,6 +186,25 @@ public final class Controller {
                 // live store is the source of truth, not the per-event snapshot.
                 let (current, next) = applyAction(binding.action, for: binding) ?? (0, 0)
                 Log.debug("state: toggle \(name) \(current)→\(next) " + "via '\(binding.name)'")
+            case .dragScroll(let spec):
+                // The mode's owner is the Controller (it holds the
+                // MotionSource), same as the state-mutating cases above.
+                // Keyed by the EVENT's trigger so a `[[fallbacks]]`
+                // `.anyKey` row still pairs with its concrete release.
+                guard
+                    startDragScroll(
+                        spec: spec, binding: binding, trigger: event.trigger)
+                else {
+                    // The motion source never installed, so there is no mode
+                    // to open. Relay rather than consume: a key swallowed for
+                    // an action that cannot run just looks broken.
+                    emitWatch(
+                        event: event,
+                        outcome:
+                            "passthrough (match='\(binding.name)' "
+                            + "drag-scroll unavailable)")
+                    return .passthrough
+                }
             case .keys, .shell, .noop:
                 applyAction(binding.action, for: binding)
             }
@@ -272,6 +304,17 @@ public final class Controller {
     /// up/down pair (it saw neither half). Fires the binding's
     /// `onUpAction` if present.
     nonisolated private func handleKeyUp(trigger: Trigger) -> EventOutcome {
+        // Unconditional, and ahead of the pending-up lookup: ANY release of
+        // this trigger ends a mode this trigger opened. Neither the presence
+        // of a pending-up entry nor its action can be trusted to decide it —
+        // a reload between the down and the up clears the table, and an
+        // autorepeat that re-matched to a different binding (frontmost app
+        // changed, gate variable flipped) overwrites the entry with a
+        // non-drag-scroll one. Both would otherwise leave the cursor pinned
+        // until the watchdog, which is the one failure the user cannot click
+        // their way out of. `stopDragScroll` is already scoped by trigger, so
+        // a release that owns nothing is a no-op.
+        stopDragScroll(trigger: trigger, reason: "release")
         guard let binding = takePendingUp(trigger: trigger) else {
             return .passthrough
         }
@@ -293,6 +336,11 @@ public final class Controller {
     /// ever clear. Clean slate on reload sidesteps the leak (and matches
     /// the user's mental model: "reload restarts the daemon's state").
     nonisolated private func resetState() {
+        // Close any open drag-scroll first. The reload may have dropped the
+        // binding that owns it, and a pinned cursor no binding can release
+        // is the same silent-leak shape as an unclearable variable —
+        // except the user cannot work around this one.
+        stopDragScroll(trigger: nil, reason: "reload")
         variableStore.reset()
         pendingUpsLock.lock()
         pendingUps = nil
@@ -390,6 +438,13 @@ public final class Controller {
                 timeoutMs: binding.holdWhileTimeoutMs)
         case .toggleVariable(let name):
             return variableStore.toggle(name: name)
+        case .dragScroll:
+            // Unreachable in practice: the parser rejects drag-scroll on
+            // the two paths that funnel through here without a paired
+            // release (`-on-up`, and a `.modifiersOnly` trigger). Logged
+            // rather than started, because a mode opened here would have
+            // no edge that could ever close it.
+            Log.debug("drag-scroll: ignored on a path with no paired release")
         case .keys, .shell, .noop:
             var b = binding
             b.action = action
@@ -465,6 +520,11 @@ public final class Controller {
         pauseLock.lock()
         pausedFlag = value
         pauseLock.unlock()
+        // `daemon --pause` means "chord stops eating input". A pinned
+        // cursor is the loudest form of eating input, so it has to go too
+        // — the paused hot path returns before the matcher and would
+        // never reach the release that closes the mode.
+        if value { stopDragScroll(trigger: nil, reason: "paused") }
         let status = value ? "paused" : "resumed"
         Log.line("control: \(status)")
         Control.writeStatus("\(status) bindings=\(matcher.bindings.count)")
@@ -528,6 +588,10 @@ public final class Controller {
             // on startup and every reload; the first config that adds a
             // vkey installs it, later reloads are no-ops.
             maybeStartVKeySource()
+            // Same gate for the motion tap: installed only by a config
+            // that declares `action-drag-scroll`, so a keyboard-only
+            // config never adds a high-rate tap to the session.
+            maybeStartMotionSource()
         } catch {
             Log.line("config \(reason) error: \(error)")
         }
@@ -566,6 +630,42 @@ public final class Controller {
                     + "Daemon continues.")
             // Surface the system prompt so the user can act on it.
             Permissions.promptForInputMonitoring()
+        }
+    }
+
+    /// True when the loaded config has any `action-drag-scroll` binding.
+    /// Gates the motion-tap install so a keyboard-only config never adds a
+    /// high-rate tap to the session — the same shape as
+    /// [configDeclaresVKeys].
+    private func configDeclaresDragScroll() -> Bool {
+        func isDrag(_ b: Binding) -> Bool {
+            if case .dragScroll = b.action { return true }
+            return false
+        }
+        return matcher.bindings.contains(where: isDrag)
+            || matcher.fallbacks.contains(where: isDrag)
+    }
+
+    /// Start the motion source on the first reload that declares a
+    /// drag-scroll binding. Idempotent — the source no-ops when already
+    /// installed. Failure is non-fatal: the rest of the daemon keeps
+    /// running and drag-scroll bindings are simply inert.
+    private func maybeStartMotionSource() {
+        guard configDeclaresDragScroll() else { return }
+        let weakSelf = WeakWrap(self)
+        do {
+            try motionSource.start { delta in
+                weakSelf.value?.handleMotion(delta)
+            }
+            setMotionAvailable(true)
+        } catch {
+            // Recorded, not just logged: `startDragScroll` reads this to
+            // refuse opening a mode nothing is behind, so the trigger stays
+            // a normal key instead of being swallowed by an inert action.
+            setMotionAvailable(false)
+            Log.line(
+                "motion: capture unavailable — \(error). action-drag-scroll "
+                    + "bindings are inert. Daemon continues.")
         }
     }
 
@@ -780,8 +880,13 @@ private let vkeyLock = NSLock()
         /// it first — each test starts from a clean slate regardless of order.
         func startForTesting(matcher: Matcher) throws {
             resetState()
+            Controller.resetDragScrollSeamsForTesting()
             self.matcher = matcher
             publishMatcher()
+            // Same gate production uses: a matcher with an
+            // `action-drag-scroll` binding gets the injected MotionSource
+            // wired, one without never touches it.
+            maybeStartMotionSource()
             let weakSelf = WeakWrap(self)
             try source.start { event in
                 guard let me = weakSelf.value else { return .passthrough }
@@ -801,5 +906,19 @@ private let vkeyLock = NSLock()
             pendingUpsLock.lock(); defer { pendingUpsLock.unlock() }
             return pendingUps?.count ?? 0
         }
+
+        /// Test-only: drop the pending-up table WITHOUT touching the rest of
+        /// the spine, so a test can reproduce a release that arrives with no
+        /// pairing entry behind it (what a reload between the down and the
+        /// up leaves) and assert the drag-scroll mode still closes.
+        func clearPendingUpsForTesting() {
+            pendingUpsLock.lock(); defer { pendingUpsLock.unlock() }
+            pendingUps = nil
+        }
+
+        /// Test-only: drive the `daemon --pause` wedge exit. `setPaused` is
+        /// private and reached over Distributed Notification Center, which a
+        /// unit test has no business standing up.
+        func setPausedForTesting(_ value: Bool) { setPaused(value) }
     }
 #endif

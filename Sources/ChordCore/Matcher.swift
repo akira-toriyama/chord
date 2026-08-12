@@ -14,7 +14,7 @@ public enum ModifierEdge: Hashable, Sendable {
 /// `config.toml`. The first binding whose
 /// `(trigger, modifiers, apps)` all match wins.
 ///
-/// `apps` semantics (same as stroke):
+/// `apps` semantics (same as wand):
 ///   • nil or `["*"]` ⇒ match any frontmost app
 ///   • plain entries (`"com.apple.Safari"`, `"*chrome*"`) form an
 ///     allowlist; one match is enough

@@ -6,7 +6,7 @@ import Foundation
 
 /// `@main enum ChordApp` (not a top-level `main.swift`) — keeps
 /// `@testable import ChordApp` working for the Swift Testing target
-/// (CLIDispatchTests' CLI coverage). Same trap stroke / facet /
+/// (CLIDispatchTests' CLI coverage). Same trap wand / facet /
 /// ws-tabs documented.
 @main
 enum ChordApp {
@@ -399,7 +399,7 @@ enum ChordApp {
     ///   2 — catastrophic (TOML syntax error, IO failure)
     ///
     /// Without `--strict` chord stays "lenient by default" (drops a
-    /// bad binding, keeps the rest) — same posture as stroke / facet.
+    /// bad binding, keeps the rest) — same posture as wand / facet.
     /// Add `--strict` in CI to make a typo fail the pipeline.
     private static func runValidate(strict: Bool, json: Bool) -> Int32 {
         do {
@@ -539,6 +539,10 @@ enum ChordApp {
                 actionDesc = "set-variable → \(n)=\(v)"
             case .toggleVariable(let n):
                 actionDesc = "toggle-variable → \(n)"
+            case .dragScroll(let spec):
+                actionDesc =
+                    "drag-scroll → speed=\(spec.speed) axis=\(spec.axis.rawValue)"
+                    + (spec.invert ? " inverted" : "")
             }
             print("  \(b.name)\(lineTag)")
             print("    input:  \(b.inputRaw)")

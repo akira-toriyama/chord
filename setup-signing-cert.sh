@@ -8,7 +8,7 @@
 # stable self-signed cert keeps the same identity across rebuilds
 # and `package.sh` runs.
 #
-# Same approach as facet/stroke — including the specific OpenSSL 3
+# Same approach as facet/wand — including the specific OpenSSL 3
 # .p12 export options security(1) requires.
 
 set -euo pipefail

@@ -3,7 +3,7 @@ import Foundation
 
 /// IPC between the chord daemon and its own CLI clients (`chord
 /// daemon --reload`, `chord daemon --quit`). Same pattern as facet /
-/// stroke — Distributed Notification Center, fire-and-forget. The
+/// wand — Distributed Notification Center, fire-and-forget. The
 /// daemon is the listener; clients post and exit.
 ///
 /// `daemon --show` is one-way the other direction: DNC has no reply

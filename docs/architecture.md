@@ -27,10 +27,19 @@
 ```
 
 The `ChordAdapterMacOS` box lists a representative subset (the
-`(…)` after `Permissions`). The full module is seven files:
+`(…)` after `Permissions`). The full module is eight files:
 `EventTap`, `FrontmostTracker`, `ActionDispatcher`, `Permissions`,
-`InputSourceTracker`, `SideMaskTable`, and `VKeyHIDSource`
-(chord 0.10.0+, the vendor-HID v-key reader).
+`InputSourceTracker`, `SideMaskTable`, `VKeyHIDSource`
+(chord 0.10.0+, the vendor-HID v-key reader), and `MotionTap`
+(chord 0.12.0+, the gated relative-pointer-motion tap behind
+`action-drag-scroll`).
+
+`MotionSource` is `ChordCore`'s **second port**, alongside
+`EventSource` — relative pointer motion only, conformed by
+`MacOSMotionSource` in production and `TestMotionSource` in
+`ChordAdapterTest`. It stays separate because motion never reaches
+the Matcher and carries no consume / pass decision; see
+[non-goals.md](non-goals.md) §7.
 
 ## Layer rules
 
@@ -115,8 +124,12 @@ notification latency, which in practice is sub-millisecond.
   page `0xFF31` — via `IOHIDManager`; a bounded read of one vendor
   page on one matched device, not general HID interception or
   remapping. See [docs/non-goals.md](non-goals.md) §USP / §2.)
-- Click-and-drag gestures or path-based input. Use
-  [stroke](https://github.com/akira-toriyama/stroke) for that.
+- Click-and-drag **gestures** or path-based input. Use
+  [wand](https://github.com/akira-toriyama/wand) for that. (Exception:
+  `action-drag-scroll` reads relative pointer motion while its trigger
+  is held. It is not a gesture — no path, no shape, no history is
+  examined; each delta is folded into the next scroll tick and
+  discarded. See [docs/non-goals.md](non-goals.md) §7.)
 - Window-management primitives. Use [yabai](https://github.com/koekeishiya/yabai),
   [Rectangle](https://rectangleapp.com), or
   [facet](https://github.com/akira-toriyama/facet); chord shells

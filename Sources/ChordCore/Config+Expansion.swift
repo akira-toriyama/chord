@@ -101,6 +101,18 @@ extension Config {
             ChordConfigSchema.perAppShape().fields
                 .filter { !$0.rejected && $0.key != "bundle-id" }
                 .map(\.key))
+        // An entry that declares an action REPLACES the base's rather than
+        // merging with it — which is the semantic the template already
+        // promises ("a per-app entry WITHOUT an action-* field inherits the
+        // base row's action"). Merging made `action-drag-scroll` in an entry
+        // unexpressible: the synth row still carried the base's
+        // `action-keys`, so drag-scroll's one-press-one-owner sweep dropped
+        // the sibling and blamed a key the user never wrote in that entry.
+        // The down and on-up halves are independent — overriding the press
+        // action does not discard an inherited `-on-up`, and vice versa.
+        let primaryActionKeys = Set(
+            ChordConfigSchema.actionUnionFields().map(\.key) + dragScrollTuningKeys)
+        let onUpActionKeys = Set(ChordConfigSchema.onUpFields().map(\.key))
 
         var out: [(row: [String: TOML.Value], spans: RowSpans)] = []
         for (ei, entry) in perApp.enumerated() {
@@ -132,6 +144,13 @@ extension Config {
             // The synthesized `apps` comes from the entry's bundle-id —
             // point any `apps` complaint there.
             synthFields["apps"] = entrySpans.fields["bundle-id"]
+            for group in [primaryActionKeys, onUpActionKeys]
+            where group.contains(where: { entry[$0] != nil }) {
+                for key in group {
+                    synth[key] = nil
+                    synthFields[key] = nil
+                }
+            }
             for key in layerableKeys {
                 if let v = entry[key] {
                     synth[key] = v

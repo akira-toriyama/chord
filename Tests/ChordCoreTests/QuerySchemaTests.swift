@@ -76,6 +76,26 @@ import Testing
         #expect(o["version"] as? String == "9.9.9")
     }
 
+    /// `drag_scroll` names the binding holding an open drag-scroll mode.
+    /// It has to be absent — not `null`, not `""` — when idle, so a
+    /// consumer can branch on presence alone; and present when a mode is
+    /// live, because a pinned cursor is otherwise undiagnosable from
+    /// outside the daemon.
+    @Test func statusCarriesDragScrollOnlyWhileAModeIsOpen() throws {
+        let idle = QuerySchema.encode(
+            QuerySchema.StatusResponse(
+                queriedAt: "t", paused: false, axGranted: true,
+                version: "1", uptimeS: 0, configLoadedAt: nil))
+        #expect(try object(idle)["drag_scroll"] == nil)
+
+        let live = QuerySchema.encode(
+            QuerySchema.StatusResponse(
+                queriedAt: "t", paused: false, axGranted: true,
+                version: "1", uptimeS: 0, configLoadedAt: nil,
+                dragScroll: "grab"))
+        #expect(try object(live)["drag_scroll"] as? String == "grab")
+    }
+
     @Test func statusOmitsConfigLoadedAtWhenNil() throws {
         let data = QuerySchema.encode(
             QuerySchema.StatusResponse(

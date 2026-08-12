@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # run.sh — build chord release, kill any running instance, launch.
 #
-# Matches stroke / facet's developer-loop convention so the agent
+# Matches wand / facet's developer-loop convention so the agent
 # can iterate without asking the user to relaunch by hand.
 
 set -euo pipefail

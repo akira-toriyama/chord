@@ -3,7 +3,7 @@ name: Deploy glossary site
 # Builds a dedicated SPA from this repo's docs/glossary.md and publishes it
 # to https://akira-toriyama.github.io/chord/. The substance (builder +
 # viewer) is delegated to akira-toriyama/glossary-site's reusable workflow
-# (a thin caller, same shape as stroke / facet).
+# (a thin caller, same shape as wand / facet).
 #
 # - push to main → build + deploy
 # - pull_request → build only (artifact inspectable, no deploy)
