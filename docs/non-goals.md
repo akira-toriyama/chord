@@ -235,7 +235,7 @@ draws on its own — fully separated, outside the daemon's responsibility.
 the pointer move, the question is what else that opens the door to.
 
 Every trigger chord matches is a **discrete event**: one key-down, one
-button-down, one wheel tick. `action-drag-scroll` (chord 0.12.0+) is the
+button-down, one wheel tick. `action-drag-scroll` (chord 3.0.0+) is the
 single exception, and it is deliberately the narrowest one that could
 work:
 

@@ -424,7 +424,7 @@ Rules:
   sees `.down`. (Up events go through the pending-ups path, never
   the matcher.)
 
-### Drag-scroll (chord 0.12.0+ — the one continuous-pointer feature)
+### Drag-scroll (chord 3.0.0+ — the one continuous-pointer feature)
 
 `action-drag-scroll = true` pins the cursor and turns pointer motion
 into scrolling for the length of a press. It is the **only action with

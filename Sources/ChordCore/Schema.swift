@@ -271,7 +271,7 @@ public enum BindingsSchema {
     public struct WireAction: Codable, Sendable, Hashable {
         /// `"keys"` | `"shell"` | `"noop"` | `"set-variable"` (v2) |
         /// `"toggle-variable"` (chord 0.9.0+) | `"drag-scroll"`
-        /// (chord 0.12.0+).
+        /// (chord 3.0.0+).
         public let kind: String
         /// `action-shell` / `action-keys` / `action-set-var`
         /// original user string. `nil` for `noop`.

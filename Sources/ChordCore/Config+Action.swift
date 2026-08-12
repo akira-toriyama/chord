@@ -40,7 +40,7 @@ extension Config {
         let holdVarKey = "action-hold-var\(suffix)"
         let fieldLabel = suffix.isEmpty ? "" : " (on-up)"
 
-        // chord 0.12.0+ `action-drag-scroll` — the held-pointer mode.
+        // chord 3.0.0+ `action-drag-scroll` — the held-pointer mode.
         // Checked before every other action-* — the native sugar below
         // included — because it is the only one that claims the WHOLE press
         // (down opens the mode, the paired up closes it); combining it with
@@ -447,7 +447,7 @@ extension Config {
         "action-drag-scroll-max-ms"
     ]
 
-    /// chord 0.12.0+ `action-drag-scroll = true` (+ its `-speed` /
+    /// chord 3.0.0+ `action-drag-scroll = true` (+ its `-speed` /
     /// `-axis` / `-invert` / `-max-ms` siblings) → [Action.dragScroll].
     ///
     /// Rejects, rather than silently ignoring:

@@ -47,7 +47,7 @@ Actions:
   modes, deliberate narrow surface)
 - **`action-drag-scroll`** — hold the trigger, and mouse movement
   scrolls instead of moving the cursor (which stays pinned). Tunable
-  speed / axis / invert; see [Drag-scroll](#drag-scroll). (chord 0.12.0+)
+  speed / axis / invert; see [Drag-scroll](#drag-scroll). (chord 3.0.0+)
 - **`action-*-on-up` halves** — fire on key release too
 - **`passthrough = true`** — fire AND let the original key through
 - **`repeat = fire-each | ignore | passthrough`** — per-binding
