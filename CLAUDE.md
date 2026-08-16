@@ -1049,7 +1049,8 @@ re-confirmation.
   *(reviewed 2026-05-24)* — primary reference for the bits this
   repo actually touches: `gh` CLI, Actions workflow syntax,
   release drafts, branch protection, fine-grained PAT scoping (the
-  recurring foot-gun behind `HOMEBREW_TAP_TOKEN`).
+  recurring foot-gun behind the retired `HOMEBREW_TAP_TOKEN`, since
+  replaced by the `HOMEBREW_TAP_DEPLOY_KEY` deploy key).
 
 ### Development environment (Claude Code)
 
