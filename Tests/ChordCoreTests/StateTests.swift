@@ -9,8 +9,6 @@ import Testing
 /// `ChordIntegrationTests` against the synthetic event source.
 @Suite struct StateTests {
 
-    // MARK: - Matcher condition gate
-
     @Test func conditionGateBlocksWhenVariableUnset() {
         let bind = Binding(
             name: "wm-k", trigger: .key(0x28),
@@ -64,8 +62,6 @@ import Testing
         #expect(three?.name == "layer-3")
     }
 
-    // MARK: - StateSnapshot
-
     @Test func stateSnapshotUnsetReadsAsZero() {
         let s = StateSnapshot()
         #expect(s.value("missing") == 0)
@@ -77,8 +73,6 @@ import Testing
         #expect(s.value("layer") == 3)
         #expect(s.value("nope") == 0)
     }
-
-    // MARK: - Modifiers.isStillHeld (hold-while subset check)
 
     @Test func holdWhileSatisfiedByLeftSideOnly() {
         let hold: Modifiers = [.cmd, .opt]  // any-side
@@ -107,8 +101,6 @@ import Testing
         // Right-side cmd does not satisfy strict-left holdWhile.
         #expect(!hold.isStillHeld(in: [.rcmd]))
     }
-
-    // MARK: - Config: v2 TOML fields
 
     @Test func parseActionSetVar() throws {
         let res = try Config.parse(
@@ -196,8 +188,6 @@ import Testing
         #expect(res.warnings.contains { $0.kind == .holdWhileParseError })
     }
 
-    // MARK: - hold-while-timeout (chord 0.4.0)
-
     @Test func parseHoldWhileTimeout() throws {
         let res = try Config.parse(
             """
@@ -270,8 +260,6 @@ import Testing
             b["hold_while"] == nil,
             "timeout-only binding omits hold_while in JSON")
     }
-
-    // MARK: - Schema v2 emission
 
     @Test func schemaEmitsSetVariableAction() throws {
         let json = try parseToBindingsJSON(

@@ -7,8 +7,6 @@ import Testing
 /// same input as a re-send.
 @Suite struct PassthroughTests {
 
-    // MARK: - Parse + Binding shape
-
     @Test func passthroughDefaultsFalse() throws {
         let res = try Config.parse(
             """
@@ -60,8 +58,6 @@ import Testing
             Issue.record("expected .setVariable")
         }
     }
-
-    // MARK: - Validation: forbidden combinations
 
     @Test func passthroughWithActionKeysRejected() throws {
         // action-keys + passthrough would emit the keystroke twice.
@@ -134,8 +130,6 @@ import Testing
                 $0.kind == .missingAction && $0.message.contains("on-up")
             })
     }
-
-    // MARK: - Schema round-trip
 
     @Test func schemaEmitsPassthrough() throws {
         let b = try firstBinding(

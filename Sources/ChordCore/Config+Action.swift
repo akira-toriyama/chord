@@ -40,6 +40,23 @@ extension Config {
         let holdVarKey = "action-hold-var\(suffix)"
         let fieldLabel = suffix.isEmpty ? "" : " (on-up)"
 
+        // chord 3.0.0+ `action-drag-scroll` — the held-pointer mode.
+        // Checked before every other action-* — the native sugar below
+        // included — because it is the only one that claims the WHOLE press
+        // (down opens the mode, the paired up closes it); combining it with
+        // a second action would mean two owners for one span. Its
+        // mutual-exclusion sweep is what reports that, so it only gets to
+        // report it by running first: a branch that returns ahead of it
+        // discards the row's `action-drag-scroll` silently.
+        switch parseDragScrollAction(
+            row: row, section: section, name: name, spans: spans,
+            suffix: suffix, fieldLabel: fieldLabel, warnings: &warnings)
+        {
+        case .absent: break  // fall through to other action-*
+        case .ok(let pa): return pa
+        case .invalid: return nil  // warning already emitted
+        }
+
         // chord 0.9.0+ native action sugar: each `action-<native>` is
         // desugared to a fixed `.keys` primary action targeting the
         // macOS default shortcut. No shell-out, no new Action case;
@@ -347,7 +364,7 @@ extension Config {
     /// chord 0.9.0+ native action desugar. Each `action-<native>`
     /// maps to the macOS-default keyboard shortcut for that system
     /// action; the rest of the pipeline sees a plain `.keys` action.
-    private enum NativeActionOutcome {
+    private enum ActionParseOutcome {
         case absent
         case ok(ParsedAction)
         case invalid  // warning already appended
@@ -356,7 +373,7 @@ extension Config {
         row: [String: TOML.Value],
         section: String, name: String, spans: RowSpans,
         warnings: inout [ConfigWarning]
-    ) -> NativeActionOutcome {
+    ) -> ActionParseOutcome {
         func warn(_ msg: String, field: String) {
             let span = spans.value(field)
             warnings.append(
@@ -418,6 +435,137 @@ extension Config {
                     raw: "action-spotlight:true"))
         }
         return .absent
+    }
+
+    /// The sibling keys that tune `action-drag-scroll`. Listed once so
+    /// the parser, the orphan check, and the mutual-exclusion message
+    /// cannot drift apart.
+    static let dragScrollTuningKeys = [
+        "action-drag-scroll-speed",
+        "action-drag-scroll-axis",
+        "action-drag-scroll-invert",
+        "action-drag-scroll-max-ms"
+    ]
+
+    /// chord 3.0.0+ `action-drag-scroll = true` (+ its `-speed` /
+    /// `-axis` / `-invert` / `-max-ms` siblings) → [Action.dragScroll].
+    ///
+    /// Rejects, rather than silently ignoring:
+    ///   * the `-on-up` spelling (the mode's release half is implicit —
+    ///     an explicit one would be a second owner of the same edge)
+    ///   * a value other than `true` (with tuning siblings present, a
+    ///     `false` here is a mistake, not a way to disable the binding)
+    ///   * any other `action-*` on the same row — the `-on-up` halves
+    ///     included, since the release they fire on is the same edge
+    ///     that closes the mode
+    ///   * out-of-domain tuning values
+    private static func parseDragScrollAction(
+        row: [String: TOML.Value],
+        section: String, name: String, spans: RowSpans,
+        suffix: String, fieldLabel: String,
+        warnings: inout [ConfigWarning]
+    ) -> ActionParseOutcome {
+        let dragKey = "action-drag-scroll\(suffix)"
+        guard let flag = row[dragKey] else { return .absent }
+
+        func reject(_ msg: String, field: String) -> ActionParseOutcome {
+            let span = spans.value(field) ?? spans.key(field)
+            warnings.append(
+                ConfigWarning(
+                    kind: .dragScrollParseError,
+                    message: "\(section) '\(name)'\(sourceTag(span))\(fieldLabel): \(msg)",
+                    source: span, bindingName: name))
+            return .invalid
+        }
+
+        if !suffix.isEmpty {
+            return reject(
+                "\(dragKey) is not allowed on -on-up paths — the mode "
+                    + "already ends on the paired release",
+                field: dragKey)
+        }
+        guard flag.asBool == true else {
+            return reject(
+                "\(dragKey) must be true (omit the key to disable the mode)",
+                field: dragKey)
+        }
+        // One press, one owner — and the press is a SPAN, so the on-up
+        // half counts too: `action-keys-on-up` would fire off the same
+        // release edge that closes the mode. Both lists come from the
+        // schema descriptor so a newly-added action-* is covered without
+        // touching this line.
+        let clashes =
+            (ChordConfigSchema.actionUnionFields()
+            + ChordConfigSchema.onUpFields())
+            .map(\.key)
+            .filter { $0 != dragKey && row[$0] != nil }
+        if let clash = clashes.sorted().first {
+            return reject(
+                "\(dragKey) is mutually exclusive with \(clash) — it owns "
+                    + "the whole down/up span",
+                field: dragKey)
+        }
+
+        var spec = DragScrollSpec()
+
+        if let raw = row["action-drag-scroll-speed"] {
+            guard let v = raw.asDouble, v.isFinite, v > 0 else {
+                return reject(
+                    "action-drag-scroll-speed must be a number > 0",
+                    field: "action-drag-scroll-speed")
+            }
+            spec.speed = v
+        }
+        if let raw = row["action-drag-scroll-axis"] {
+            guard let s = raw.asString, let axis = DragScrollAxis(rawValue: s) else {
+                let domain = DragScrollAxis.allCases.map(\.rawValue).joined(separator: " / ")
+                return reject(
+                    "action-drag-scroll-axis must be one of \(domain)",
+                    field: "action-drag-scroll-axis")
+            }
+            spec.axis = axis
+        }
+        if let raw = row["action-drag-scroll-invert"] {
+            guard let b = raw.asBool else {
+                return reject(
+                    "action-drag-scroll-invert must be a boolean",
+                    field: "action-drag-scroll-invert")
+            }
+            spec.invert = b
+        }
+        if let raw = row["action-drag-scroll-max-ms"] {
+            guard let v = raw.asInt, v > 0 else {
+                return reject(
+                    "action-drag-scroll-max-ms must be an integer > 0 (ms)",
+                    field: "action-drag-scroll-max-ms")
+            }
+            spec.maxMs = v
+        }
+
+        return .ok(ParsedAction(action: .dragScroll(spec), raw: dragKey))
+    }
+
+    /// `action-drag-scroll-*` tuning present without the
+    /// `action-drag-scroll` key that gives it meaning. Same shape as the
+    /// `action-set-value`-without-`action-set-var` orphan check: a typo
+    /// that silently does nothing is worse than a dropped binding.
+    static func rejectOrphanDragScrollTuning(
+        row: [String: TOML.Value],
+        section: String, name: String, spans: RowSpans,
+        warnings: inout [ConfigWarning]
+    ) -> Bool {
+        guard row["action-drag-scroll"] == nil else { return false }
+        guard let orphan = dragScrollTuningKeys.filter({ row[$0] != nil }).sorted().first
+        else { return false }
+        let span = spans.key(orphan)
+        warnings.append(
+            ConfigWarning(
+                kind: .dragScrollParseError,
+                message:
+                    "\(section) '\(name)'\(sourceTag(span)): "
+                    + "\(orphan) present without action-drag-scroll",
+                source: span, bindingName: name))
+        return true
     }
 
     /// Parse `action-keys` value (string or array) into one or more

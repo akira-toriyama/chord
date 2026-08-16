@@ -224,6 +224,14 @@ public enum Action: Hashable, Sendable {
     /// toggle"). Single, value-less variant — `action-set-value` is
     /// rejected for this action.
     case toggleVariable(name: String)
+    /// chord 3.0.0+: while the trigger is held, pin the cursor and turn
+    /// pointer motion into scroll events. The only action with a
+    /// *duration* — it opens a mode on key-down and closes it on the
+    /// paired key-up. Intercepted by the Controller (which owns the
+    /// [MotionSource]) rather than handed to the dispatcher, for the same
+    /// reason the state-mutating actions above are: the thing being
+    /// mutated is App-layer state, not an OS effect.
+    case dragScroll(DragScrollSpec)
 
     /// Stable wire/log discriminator for this action — the single
     /// source for the `action.kind` string emitted by the schema
@@ -237,6 +245,7 @@ public enum Action: Hashable, Sendable {
         case .noop: return "noop"
         case .setVariable: return "set-variable"
         case .toggleVariable: return "toggle-variable"
+        case .dragScroll: return "drag-scroll"
         }
     }
 }

@@ -150,7 +150,8 @@ extension Controller {
                     version: ChordVersion.current,
                     uptimeS: uptime,
                     configLoadedAt: meta.configLoadedAt.map(QuerySchema.iso),
-                    inputMonitoringGranted: Permissions.isInputMonitoringTrusted()))
+                    inputMonitoringGranted: Permissions.isInputMonitoringTrusted(),
+                    dragScroll: dragScrollStatus()))
         case .vars:
             return QuerySchema.encode(
                 QuerySchema.VarsResponse(
@@ -189,8 +190,6 @@ extension Controller {
         return sharedMeta
     }
 }
-
-// MARK: - POSIX socket helpers (file-private)
 
 /// Create + bind + listen on an AF_UNIX stream socket, non-blocking.
 /// Returns the listening fd, or nil on any failure (caller logs +

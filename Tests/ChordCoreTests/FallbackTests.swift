@@ -6,8 +6,6 @@ import Testing
 /// effect-sound use case.
 @Suite struct FallbackTests {
 
-    // MARK: - parser context
-
     @Test func wildcardInBindingsIsRejected() throws {
         // `*` outside [[fallbacks]] must throw — the [[bindings]]
         // section can never accidentally swallow every key.
@@ -22,8 +20,6 @@ import Testing
         #expect(p.modifiers == [.rctrl, .ropt, .rshift])
         #expect(p.trigger == .anyKey)
     }
-
-    // MARK: - 2-stage match
 
     @Test func fallbackFiresWhenNoBindingMatches() throws {
         let config = try Config.parse(

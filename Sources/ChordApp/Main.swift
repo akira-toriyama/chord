@@ -6,7 +6,7 @@ import Foundation
 
 /// `@main enum ChordApp` (not a top-level `main.swift`) — keeps
 /// `@testable import ChordApp` working for the Swift Testing target
-/// (CLIDispatchTests' CLI coverage). Same trap stroke / facet /
+/// (CLIDispatchTests' CLI coverage). Same trap wand / facet /
 /// ws-tabs documented.
 @main
 enum ChordApp {
@@ -29,8 +29,6 @@ enum ChordApp {
         }
         runServer()
     }
-
-    // MARK: - subcommand dispatch (#7 + #2)
 
     /// Result of a subcommand invocation. `stdout` / `stderr` are
     /// written verbatim by `applyOutcome` — handlers are responsible
@@ -352,7 +350,6 @@ enum ChordApp {
         return SubcommandOutcome(exitCode: 0, stdout: reply)
     }
 
-    // MARK: - server
     //
     // Daemon boot. Unlike the CLI subcommands above this is the
     // long-running path; exit() inside runServer is reserved for
@@ -393,8 +390,6 @@ enum ChordApp {
         app.run()
     }
 
-    // MARK: - standalone subcommands
-
     /// `config --validate` parses `~/.config/chord/config.toml` and prints
     /// a per-config summary.
     ///
@@ -404,7 +399,7 @@ enum ChordApp {
     ///   2 — catastrophic (TOML syntax error, IO failure)
     ///
     /// Without `--strict` chord stays "lenient by default" (drops a
-    /// bad binding, keeps the rest) — same posture as stroke / facet.
+    /// bad binding, keeps the rest) — same posture as wand / facet.
     /// Add `--strict` in CI to make a typo fail the pipeline.
     private static func runValidate(strict: Bool, json: Bool) -> Int32 {
         do {
@@ -544,6 +539,10 @@ enum ChordApp {
                 actionDesc = "set-variable → \(n)=\(v)"
             case .toggleVariable(let n):
                 actionDesc = "toggle-variable → \(n)"
+            case .dragScroll(let spec):
+                actionDesc =
+                    "drag-scroll → speed=\(spec.speed) axis=\(spec.axis.rawValue)"
+                    + (spec.invert ? " inverted" : "")
             }
             print("  \(b.name)\(lineTag)")
             print("    input:  \(b.inputRaw)")

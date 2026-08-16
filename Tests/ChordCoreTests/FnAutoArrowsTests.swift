@@ -8,8 +8,6 @@ import Testing
 /// skips that check for the arrow / nav cluster only.
 @Suite struct FnAutoArrowsTests {
 
-    // MARK: - Modifiers.matches `ignoreFn` flag
-
     @Test func matchesIgnoreFnSkipsTheFnComparison() {
         let binding: Modifiers = [.ctrl]
         let eventWithFn: Modifiers = [.lctrl, .fn]
@@ -29,8 +27,6 @@ import Testing
             !binding.matches(event: event, ignoreFn: true),
             "ignoreFn doesn't relax cmd/opt/ctrl/shift")
     }
-
-    // MARK: - Options default + parsing
 
     @Test func fnAutoArrowsDefaultsTrue() {
         #expect(ChordConfig.Options().fnAutoArrows)
@@ -55,8 +51,6 @@ import Testing
         #expect(!explicitOff.config.options.fnAutoArrows)
     }
 
-    // MARK: - KeyCodes.isFnAutoNav
-
     @Test func isFnAutoNavRecognizesArrowAndNavKeys() {
         // The 9 keys macOS always decorates with fn.
         for kc: UInt16 in [
@@ -80,8 +74,6 @@ import Testing
         #expect(!KeyCodes.isFnAutoNav(.scroll(.up)))
         #expect(!KeyCodes.isFnAutoNav(.anyKey))
     }
-
-    // MARK: - Matcher end-to-end (default option)
 
     @Test func ctrlRightMatchesEventWithFn() throws {
         // The canonical pain point: user writes `ctrl - right`, macOS
@@ -155,8 +147,6 @@ import Testing
             withFn == nil,
             "fn-auto-arrows must NOT relax non-arrow keys")
     }
-
-    // MARK: - Opt-out (fn-auto-arrows = false)
 
     @Test func fnAutoArrowsOffRestoresStrictMatching() throws {
         let res = try Config.parse(
@@ -237,8 +227,6 @@ import Testing
                 bundleID: nil))
         #expect(letterHitWithFn == nil)
     }
-
-    // MARK: - Schema round-trip
 
     @Test func schemaEmitsFnAutoArrowsInOptions() throws {
         let json = try parseToBindingsJSON(

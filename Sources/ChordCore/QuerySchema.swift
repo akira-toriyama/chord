@@ -2,7 +2,7 @@ import Foundation
 
 /// Wire format for `chord query --…`, versioned `chord.query.v1`.
 ///
-/// DISTINCT from `chord.bindings.v3` ([BindingsSchema]): that schema is
+/// DISTINCT from `chord.bindings.v4` ([BindingsSchema]): that schema is
 /// the *config parse-OUTPUT* (static, derived from config.toml). This
 /// one is the daemon's *live runtime* state — current state-variable
 /// values, the loaded-binding counts, the recent-fires history — read
@@ -29,7 +29,7 @@ import Foundation
 public enum QuerySchema {
 
     /// Wire-protocol version. Independent of [BindingsSchema.version]
-    /// (`chord.bindings.v3`) — a different contract for a different
+    /// (`chord.bindings.v4`) — a different contract for a different
     /// payload (live state vs. parsed config).
     public static let version = "chord.query.v1"
 
@@ -41,15 +41,13 @@ public enum QuerySchema {
     public static let socketPath = "/tmp/chord-query.sock"
 
     /// ISO-8601 UTC with fractional seconds — same shape as
-    /// `chord.bindings.v3`'s `generated_at`. Informational, not a
+    /// `chord.bindings.v4`'s `generated_at`. Informational, not a
     /// stable sort key.
     public static func iso(_ date: Date) -> String {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f.string(from: date)
     }
-
-    // MARK: - request
 
     /// The read endpoints. `rawValue` is the on-wire token AND the CLI
     /// verb stem (`--` + rawValue), so the two never drift.
@@ -101,13 +99,12 @@ public enum QuerySchema {
         }
     }
 
-    // MARK: - response payloads
     //
     // Each endpoint is its own top-level document so consumers read the
     // payload at the top level (`jq .vars.jlayer`, `jq .paused`,
     // `jq '.fires[0]'`) rather than under a generic `data` wrapper. All
     // carry the `schema` / `queried_at` / `endpoint` header. snake_case
-    // on the wire (CodingKeys), matching `chord.bindings.v3`.
+    // on the wire (CodingKeys), matching `chord.bindings.v4`.
 
     /// One fired-binding record (newest first in [RecentFiresResponse]).
     public struct FireRecord: Codable, Sendable, Equatable {
@@ -137,11 +134,17 @@ public enum QuerySchema {
         public let version: String
         public let uptimeS: Int
         public let configLoadedAt: String?
+        /// Name of the binding holding an open `action-drag-scroll` mode,
+        /// absent when none is. The mode pins the cursor, so "which
+        /// binding is eating my pointer" has to be answerable from
+        /// outside the daemon — this is that answer.
+        public let dragScroll: String?
 
         public init(
             queriedAt: String, paused: Bool, axGranted: Bool,
             version: String, uptimeS: Int, configLoadedAt: String?,
-            inputMonitoringGranted: Bool = false
+            inputMonitoringGranted: Bool = false,
+            dragScroll: String? = nil
         ) {
             self.schema = QuerySchema.version
             self.queriedAt = queriedAt
@@ -152,6 +155,7 @@ public enum QuerySchema {
             self.version = version
             self.uptimeS = uptimeS
             self.configLoadedAt = configLoadedAt
+            self.dragScroll = dragScroll
         }
 
         enum CodingKeys: String, CodingKey {
@@ -161,6 +165,7 @@ public enum QuerySchema {
             case inputMonitoringGranted = "input_monitoring_granted"
             case uptimeS = "uptime_s"
             case configLoadedAt = "config_loaded_at"
+            case dragScroll = "drag_scroll"
         }
     }
 
@@ -242,8 +247,6 @@ public enum QuerySchema {
             self.error = error
         }
     }
-
-    // MARK: - encode
 
     /// Deterministic JSON for any response document. Same encoder
     /// settings as [BindingsSchema.encodeJSON] (sorted keys, pretty,

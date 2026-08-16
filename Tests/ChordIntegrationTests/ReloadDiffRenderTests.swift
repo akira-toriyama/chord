@@ -19,8 +19,6 @@ import Testing
         return ChordApp.renderReloadDiff(d, snapshotPresent: true)
     }
 
-    // MARK: - cli#1: [input-aliases] bucket
-
     @Test func inputAliasesOnlyEditRendersNonEmpty() throws {
         // The headline bug: an [input-aliases]-only edit flipped isClean
         // to false but printed nothing → "all-zero empty diff" lie.

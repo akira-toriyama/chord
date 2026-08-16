@@ -9,8 +9,6 @@ import Testing
 /// these tests pin the **parse + Matcher.Event shape contract**.
 @Suite struct ModifiersOnlyTriggerTests {
 
-    // MARK: - Parse
-
     @Test func bareModifierAliasParsesAsModifiersOnly() throws {
         let res = try Config.parse(
             """
@@ -81,8 +79,6 @@ import Testing
                 bundleID: nil))
         #expect(hit == nil)
     }
-
-    // MARK: - Schema round-trip
 
     @Test func schemaEmitsModifiersOnlyKind() throws {
         let b = try firstBinding(

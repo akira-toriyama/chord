@@ -62,8 +62,6 @@ import Testing
         return (VariableStore(scheduler: sched), sched)
     }
 
-    // MARK: - set / snapshot
-
     @Test func setThenSnapshotReflectsValue() {
         let (store, _) = makeStore()
         store.set(name: "wm", value: 3, holdWhile: nil, timeoutMs: nil)
@@ -100,8 +98,6 @@ import Testing
         #expect(store.snapshot().value("t") == 0)
     }
 
-    // MARK: - hold-while clearStale
-
     @Test func clearStaleRemovesReleasedHoldWhileOnly() {
         let (store, _) = makeStore()
         store.set(name: "held", value: 1, holdWhile: [.cmd], timeoutMs: nil)
@@ -121,8 +117,6 @@ import Testing
         #expect(cleared.isEmpty)
         #expect(store.snapshot().value("held") == 1)
     }
-
-    // MARK: - inactivity timeout
 
     @Test func timeoutFiresAndClearsEntry() {
         let (store, sched) = makeStore()
@@ -160,8 +154,6 @@ import Testing
         #expect(sched.cancelCount == 1)
         #expect(sched.pendingCount == 0)
     }
-
-    // MARK: - reset
 
     @Test func resetWipesStateAndCancelsTimers() {
         let (store, sched) = makeStore()

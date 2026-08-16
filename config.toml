@@ -84,6 +84,9 @@ fn-auto-arrows = true
 #   action-noop     = true                    — eats the event
 #   action-set-var  = "wm"                    — v2: sets wm = 1
 #                                                (use action-set-value=N for ≠1)
+#   action-drag-scroll = true                 — hold the trigger, mouse
+#                                                movement scrolls and the
+#                                                cursor stays pinned
 #
 # Run shell AND post keys on the SAME press (Karabiner `to`-array
 # shape): declare both action-shell and action-keys on one binding.
@@ -162,6 +165,45 @@ fn-auto-arrows = true
 # name = "screenshot whole screen"
 # input = "shift - mouse.side1"
 # action-keys = "cmd + shift - 3"
+
+
+# =====================================================================
+# Pattern 2a — drag-scroll (chord 3.0.0+)
+# =====================================================================
+# Hold the trigger and move the mouse to SCROLL; the cursor stays put.
+# The mode lasts exactly as long as the press — the key-down opens it,
+# the paired release closes it — so any trigger with a real release
+# works (a key, a mouse button, a v-key). `apps` / `when-var` gate it
+# like any other binding.
+#
+# [[bindings]]
+# name = "drag-scroll"
+# input = "mouse.side2"
+# action-drag-scroll = true
+#
+# All four tuning keys are optional:
+#
+# [[bindings]]
+# name = "drag-scroll (vertical, gentle)"
+# input = "mouse.side2"
+# action-drag-scroll = true
+# action-drag-scroll-speed  = 0.4         # scroll px per pointer px (default 1.0)
+#                                         #   <1 still works on slow drags: the
+#                                         #   sub-pixel remainder is carried over
+# action-drag-scroll-axis   = "vertical"  # both (default) | vertical | horizontal
+# action-drag-scroll-invert = true        # negate both axes (default false) —
+#                                         #   flip this if it reads backwards
+# action-drag-scroll-max-ms = 10000       # watchdog ceiling (default 30000)
+#
+# max-ms is a safety net, not a feature: if the release event never
+# arrives (unplugged dongle, dropped v-key release report) the mode
+# would otherwise pin the cursor indefinitely. `chord daemon --reload`
+# and `--pause` also close it; `chord query --status` reports
+# `drag_scroll` while one is open.
+#
+# The pointer-motion tap is installed ONLY if a binding here declares
+# action-drag-scroll, and only captures while the trigger is held — a
+# keyboard-only config never pays for it.
 
 
 # =====================================================================
@@ -359,6 +401,11 @@ fn-auto-arrows = true
 #   • `bundle-id` is required and non-empty on each entry.
 #   • A per-app entry without an action-* field inherits the base
 #     row's action — useful when only one OS needs an override.
+#     An entry that DOES declare one REPLACES the base's action
+#     wholesale rather than merging with it, so an override can pick
+#     a different action kind (e.g. action-drag-scroll over a base
+#     action-keys). The down and on-up halves are independent:
+#     overriding the press action keeps an inherited action-*-on-up.
 #   • The base row's `when-var` / `hold-while` / etc. layer the
 #     same way (entry overrides base; otherwise inherit).
 

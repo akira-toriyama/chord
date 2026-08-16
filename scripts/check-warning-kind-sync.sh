@@ -13,10 +13,10 @@
 #
 # The 3 places:
 #   1. Swift enum  — Sources/ChordCore/ConfigWarning.swift   (enum Kind: String)
-#   2. wire schema — docs/schema/chord.bindings.v3.json       ($defs.dropped.properties.kind.enum)
+#   2. wire schema — docs/schema/chord.bindings.v4.json       ($defs.dropped.properties.kind.enum)
 #   3. glossary    — docs/glossary.md                         (### ConfigWarning.Kind table)
 #
-# NOTE: this is the OUTPUT wire schema (chord.bindings.v3.json), NOT the INPUT
+# NOTE: this is the OUTPUT wire schema (chord.bindings.v4.json), NOT the INPUT
 # config.schema.json (that drift is guarded by ConfigSchemaDriftTests).
 
 set -euo pipefail
@@ -37,11 +37,11 @@ if not block:
 swift = set(re.findall(r'case\s+\w+\s*=\s*"([^"]+)"', block.group(1)))
 
 # 2. wire-schema dropped.kind enum.
-schema = json.loads((root / 'docs/schema/chord.bindings.v3.json').read_text())
+schema = json.loads((root / 'docs/schema/chord.bindings.v4.json').read_text())
 try:
     wire = set(schema['$defs']['dropped']['properties']['kind']['enum'])
 except (KeyError, TypeError):
-    print('error: $defs.dropped.properties.kind.enum missing from chord.bindings.v3.json', file=sys.stderr)
+    print('error: $defs.dropped.properties.kind.enum missing from chord.bindings.v4.json', file=sys.stderr)
     sys.exit(1)
 
 # 3. glossary `### ConfigWarning.Kind` table — backtick-quoted values up to the
@@ -63,7 +63,7 @@ if drift:
         print(f'  {name} is MISSING: {missing}', file=sys.stderr)
     print('', file=sys.stderr)
     print('fix: a ConfigWarning.Kind raw value must appear in all 3 — the Swift', file=sys.stderr)
-    print('enum, docs/schema/chord.bindings.v3.json (dropped.kind enum), and', file=sys.stderr)
+    print('enum, docs/schema/chord.bindings.v4.json (dropped.kind enum), and', file=sys.stderr)
     print('docs/glossary.md (### ConfigWarning.Kind). Per canon a *rename* of an', file=sys.stderr)
     print('existing value is a schema MAJOR bump; adding a new value is additive.', file=sys.stderr)
     sys.exit(1)

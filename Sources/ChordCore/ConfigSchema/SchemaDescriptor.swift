@@ -85,7 +85,51 @@ public enum ChordConfigSchema {
                 ]),
             SchemaField(
                 "action-spotlight", .constTrue,
-                doc: "Open Spotlight (cmd-space default). Only `true` is meaningful.")
+                doc: "Open Spotlight (cmd-space default). Only `true` is meaningful."),
+            SchemaField(
+                "action-drag-scroll", .constTrue,
+                doc:
+                    "While the trigger is held, pin the cursor and turn pointer motion into scrolling. Only `true` is meaningful; the mode ends on the paired release."
+            )
+        ]
+    }
+
+    /// The `action-drag-scroll-*` tuning siblings. Kept out of
+    /// [actionUnionFields] because they are not themselves an action —
+    /// each one needs `action-drag-scroll` to mean anything, the same way
+    /// `action-set-value` needs `action-set-var`.
+    static func dragScrollFields() -> [SchemaField] {
+        [
+            SchemaField(
+                "action-drag-scroll-speed", .number,
+                doc:
+                    "Scroll pixels per pointer pixel (>0). Below 1 the sub-pixel remainder is carried, so slow drags still scroll.",
+                defaultNumber: DragScrollSpec.defaultSpeed,
+                exclusiveMinimum: 0),
+            // enumDocs are index-aligned to DragScrollAxis.allCases
+            // (both / vertical / horizontal) — ConfigSchemaShapeTests pins
+            // both the enum order and the enumDocs length.
+            SchemaField(
+                "action-drag-scroll-axis", .string,
+                doc: "Which pointer axes are converted to scrolling.",
+                enumDomain: DragScrollAxis.allCases.map(\.rawValue),
+                enumDocs: [
+                    "Both axes (default).",
+                    "Vertical only — horizontal motion is discarded.",
+                    "Horizontal only — vertical motion is discarded."
+                ],
+                defaultString: DragScrollAxis.both.rawValue),
+            SchemaField(
+                "action-drag-scroll-invert", .boolean,
+                doc:
+                    "Flip the mapping. Default (false) posts a scroll whose sign matches the pointer delta; true negates both axes.",
+                defaultBool: false),
+            SchemaField(
+                "action-drag-scroll-max-ms", .integer,
+                doc:
+                    "Watchdog ceiling (ms, >0): stop the mode after this long no matter what, so a lost release edge cannot pin the cursor indefinitely.",
+                defaultInt: DragScrollSpec.defaultMaxMs,
+                exclusiveMinimum: 0)
         ]
     }
 
@@ -113,7 +157,11 @@ public enum ChordConfigSchema {
                 doc: "Invalid — toggle-var has no on-up half.", rejected: true),
             SchemaField(
                 "action-hold-var-on-up", .string,
-                doc: "Invalid — hold-var already owns the on-up half.", rejected: true)
+                doc: "Invalid — hold-var already owns the on-up half.", rejected: true),
+            SchemaField(
+                "action-drag-scroll-on-up", .constTrue,
+                doc: "Invalid — drag-scroll already ends on the paired release.",
+                rejected: true)
         ]
     }
 
@@ -189,6 +237,10 @@ public enum ChordConfigSchema {
             .dependency(key: "action-set-value", needs: "action-set-var"),
             .dependency(key: "action-set-value-on-up", needs: "action-set-var-on-up"),
             .dependency(key: "when-var-value", needs: "when-var"),
+            .dependency(key: "action-drag-scroll-speed", needs: "action-drag-scroll"),
+            .dependency(key: "action-drag-scroll-axis", needs: "action-drag-scroll"),
+            .dependency(key: "action-drag-scroll-invert", needs: "action-drag-scroll"),
+            .dependency(key: "action-drag-scroll-max-ms", needs: "action-drag-scroll"),
             .forbidsTogether(["hold-while", "hold-while-timeout"]),
             .forbidsTogether(["when-var", "when-vars"]),
             .forbidsTogether(["apps", "per-app"]),
@@ -247,6 +299,10 @@ public enum ChordConfigSchema {
             "`action-set-var` must not use a reserved `_seq_*` name (those are reserved for [[sequence]] state)."
         ),
         RuntimeConstraint(
+            [.dragScrollParseError],
+            "`action-drag-scroll` owns the whole down/up span: it must be the row's only action-*, must not be combined with passthrough, and needs a trigger that HAS a paired release (not scroll.*, not a bare modifier chord)."
+        ),
+        RuntimeConstraint(
             [.sequenceParseError],
             "A [[bindings]] trigger must not collide with a [[sequence]] prefix; a sequence `name` must not be `_seq_*`."
         )
@@ -256,8 +312,6 @@ public enum ChordConfigSchema {
     /// sequence children). Derived from [runtimeConstraints] so the catalog is
     /// the single source.
     static func bindingConstraints() -> [String] { runtimeConstraints.map(\.text) }
-
-    // MARK: Per-context shapes
 
     /// `[[bindings]]` — input required, no wildcard, per-app nesting allowed.
     static func bindingShape() -> ObjectShape {
@@ -269,7 +323,8 @@ public enum ChordConfigSchema {
                     doc:
                         "Trigger: `[MODIFIERS -] KEY`. Supports $input-aliases, side-aware L/R, scroll.up/down. e.g. `cmd + opt - f13`, `ctrl - scroll.up`, `$ULTRA - c`."
                 )
-            ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields()
+            ] + actionUnionFields() + dragScrollFields() + onUpFields() + gateFields()
+                + lifecycleFields()
                 + scopeFields(),
             required: ["input"],
             exclusions: commonExclusions(),
@@ -286,7 +341,8 @@ public enum ChordConfigSchema {
             fields: [
                 SchemaField("bundle-id", .string, doc: "App this override applies to (bundle id)."),
                 SchemaField("input", .string, doc: "Optional per-app input override.")
-            ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields()
+            ] + actionUnionFields() + dragScrollFields() + onUpFields() + gateFields()
+                + lifecycleFields()
                 + scopeFields().filter { $0.key != "apps" },
             required: ["bundle-id"],
             // A per-app entry LAYERS onto the base binding, so its action is
@@ -315,7 +371,8 @@ public enum ChordConfigSchema {
                 SchemaField(
                     "inputs", .stringArray,
                     doc: "Multiple triggers sharing one action. Mutually exclusive with input.")
-            ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields()
+            ] + actionUnionFields() + dragScrollFields() + onUpFields() + gateFields()
+                + lifecycleFields()
                 + scopeFields(),
             exclusions: [.oneOfRequired(["input", "inputs"])] + commonExclusions(),
             doc: "A lower-priority binding tried only when no [[bindings]] row matched.",
@@ -350,7 +407,8 @@ public enum ChordConfigSchema {
             fields: [
                 nameField(),
                 SchemaField("input", .string, doc: "Child trigger fired after the prefix.")
-            ] + actionUnionFields() + onUpFields() + gateFields() + lifecycleFields()
+            ] + actionUnionFields() + dragScrollFields() + onUpFields() + gateFields()
+                + lifecycleFields()
                 + scopeFields(),
             required: ["input"],
             exclusions: commonExclusions(),

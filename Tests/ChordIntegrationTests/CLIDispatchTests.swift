@@ -26,8 +26,6 @@ private func querySocketExists() -> Bool {
 /// schema-snapshot golden-file infrastructure.
 @Suite @MainActor struct CLIDispatchTests {
 
-    // MARK: - top-level carve-outs (--help / --version, with -h / -V)
-
     @Test func versionReportsCurrentString() {
         let out = ChordApp.dispatch(["--version"])
         #expect(out?.exitCode == 0)
@@ -55,8 +53,6 @@ private func querySocketExists() -> Bool {
         #expect(long?.stdout == short?.stdout)
     }
 
-    // MARK: - daemon domain: client verbs (post + wait + report)
-
     /// `daemon --quit` / `--pause` / `--resume` / `--toggle` all post a
     /// `Control` notification and wait for the daemon to ack via
     /// status-file mtime. With no daemon running the wait times out and
@@ -73,7 +69,7 @@ private func querySocketExists() -> Bool {
         #expect(out?.stderr == "chord: no daemon running\n")
     }
 
-    /// `daemon --show` (the read口, was `--status`) reports exit 3 when
+    /// `daemon --show` (the read mouth, was `--status`) reports exit 3 when
     /// there is no status file.
     ///
     /// Start-clean precondition: a sibling suite that constructs a real
@@ -101,8 +97,6 @@ private func querySocketExists() -> Bool {
         let out = ChordApp.dispatch(["daemon", "--reload", "--dry-run"])
         #expect(out?.exitCode != 3, "dry-run should not require daemon")
     }
-
-    // MARK: - server mode (bare chord)
 
     /// Bare `chord` (no argv) is the server-mode signal: `dispatch`
     /// returns nil so main() falls through to `runServer()`.
@@ -132,8 +126,6 @@ private func querySocketExists() -> Bool {
         #expect(out?.exitCode == 2)
         #expect(out?.stderr?.contains("unknown command 'frobnicate'") == true)
     }
-
-    // MARK: - domain dispatch: verb selection + modifier policy
 
     @Test func domainWithNoVerbRejected() {
         let out = ChordApp.dispatch(["config"])
@@ -193,8 +185,6 @@ private func querySocketExists() -> Bool {
         #expect(out?.exitCode == 2)
         #expect(out?.stderr?.contains("unknown flag '--reload'") == true)
     }
-
-    // MARK: - query domain (read-only daemon state over the socket)
 
     @Test func queryWithNoVerbRejected() {
         let out = ChordApp.dispatch(["query"])
@@ -260,8 +250,6 @@ private func querySocketExists() -> Bool {
         let out = ChordApp.dispatch(["query", "--recent-fires", "--limit", "10"])
         #expect(out?.exitCode != 2, "a valid --limit must not be a usage error")
     }
-
-    // MARK: - SubcommandOutcome conveniences
 
     @Test func outcomeOkAddsTrailingNewline() {
         let out = ChordApp.SubcommandOutcome.ok("hello")

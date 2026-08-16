@@ -8,8 +8,6 @@ import Testing
 /// **expansion contract**: shape, ordering, validation, error paths.
 @Suite struct SequenceTests {
 
-    // MARK: - TOML nested array-of-tables
-
     @Test func nestedArrayOfTablesPreservesParentRows() throws {
         // Bug regression: the previous TOML.swift assumed `[[a.b]]`
         // navigated through a `.table` parent and lost data when the
@@ -54,8 +52,6 @@ import Testing
         #expect(rows[0]["bindings"]?.asArrayOfTables?.count == 1)
         #expect(rows[1]["bindings"]?.asArrayOfTables?.count == 2)
     }
-
-    // MARK: - Basic expansion
 
     @Test func sequenceExpandsToPrefixPlusChildren() throws {
         let res = try Config.parse(
@@ -163,8 +159,6 @@ import Testing
         #expect(child.apps == ["com.apple.Safari"])
     }
 
-    // MARK: - Ordering vs regular [[bindings]]
-
     @Test func sequencesAppearBeforeRegularBindings() throws {
         let res = try Config.parse(
             """
@@ -196,8 +190,6 @@ import Testing
         #expect(res.config.bindings[2].name == "regular-1")
         #expect(res.config.bindings[3].name == "regular-2")
     }
-
-    // MARK: - Prefix collision detection
 
     @Test func prefixCollisionDropsRegularBinding() throws {
         let res = try Config.parse(
@@ -249,8 +241,6 @@ import Testing
             "cmd-j and cmd+opt-j are distinct")
         #expect(res.config.bindings.count == 3)
     }
-
-    // MARK: - Validation: missing / malformed fields
 
     @Test func missingPrefixDropsSequence() throws {
         let res = try Config.parse(
@@ -348,8 +338,6 @@ import Testing
         #expect(res.warnings.contains { $0.kind == .missingInput })
     }
 
-    // MARK: - Validation: name / nesting
-
     @Test func duplicateSequenceNameDropsSecond() throws {
         let res = try Config.parse(
             """
@@ -418,8 +406,6 @@ import Testing
             })
     }
 
-    // MARK: - Reserved variable namespace (`_seq_*`)
-
     @Test func userBindingCannotWriteToReservedVarNamespace() throws {
         let res = try Config.parse(
             """
@@ -448,8 +434,6 @@ import Testing
             """)
         #expect(res.config.bindings.count == 1)
     }
-
-    // MARK: - Matcher behavior (end-to-end through Matcher)
 
     @Test func prefixFiresWithoutAnyVariable() throws {
         let res = try Config.parse(

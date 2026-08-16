@@ -2,6 +2,12 @@
 
 Guidance for working in this repository.
 
+## Docs
+
+English-only and code-first — follow the fleet
+[doc-consistency policy](https://github.com/akira-toriyama/.github/blob/main/docs/doc-consistency-policy.md)
+(no stored translations; truth lives in the code/CLI, docs point to it).
+
 ## What this is
 
 `chord` — global keyboard + mouse hotkey daemon for macOS. Built
@@ -13,16 +19,16 @@ command, absorb the input, or mutate a named state variable
 (v2 — enables Karabiner-style leader-key modes).
 
 Architectural sibling of
-[stroke](https://github.com/akira-toriyama/stroke): Swift 6,
-macOS 26+, three-layer hexagonal split. Difference from stroke is
+[wand](https://github.com/akira-toriyama/wand): Swift 6,
+macOS 26+, three-layer hexagonal split. Difference from wand is
 the trigger: chord is **discrete events + 1-tier state** — one
 key-down / button-down fires immediately, but a binding may
 optionally gate on a single named variable and another binding may
-have set that variable on an earlier discrete event. stroke is
+have set that variable on an earlier discrete event. wand is
 *gesture sequences*. The state surface is intentionally narrow:
 flat `[String: Int]` store, single-variable equality predicates,
 no nested modes. Anything that needs a real state machine belongs
-in stroke (or Karabiner-Elements at the HID layer).
+in wand (or Karabiner-Elements at the HID layer).
 
 Implementation: chord uses **CGEventTap** rather than the older
 Carbon `RegisterEventHotKey` API. That's what makes F21–F24 (no
@@ -42,7 +48,7 @@ swift test                   # tests — needs Xcode (Swift Testing); fails on C
 .build/debug/chord config --validate
 ```
 
-Same test-toolchain constraint as stroke / facet — CommandLineTools
+Same test-toolchain constraint as wand / facet — CommandLineTools
 alone can't run tests (it ships neither XCTest nor Swift Testing);
 full Xcode or CI covers them. `swift build` is the bar locally.
 
@@ -51,26 +57,26 @@ full Xcode or CI covers them. `swift build` is the bar locally.
 top-level code in a `main.swift`) so the test target's
 `@testable import` keeps working — it backs CLIDispatchTests' Swift
 Testing coverage of the CLI. **Don't reintroduce a `main.swift` file** — same trap as
-stroke / facet / ws-tabs.
+wand / facet / ws-tabs.
 
 ## Source-of-truth references
 
 Two cross-cutting docs to consult before the layer-specific rules below:
 
-- **[docs/glossary.md](docs/glossary.md)** — chord の正規 (canonical)
-  用語表。同じ概念に複数の名前を当てない (= "alias" だけで input/action を
-  曖昧化しない、"state-store" と "variables" が混在しない、等) ための辞書。
-  各 entry に `Don't call it:` 欄があり、PR レビューでの即時 NG ワードの根拠
-  に使える。**コード変更で用語を新設 / rename した場合は同 PR で更新**
-  (PR template の glossary checkbox 参照)。
-- **[docs/non-goals.md](docs/non-goals.md)** — chord が **意図的に持たない
-  機能** と「再検討する条件」。隣接プロジェクト
-  (skhd / skhd.zig / Karabiner / ZMK) の機能を chord に取り込むべきか毎回
-  議論が再燃するのを防ぐ。
+- **[docs/glossary.md](docs/glossary.md)** — chord's canonical vocabulary:
+  the dictionary that keeps one name per concept (no bare "alias" blurring
+  input vs action, no "state-store" / "variables" mix, etc.). Each entry has
+  a `Don't call it:` field — the basis for immediate NG words in PR review.
+  **A code change that coins or renames a term updates it in the same PR**
+  (see the PR template's glossary checkbox).
+- **[docs/non-goals.md](docs/non-goals.md)** — the features chord
+  **deliberately does not have**, each with its reconsideration trigger.
+  Stops the recurring "should chord absorb this?" debate about neighboring
+  projects (skhd / skhd.zig / Karabiner / ZMK).
 
-実装タスク / ロードマップは furrow tracker
-([`akira-toriyama/projects`](https://github.com/akira-toriyama/projects))
-が正本 → §Roadmap board / task tracker。
+Implementation tasks / roadmap live in the furrow tracker
+([`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)) —
+the canon → §Roadmap board / task tracker.
 
 ## Non-obvious constraints — read before editing
 
@@ -89,6 +95,14 @@ Two cross-cutting docs to consult before the layer-specific rules below:
   `EventSource`. Real vs synthetic is picked at app startup.
   Adding a new event-input strategy means a new `EventSource`
   conformer in an Adapter module — never a `#if` in Core.
+- **`MotionSource` is the SECOND seam, and stays separate**
+  ([Sources/ChordCore/MotionSource.swift](Sources/ChordCore/MotionSource.swift)).
+  Relative pointer motion for `action-drag-scroll` only. It is not
+  folded into `EventSource` because motion has neither of that
+  protocol's properties: it never reaches the Matcher, and while
+  armed every event is consumed unconditionally, so a consume/pass
+  return value would be meaningless. See the drag-scroll section
+  below.
 - **EventSource is callback-based, NOT AsyncStream**. CGEventTap's
   callback fires on the tap's run loop and *must* return
   synchronously with the consume / pass decision. AsyncStream is
@@ -131,32 +145,37 @@ event. Everything below depends on this contract:
   document order. The matcher is intentionally not "best-match" —
   the user already ordered them.
 
-### `chord config --show` and the chord.bindings.v3 schema
+### `chord config --show` and the chord.bindings.v4 schema
 
 - **JSON output is the contract**, plain-text output is just for
   humans. The schema lives at
-  [docs/schema/chord.bindings.v3.json](docs/schema/chord.bindings.v3.json)
+  [docs/schema/chord.bindings.v4.json](docs/schema/chord.bindings.v4.json)
   and is the authority — any wire-format change must update both
   [Sources/ChordCore/Schema.swift](Sources/ChordCore/Schema.swift)
   AND the schema file in the same commit, OR the consumer-facing
-  contract drifts silently. The v1 JSON file
-  (`chord.bindings.v1.json`) is kept under `docs/schema/` for
-  history; do not edit it. (No separate v2 file was ever
-  published — the v1→v3 jump happened within the live schema; v3
-  is current.)
+  contract drifts silently. The superseded v1 / v3 JSON files are
+  kept under `docs/schema/` for history; **do not edit them** —
+  point new work at v4. (No separate v2 file was ever published —
+  the v1→v3 jump happened within the live schema; v4 is current.)
+  Three registries have to move together when a
+  `ConfigWarning.Kind` is added: the Swift enum, the v4 schema's
+  `dropped.kind` enum, and the glossary table —
+  `scripts/check-warning-kind-sync.sh` is the pre-build guard and
+  `ConfigWarningKindSyncTests` the compiled one.
 - **Consumer pinning guidance**: external repos integrating this
   schema should pin to a **tagged URL** (`…/v0.8.0/…`), not
   `…/main/…` — `main` moves under their feet, a tag does not.
   Stronger still: vendor the file into the consumer repo
-  (`docs/external/chord.bindings.v3.json`). Mirror this advice in
+  (`docs/external/chord.bindings.v4.json`). Mirror this advice in
   the schema's `description` field too (single source of truth
   for future consumers reading the schema cold).
 - **Renaming any `ConfigWarning.Kind` raw value or any enum
   value in the schema (trigger.kind, action.kind, dropped.kind,
   side_requirement, modifier_token) is a schema major bump**
-  (e.g. v3 → v4). Adding new values to those enums is forward-
+  (e.g. v4 → v5). Adding new values to those enums is forward-
   compatible if existing consumers treat unknown values gracefully
-  — schema docs say so; honour it.
+  — schema docs say so; honour it. (`action.kind = "drag-scroll"`
+  was added this way and stayed on v4.)
 - **stdout vs stderr separation is strict**: `config --show --json` puts
   JSON on stdout, every warning / log line on stderr.
   `chord config --show --json | jq …` must never break because chord
@@ -192,7 +211,7 @@ event. Everything below depends on this contract:
   `parsed_counts` / `dropped_count` / `warning_count` /
   `undefined_aliases`). `config --show --json` does NOT include this
   block — the field is documented as optional in the schema, so
-  both emitters produce valid v3 documents. The `ok` flag already
+  both emitters produce valid v4 documents. The `ok` flag already
   accounts for `--strict`, so a consumer just branches on
   `validation.ok` instead of re-computing from counts. Exit code
   matches `validation.ok` (0 vs 1).
@@ -209,7 +228,7 @@ The original v0.5 single `[aliases]` table was split in v0.6 into
 - `[input-aliases]` → `$name` references in `input = "..."`
   (modifier-set naming, new in v0.6)
 
-`[aliases]` is dead — do not reintroduce it; the v3 schema's
+`[aliases]` is dead — do not reintroduce it; the v4 schema's
 `ConfigWarning.Kind` values carry the new names
 (`action-alias-non-string`, `input-alias-non-string`, etc.).
 Rules:
@@ -332,7 +351,7 @@ Rules:
   `toggle-variable` OR gate on `when-var` / `when-vars`, but the
   gate predicate cannot itself mutate state). This matches the
   canon migration's actual leader-key use cases and keeps the
-  parser surface bounded. Anything richer belongs in stroke or in
+  parser surface bounded. Anything richer belongs in wand or in
   Karabiner.
 - **`action-toggle-var` (`Action.toggleVariable`)** flips a variable
   between 0 and 1 on each press (any non-zero collapses to 0). Like
@@ -405,6 +424,99 @@ Rules:
   sees `.down`. (Up events go through the pending-ups path, never
   the matcher.)
 
+### Drag-scroll (chord 3.0.0+ — the one continuous-pointer feature)
+
+`action-drag-scroll = true` pins the cursor and turns pointer motion
+into scrolling for the length of a press. It is the **only action with
+a duration**, which is where all its constraints come from.
+
+- **A SECOND CGEventTap, not a wider mask on the first**
+  ([Sources/ChordAdapterMacOS/MotionTap.swift](Sources/ChordAdapterMacOS/MotionTap.swift)).
+  Motion is high-rate (~96/s measured) and a tap in the mask makes the
+  WindowServer round-trip every one of those through chord. So the
+  motion tap is (a) **created only when the config declares a
+  drag-scroll binding** (`Controller.maybeStartMotionSource`, gating on
+  `configDeclaresDragScroll()` — the same shape as
+  `maybeStartVKeySource`) and (b) **`tapEnable`d only while the trigger
+  is held**. A keyboard-only config pays nothing; a drag-scroll config
+  pays nothing between drags. Don't "simplify" this by adding
+  `mouseMoved` to `EventTap.mask`.
+- **Consuming motion does NOT stop the cursor.** The WindowServer moves
+  the pointer from the HID stream, upstream of the session tap. The
+  cursor is held still by `CGWarpMouseCursorPosition` back to the
+  anchor on every event. Measured: 100 warps with the mouse physically
+  still produced **0** tap-visible `mouseMoved`, so the warp cannot
+  feed itself and the deltas stay the true hardware deltas.
+- **Warp, NOT `CGAssociateMouseAndMouseCursorPosition(false)`.**
+  Disassociation is process-external global state — a crash mid-drag
+  would leave the user's pointer dead until logout. A crash mid-warp
+  just stops warping.
+- **The mode is Controller-owned**, like `setVariable` / `toggleVariable`
+  and for the same reason: the thing with a lifetime is App-layer
+  state, not an OS effect. `ActionDispatcher`'s `.dragScroll` case is a
+  logging no-op safety net.
+- **Session keyed by the EVENT's trigger, not the binding's** — a
+  `[[fallbacks]]` row carries `.anyKey` while its release arrives as a
+  concrete `.key(code)`. Same reason `pendingUps` is keyed that way.
+- **Every wedge exit matters more than the feature.** A mode that
+  outlives its trigger pins the cursor with nothing the user can press.
+  Five ways out, and all of them are load-bearing: the paired release;
+  the `action-drag-scroll-max-ms` watchdog (default 30s — bounds a
+  release edge that never arrives, e.g. an unplugged dongle); reload;
+  `daemon --pause`; daemon stop. `handleKeyUp` closes the mode
+  **unconditionally, before it even looks at the pending-up table** —
+  neither the entry's presence nor its action can be trusted to decide
+  it. A reload between the down and the up clears the table, and an
+  autorepeat that re-matched to a *different* binding (frontmost app
+  changed, gate variable flipped) overwrites the entry; both used to
+  leave the cursor pinned until the watchdog. `stopDragScroll` is
+  scoped by trigger, so a release owning nothing is a no-op.
+  `chord query --status` reports `drag_scroll` so a wedge is
+  diagnosable from outside.
+- **The mode has ONE writer thread: main.** The tap callback, the
+  vkey run-loop source and the `@MainActor` control paths already run
+  there, and the watchdog hops to it explicitly (`onMain`). Firing on
+  the timer's own queue instead let a disarm land on a *successor*
+  session — live in the table, capturing nothing. `dragScrollLock`
+  remains, because `dragScrollStatus()` is answered off-main on the
+  query socket's queue.
+- **A drag-scroll binding whose motion source never installed does
+  not consume.** `maybeStartMotionSource` records success/failure
+  (`setMotionAvailable`); `startDragScroll` returns `false` when the
+  capture is missing and `handle` relays the event. Swallowing a key
+  for an action that provably cannot run — while `query --status`
+  names a mode owning nothing — is worse than not binding it.
+- **Autorepeat must not re-anchor.** `startDragScroll` is idempotent
+  per trigger; re-latching the anchor on every typematic tick would
+  walk the pin across the screen.
+- **Motion short-circuits the matcher, so it also bypasses
+  `extendTimer`.** `handleMotion` extends the timer of the variable a
+  drag-scroll binding is gated on (throttled to 250 ms), or a long drag
+  under a `hold-while-timeout` gate would cut itself off mid-scroll.
+- **Sub-pixel residual is carried** across events
+  (`DragScrollAccumulator`), which is the only reason
+  `action-drag-scroll-speed < 1` works at all. The axis filter
+  **discards** the unused axis rather than banking it.
+- **Parse-time refusals** (all `drag-scroll-parse-error`): a trigger
+  with no paired release (`scroll.*`, modifiers-only), `passthrough`,
+  any other `action-*` on the row — **the `-on-up` halves included,
+  since the release they fire on is the same edge that closes the
+  mode** — the `action-drag-scroll-on-up` spelling, orphan
+  `action-drag-scroll-*` tuning. Each one would otherwise be a runtime
+  wedge or a silent no-op. The clash sweep is derived from
+  `ChordConfigSchema.actionUnionFields() + onUpFields()`, so a newly
+  added action key is covered without editing the sweep.
+- **`parseDragScrollAction` must stay FIRST in `parseAction`.** It is
+  the mutual-exclusion sweep, so it only gets to report a clash by
+  running before every branch that can return — the native-action
+  desugar (`action-spotlight` / `-screenshot` / `-mission-control`)
+  included. Behind that block, `action-drag-scroll` was silently
+  discarded and the row loaded as a plain keystroke.
+- **Not a gesture, and that boundary is written down**:
+  [docs/non-goals.md](docs/non-goals.md) §7. chord may convert a delta
+  it is already receiving into one immediate effect; the moment two
+  deltas must be compared, it belongs to wand.
+
 ### Configuration
 
 - **`config.toml` at the repo root is the source-of-truth
@@ -412,7 +524,7 @@ Rules:
   (see [README.md](README.md) Configuration section).
   **The app only reads it** — never writes, never auto-generates
   an example, never persists runtime overrides. Same policy as
-  stroke / facet: the file is the only thing the user has to look
+  wand / facet: the file is the only thing the user has to look
   at to know what chord will do.
 - **There is no settings GUI** — by design. Don't propose adding
   NSPanel-based preferences. Every option lives in one TOML file.
@@ -430,7 +542,7 @@ Rules:
   [Sources/ChordCore/TOML.swift](Sources/ChordCore/TOML.swift) is now a
   thin shim: `@_exported import Toml` + `public typealias TOML = Toml`,
   so existing `TOML.parse` / `TOML.Value` references resolve unchanged.
-  The former hand-rolled parser (ported from stroke's `parseTOMLSubset`)
+  The former hand-rolled parser (ported from wand's `parseTOMLSubset`)
   was retired when chord moved onto swift-toml-edit (sill 0.11.0 era).
 - **Inline tables ARE supported** and chord relies on them:
   `when-vars = { a = 1, b = 2 }` (`[when]` conditions — Config+Condition.swift)
@@ -555,7 +667,7 @@ stray instances before relaunching.
   (`sorted(by: >)`). Falls back to `launchctl kickstart` if
   `brew services` fails. Re-sign succeeds with exit 0 even if the
   restart step fails — re-signing is the load-bearing action.
-- **Cross-app pattern**: stroke / facet hit the same brew sandbox
+- **Cross-app pattern**: wand / facet hit the same brew sandbox
   trap. Apply the same `daemon --resign` shape to those repos when
   ferrying changes.
 
@@ -569,7 +681,7 @@ stray instances before relaunching.
   rebuilds; [package.sh](package.sh) assembles `Chord.app` and
   signs it with that identity (`--dev` →
   `Chord-dev.app` / `com.chord.chord.dev` to co-exist with a
-  Homebrew install without TCC collision). Same pattern as stroke
+  Homebrew install without TCC collision). Same pattern as wand
   / facet.
 - **`LSUIElement = true`** — no Dock icon, no menubar item. The
   daemon is intentionally invisible.
@@ -642,7 +754,7 @@ stray instances before relaunching.
 - **`daemon --reload` / `daemon --quit` talk to the running daemon over
   Distributed Notification Center** (`com.chord.app.control`, see
   [Sources/ChordApp/Control.swift](Sources/ChordApp/Control.swift))
-  — same pattern as facet / stroke. Don't invent a different IPC **for
+  — same pattern as facet / wand. Don't invent a different IPC **for
   control** (the write-only verbs). They exit `3` if no daemon is running.
 - **`daemon --show` is one-way the other direction**: DNC can't reply,
   so the daemon rewrites a small status file
@@ -682,7 +794,7 @@ stray instances before relaunching.
 - After source edits, **`swift build` must pass** before finishing
   a turn.
 - **Don't push without explicit OK**. Quality-first phased
-  workflow inherited from facet / stroke. Commit locally freely;
+  workflow inherited from facet / wand. Commit locally freely;
   pushing / merging waits for the maintainer's go.
 
 ### config.toml grammar additions
@@ -741,6 +853,13 @@ When a feature PR adds a new section / field to `config.toml`:
     `input` line per binding. Issue #64 tracks the
     deprecation-vs-keep call; new feature PRs should not extend
     the per-app shape without revisiting that issue first.
+    **A per-app entry that declares any `action-*` REPLACES the base
+    row's action** (down half and on-up half independently) rather
+    than layering key-by-key. Merging made an override of a different
+    action *kind* unexpressible — the synth row carried both, and
+    `action-drag-scroll`'s one-press-one-owner sweep dropped it while
+    blaming a key from the base row — and it silently double-fired a
+    base `action-shell` under an entry's `action-keys`.
 
 - **Don't invent a third style**. The two existing shapes
   (self-contained `[[bindings]]` and the three hoisting sugars
@@ -815,8 +934,8 @@ re-confirmation.
 - See [facet's CLAUDE.md → References → Architecture](https://github.com/akira-toriyama/facet/blob/main/CLAUDE.md)
   *(reviewed 2026-05-24)* — same hexagonal / Clean Architecture /
   DDD literature applies here. Don't re-list it.
-- See [stroke's CLAUDE.md → References → Architecture](https://github.com/akira-toriyama/stroke/blob/main/CLAUDE.md)
-  *(reviewed 2026-05-24)* — chord borrows stroke's 3-layer
+- See [wand's CLAUDE.md → References → Architecture](https://github.com/akira-toriyama/wand/blob/main/CLAUDE.md)
+  *(reviewed 2026-05-24)* — chord borrows wand's 3-layer
   Core/AdapterMacOS/AdapterTest split verbatim. The deltas are
   documented here, not there.
 
@@ -844,7 +963,7 @@ re-confirmation.
   mapping is the macOS-side translation.
 - [Hardened Runtime / Code Signing](https://developer.apple.com/documentation/security/hardened_runtime)
   *(reviewed 2026-05-24)* — same TCC-Accessibility grant concern
-  stroke / facet documents. Self-signed persistent identity keeps
+  wand / facet documents. Self-signed persistent identity keeps
   the grant stable across rebuilds.
 - [AXIsProcessTrustedWithOptions](https://developer.apple.com/documentation/applicationservices/1459186-axisprocesstrustedwithoptions)
   *(reviewed 2026-05-24)* — the permission check + prompt
@@ -856,7 +975,7 @@ re-confirmation.
   *(reviewed 2026-05-24)* — the IPC chord uses for **control**
   (`daemon --reload` / `daemon --quit`). Fire-and-forget; the status file at
   `/tmp/chord.status` is the scalar reverse channel. Same pattern as
-  facet / stroke; don't invent a separate request/response IPC **for
+  facet / wand; don't invent a separate request/response IPC **for
   control**. Read-only structured state is the documented exception —
   the `chord query` AF_UNIX socket
   ([QuerySchema](Sources/ChordCore/QuerySchema.swift), `chord.query.v1`);
@@ -926,7 +1045,7 @@ re-confirmation.
 
 ### GitHub
 
-- [GitHub Docs (日本語)](https://docs.github.com/ja)
+- [GitHub Docs](https://docs.github.com)
   *(reviewed 2026-05-24)* — primary reference for the bits this
   repo actually touches: `gh` CLI, Actions workflow syntax,
   release drafts, branch protection, fine-grained PAT scoping (the
@@ -950,37 +1069,55 @@ re-confirmation.
 
 - [Homebrew](https://brew.sh/ja/)
   *(reviewed 2026-05-24)* — chord's intended distribution channel
-  once a stable release lands. The pattern mirrors stroke / facet:
+  once a stable release lands. The pattern mirrors wand / facet:
   `brew install akira-toriyama/tap/chord`, with
   `.github/workflows/update-tap.yml` automating the formula bump
   on every published release.
 
 ## Shared libraries (atelier)
 
-chord は swift app family の共有ライブラリに乗る（plan [atelier](https://github.com/akira-toriyama/atelier)）。
-共有 lib が持つ責務は**再実装せずライブラリ側を拡張**する（北極星＝「facet の theme を真似て」を二度と言わない）。
-モジュール → target の正確な配線は [Package.swift](Package.swift) を正とする。
+chord rides the swift app family's shared libraries (plan:
+[atelier](https://github.com/akira-toriyama/atelier)). A responsibility a
+shared lib owns is **extended on the library side, never reimplemented** (the
+north star: never again say "imitate facet's theme"). The exact module →
+target wiring: [Package.swift](Package.swift) is the truth.
 
-- **[sill](https://github.com/akira-toriyama/sill)** — 共有 theming / CLI 基盤。設計 → [`docs/DESIGN.md`](https://github.com/akira-toriyama/sill/blob/main/docs/DESIGN.md)。chord は headless ゆえ theming は非消費・`CLIKit`（CLI tokenizer）のみ使用。
-- **[swift-toml-edit](https://github.com/akira-toriyama/swift-toml-edit)** — family 唯一の TOML 実装（`Toml` module・Swift 版 toml_edit）。chord は config.toml パースに使用。
+- **[sill](https://github.com/akira-toriyama/sill)** — shared theming / CLI
+  foundation; design →
+  [`docs/DESIGN.md`](https://github.com/akira-toriyama/sill/blob/main/docs/DESIGN.md).
+  chord is headless, so it consumes no theming — only `CLIKit` (the CLI
+  tokenizer) and `ConfigSchema` (the descriptor types + the Draft-07
+  lowering behind `config --emit-schema`). Those two products are what
+  [Package.swift](Package.swift) declares, and the only sill modules any
+  `import` in `Sources/` names — which is why sill's theming majors cross
+  for free here.
+- **[swift-toml-edit](https://github.com/akira-toriyama/swift-toml-edit)** —
+  the family's only TOML implementation (the `Toml` module, a Swift
+  toml_edit). chord uses it to parse config.toml.
 
-**自己完結しない — 共有候補は sill に PR を模索**: app 単独で実装する前に「2 つ以上の app で冗長になりそうか」を問い、そうなら sill への PR を検討する（過剰共通化はしない・zero-debt ≠ 全部共有）。
+**Not self-contained — explore a sill PR for shared candidates**: before
+implementing something app-side, ask "would this end up redundant across 2+
+apps?" — if so, consider a PR to sill (no over-sharing either; zero-debt ≠
+share everything).
 
-## 作業方針 (multi-session work policy)
+## Multi-session work policy
 
-タスク管理・セッション跨ぎの運用（進捗の正本 = task body 一本・未達成を暗黙に
-しない・中断時の所作）の正典は
-[projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md)
-— ここでは重複させない。破壊的変更 / 品質重視の扱いも既存ポリシーが正:
-破壊的変更は §config.toml grammar additions・§CLI option additions の
-"Breaking changes are OK"、品質重視は §Conventions の
-"Quality-first phased workflow" ("Don't push without explicit OK")。
+Task management and cross-session operation (the progress canon = the task
+body alone, never leave the unfinished implicit, how to suspend) — the canon
+is [projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md);
+not duplicated here. Breaking-change / quality-first handling also follows
+the existing policies: breaking changes → §config.toml grammar additions and
+§CLI option additions ("Breaking changes are OK"); quality-first →
+§Conventions ("Quality-first phased workflow", "Don't push without
+explicit OK").
 
 ## Roadmap board / task tracker
 
-chord の作業タスク（バックログ・設計メモ・引き継ぎ）の**正本は private repo
-[`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)**（furrow 製の
-中央 board）。運用ルールの正典は
-[projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md)、
-コマンドの正典は [furrow README](https://github.com/akira-toriyama/furrow#readme)。
-入口は checkout 内で `furrow next` 1 本（repo scope は自動）。
+The **canonical store for chord's work tasks** (backlog, design notes,
+handovers) is the private repo
+[`akira-toriyama/projects`](https://github.com/akira-toriyama/projects)
+(the furrow-built central board). The operating rules' canon is
+[projects/CLAUDE.md](https://github.com/akira-toriyama/projects/blob/main/CLAUDE.md);
+the command canon is the
+[furrow README](https://github.com/akira-toriyama/furrow#readme). The entry
+point inside a checkout is `furrow next` alone (the repo scope is automatic).

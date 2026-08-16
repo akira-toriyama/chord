@@ -11,8 +11,6 @@ import Testing
 /// effectively re-binds to whatever they assigned.
 @Suite struct NativeActionTests {
 
-    // MARK: - Mission Control
-
     @Test func missionControlAllWindowsDesugarsToCtrlUp() throws {
         let res = try Config.parse(
             """
@@ -66,8 +64,6 @@ import Testing
             })
     }
 
-    // MARK: - Screenshot
-
     @Test func screenshotSelection() throws {
         let res = try Config.parse(
             """
@@ -113,8 +109,6 @@ import Testing
         #expect(res.warnings.contains { $0.kind == .actionKeysParseError })
     }
 
-    // MARK: - Spotlight
-
     @Test func spotlightDesugarsToCmdSpace() throws {
         let res = try Config.parse(
             """
@@ -131,8 +125,6 @@ import Testing
             Issue.record("expected .keys")
         }
     }
-
-    // MARK: - Schema
 
     @Test func schemaShowsDesugaredKeysWithSemanticRaw() throws {
         let b = try firstBinding(

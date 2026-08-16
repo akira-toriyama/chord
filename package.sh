@@ -6,7 +6,7 @@
 #
 # The --dev variant has a distinct bundle id so it can co-exist
 # with a brew-installed Chord.app without TCC accessibility-grant
-# collisions. Same pattern as stroke / facet.
+# collisions. Same pattern as wand / facet.
 
 set -euo pipefail
 

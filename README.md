@@ -45,6 +45,9 @@ Actions:
 - **`action-set-var` / `action-toggle-var` / `action-hold-var`** —
   flat integer state machine (single-variable equality, no nested
   modes, deliberate narrow surface)
+- **`action-drag-scroll`** — hold the trigger, and mouse movement
+  scrolls instead of moving the cursor (which stays pinned). Tunable
+  speed / axis / invert; see [Drag-scroll](#drag-scroll). (chord 3.0.0+)
 - **`action-*-on-up` halves** — fire on key release too
 - **`passthrough = true`** — fire AND let the original key through
 - **`repeat = fire-each | ignore | passthrough`** — per-binding
@@ -85,12 +88,12 @@ CI / introspection:
   read live daemon state as JSON (for tmux status bars, shell prompts, scripts)
 
 JSON output for `config --validate` / `config --show` conforms to the versioned
-[`chord.bindings.v3` JSON Schema](docs/schema/chord.bindings.v3.json); `chord query`
+[`chord.bindings.v4` JSON Schema](docs/schema/chord.bindings.v4.json); `chord query`
 emits the separate `chord.query.v1` wire format (live runtime state, not parsed config).
 
 `chord` is hexagonal Swift 6 (Core / AdapterMacOS / AdapterTest /
 App), the same shape as
-[stroke](https://github.com/akira-toriyama/stroke) and
+[wand](https://github.com/akira-toriyama/wand) and
 [facet](https://github.com/akira-toriyama/facet). One TOML file
 is the only thing you have to look at to know what it'll do — no
 GUI, no settings panel, no persisted state. macOS Accessibility
@@ -273,6 +276,57 @@ from canon's
 (produced by `scripts/gen-vkey-aliases.py`, the single source of
 truth) into your `config.toml`.
 
+### Drag-scroll
+
+Hold a key or mouse button and move the mouse to **scroll** — the
+cursor stays where it was.
+
+```toml
+[[bindings]]
+name = "drag-scroll"
+input = "mouse.side1"
+action-drag-scroll = true
+```
+
+The mode lasts exactly as long as the press: the key-down opens it, the
+paired release closes it. Any trigger with a real release works — a key,
+a mouse button, a [v-key](#v-keys-vendor-hid-from-zmk) — and `apps` /
+`when-var` gate it like any other binding.
+
+Optional tuning:
+
+```toml
+[[bindings]]
+name = "drag-scroll (vertical, gentle)"
+input = "TU_LL_F"
+action-drag-scroll = true
+action-drag-scroll-speed  = 0.4        # scroll px per pointer px (default 1.0)
+action-drag-scroll-axis   = "vertical" # both (default) | vertical | horizontal
+action-drag-scroll-invert = true       # negate both axes (default false)
+action-drag-scroll-max-ms = 10000      # watchdog ceiling (default 30000)
+```
+
+- **`-speed`** below 1 still works on slow drags: the sub-pixel
+  remainder is carried between events rather than truncated away.
+- **`-axis`** discards the other axis outright — a `vertical` binding
+  will not surface banked horizontal wobble later.
+- **`-invert`** flips both axes. By default the posted scroll carries
+  the same sign as the pointer movement; flip this if it reads
+  backwards to you.
+- **`-max-ms`** is a safety net, not a feature. If the release event
+  never arrives (an unplugged dongle, a dropped v-key release report),
+  the mode would otherwise pin your cursor indefinitely. The watchdog
+  bounds that to `max-ms`. `chord daemon --reload` and
+  `chord daemon --pause` also close it, and `chord query --status`
+  reports `drag_scroll: "<binding name>"` while one is open.
+
+The pointer-motion tap is **only installed if your config declares an
+`action-drag-scroll` binding**, and it only captures for the span the
+trigger is held — a keyboard-only config never pays for it. Drag-scroll
+is deliberately the only continuous-pointer feature chord has; gestures
+and path-based input belong to [wand](https://github.com/akira-toriyama/wand)
+(see [docs/non-goals.md](docs/non-goals.md) §7).
+
 See [`config.toml`](./config.toml) for the full template with every
 option commented inline.
 
@@ -282,9 +336,9 @@ option commented inline.
 chord                run the daemon (default)
 chord config --validate          parse config.toml; exit 0 on clean
 chord config --validate --strict warnings + drops fail with exit 1 (for CI)
-chord config --validate --json   chord.bindings.v3 document + validation block
+chord config --validate --json   chord.bindings.v4 document + validation block
 chord config --show              human-readable parsed config
-chord config --show --json       machine-readable (chord.bindings.v3)
+chord config --show --json       machine-readable (chord.bindings.v4)
 chord config --show --include-dropped   also list dropped bindings
 chord config --doctor     report Accessibility / config / daemon
 chord config --emit-schema   config.toml INPUT JSON Schema (Draft-07) for editor completion

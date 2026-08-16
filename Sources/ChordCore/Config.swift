@@ -470,7 +470,6 @@ public enum Config {
             droppedBindings: dropped, sourcePath: nil)
     }
 
-    // MARK: - Parsers extracted to extension files (#51)
     //
     // This file keeps the public entry (`load` / `parse`) + the `parse`
     // orchestrator + `sourceTag`. Everything else is a member of

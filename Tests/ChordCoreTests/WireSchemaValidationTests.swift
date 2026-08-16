@@ -23,8 +23,8 @@ import Testing
 /// `additionalProperties:false` (emitted keys ⊆ declared properties — the
 /// check that catches a forgotten field), `required`, and `const`/`enum`.
 /// Value formats and numeric bounds are intentionally NOT enforced — this
-/// is a key/shape conformance guard, matching the ledger's "全キー/kind を
-/// 照合" scope. `ConfigSchemaDriftTests` is the on-disk-read precedent.
+/// is a key/shape conformance guard, matching the ledger's "verify every
+/// key/kind" scope. `ConfigSchemaDriftTests` is the on-disk-read precedent.
 @Suite struct WireSchemaValidationTests {
 
     /// A single config whose emitted document touches every wire shape the
@@ -58,9 +58,13 @@ import Testing
         name = "wire-vkey"
         input = "TU_LL_C"
         action-noop = true
-        """
 
-    // MARK: - the lockstep test
+        [[bindings]]
+        name = "wire-drag-scroll"
+        input = "mouse.side1"
+        action-drag-scroll = true
+        action-drag-scroll-axis = "vertical"
+        """
 
     @Test func emittedWireDocumentConformsToPublishedSchema() throws {
         // 1. Emit through the real wire path (parse → makeDocument →
@@ -88,8 +92,6 @@ import Testing
                 """)
         }
     }
-
-    // MARK: - feature-presence guard
 
     /// Asserts the emitted document contains each wire shape the schema
     /// fix is about. A failure here means the *emitter* regressed (stopped
@@ -145,14 +147,27 @@ import Testing
             (vkey["input"] as? [String: Any])?["trigger"] as? [String: Any])
         #expect(trigger["kind"] as? String == "vkey")
 
+        // action kind "drag-scroll" — the first action with a NESTED object
+        // on the wire, so `additionalProperties:false` has to be satisfied
+        // one level deeper than every other kind.
+        let drag = try #require(
+            byName["wire-drag-scroll"],
+            "drag-scroll binding was dropped")
+        let dragAction = try #require(drag["action"] as? [String: Any])
+        #expect(dragAction["kind"] as? String == "drag-scroll")
+        let dragSpec = try #require(dragAction["drag_scroll"] as? [String: Any])
+        #expect(dragSpec["axis"] as? String == "vertical")
+        // Defaults are resolved on the wire — a consumer reads them, never
+        // re-derives them.
+        #expect(dragSpec["invert"] as? Bool == false)
+        #expect(dragSpec["max_ms"] as? Int == DragScrollSpec.defaultMaxMs)
+
         // The whole config must parse clean — a stray warning would add a
         // dropped[] row and muddy the conformance walk.
         #expect(
             (doc["dropped"] as? [Any])?.count == 0,
             "kitchen-sink config produced unexpected warnings")
     }
-
-    // MARK: - dropped[] source coverage
 
     /// The kitchen sink parses clean, so `dropped[]` is empty there and its
     /// schema branch would go unexercised. This companion emits one dropped
@@ -185,8 +200,6 @@ import Testing
                 "dropped[]-carrying document violates the published schema: \(v.path): \(v.reason)")
         }
     }
-
-    // MARK: - schema loading
 
     /// Reads the committed wire schema from the repo (not a bundled
     /// resource — same `#filePath`-relative walk as ConfigSchemaDriftTests).
@@ -271,8 +284,6 @@ struct StructuralSchemaValidator {
         // scalar (string / integer / boolean / number) — shape-only guard,
         // value validity is out of scope.
     }
-
-    // MARK: -
 
     private func validateOneOf(
         node: Any, branches: [[String: Any]],

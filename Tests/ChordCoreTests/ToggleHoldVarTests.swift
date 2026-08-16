@@ -7,8 +7,6 @@ import Testing
 /// + onUpAction infrastructure handles the up half automatically.
 @Suite struct ToggleHoldVarTests {
 
-    // MARK: - action-toggle-var
-
     @Test func toggleVarProducesToggleAction() throws {
         let res = try Config.parse(
             """
@@ -86,8 +84,6 @@ import Testing
             """)
         #expect(res.config.bindings.count == 0)
     }
-
-    // MARK: - action-hold-var
 
     @Test func holdVarSynthesisesPairedSetClear() throws {
         let res = try Config.parse(
@@ -172,8 +168,6 @@ import Testing
             """)
         #expect(res.config.bindings.count == 0)
     }
-
-    // MARK: - Schema round-trip
 
     @Test func schemaEmitsToggleVariableKind() throws {
         let b = try firstBinding(
