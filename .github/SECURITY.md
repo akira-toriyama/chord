@@ -45,4 +45,5 @@ TCC-bypass classes.
 
 ## Supported versions
 
-Until 1.0, only `main` is supported.
+The latest release on `main` is supported. Older releases get fixes only by
+upgrading.
