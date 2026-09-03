@@ -56,8 +56,22 @@ let package = Package(
         // whose per-entry line+column spans feed `(config.toml:N:C)`
         // warnings. The module name is unchanged, so chord's `import Toml`
         // survives.
+        //
+        // Floor 3.0.0, COUPLED to the sill floor below: sill >= 8.1.0 itself
+        // requires toml-edit 3.x, so bumping either alone fails to resolve
+        // ("root depends on 'swift-toml-edit' 2.0.0..<3.0.0") — move the two
+        // together. Dependabot ignores akira-toriyama/*, so nothing else
+        // warns about the pairing.
+        //
+        // v3.0.0 retired the line-based strict scanner: `Toml.parse` now
+        // delegates to `parseWithSpans`, so it throws on spellings the old
+        // scanner tolerated (triple-quoted values, a control char in a
+        // comment, a `[]` header, an invalid bare key, a raw CRLF inside a
+        // single-line string) and parses CRLF documents correctly. chord
+        // was already on `parseWithSpans` in Sources/, so this is a no-op
+        // for the daemon; the committed config.toml parses under v3.
         .package(url: "https://github.com/akira-toriyama/swift-toml-edit.git",
-                 .upToNextMajor(from: "2.3.1")),
+                 .upToNextMajor(from: "3.0.0")),
         // sill — the shared swift-app-family library (atelier). chord is NOT
         // a theme consumer (no Palette / Effects / PaletteKit); it takes only
         // `CLIKit`, the family's shared pure argv tokenizer (Phase 3 M4),
@@ -68,21 +82,22 @@ let package = Package(
         // `.value` arity + the D0 verbatim-value path (a `-`-leading arg
         // after `--limit` is a value, not a flag).
         //
-        // Floor 8.0.0. chord consumes CLIKit and ConfigSchema and NOTHING
-        // theme-shaped, which is why crossing sill 2 through 8 costs nothing
-        // here: every one of those majors landed in the theming surface (macOS
-        // floor, ThemeKitUI reshape, typed theme catalog, ambient SwiftUI
-        // widgets, SwiftUI-native Themed*Views, ThemedListStyle's capability
-        // gating).
+        // Floor 8.8.4, COUPLED to the toml-edit floor above (sill >= 8.1.0
+        // requires toml-edit 3.x — the two only resolve together).
+        //
+        // chord consumes CLIKit and ConfigSchema and NOTHING theme-shaped,
+        // which is why crossing sill 2 through 8 costs nothing here: every
+        // one of those majors, and the 8.1..8.8 minors, landed in the
+        // theming surface (macOS floor, ThemeKitUI reshape, typed theme
+        // catalog, ambient SwiftUI widgets, SwiftUI-native Themed*Views,
+        // ThemedListStyle's capability gating, widget look). No API was
+        // removed from either module chord takes.
         // Measured, not assumed — `swift build` is clean with zero source
         // changes and `chord config --emit-schema` is byte-identical to the
         // committed schema, because chord's schema enumerates no theme names.
-        // For 6→8 specifically: CLIKit's source is identical modulo deleted
-        // `// MARK:` lines, and ConfigSchema's emitter files are unchanged
-        // blobs, so the tokenizer and the JSON-Schema output cannot have
-        // moved. Package.resolved locks the exact commit.
+        // Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "8.0.0")),
+                 .upToNextMinor(from: "8.8.4")),
     ],
     targets: [
         .target(
