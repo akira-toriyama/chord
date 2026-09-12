@@ -97,7 +97,7 @@ let package = Package(
         // committed schema, because chord's schema enumerates no theme names.
         // Package.resolved locks the exact commit.
         .package(url: "https://github.com/akira-toriyama/sill.git",
-                 .upToNextMinor(from: "8.8.4")),
+                 .upToNextMinor(from: "8.9.0")),
     ],
     targets: [
         .target(
