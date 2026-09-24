@@ -276,6 +276,12 @@ from canon's
 (produced by `scripts/gen-vkey-aliases.py`, the single source of
 truth) into your `config.toml`.
 
+chord arms the dongle that enumerates as **`Imprint Dongle`** — the USB
+product string canon's dongle shield sets. Every ZMK-built device shares
+ZMK's default VID/PID, so another ZMK dongle on the same Mac is matched
+but skipped; `/tmp/chord.log` shows `vkey-hid: ignoring ZMK device …` for
+it and `vkey-hid: matched Imprint Dongle (serial …)` for the one armed.
+
 ### Drag-scroll
 
 Hold a key or mouse button and move the mouse to **scroll** — the

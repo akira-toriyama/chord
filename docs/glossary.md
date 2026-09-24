@@ -561,9 +561,13 @@ Surfaced by `config --doctor`'s `input monitoring:` line and
 ### VKeyHIDSource
 
 The **IOHIDManager**-based input source that reads v-keys (chord 0.10.0+).
-Matches the dongle by VID/PID (`0x1D50`/`0x615E`) and reads **only** the
-1-byte selector of report ID `0x20` (canon's vendor usage page `0xFF31`) —
-never ordinary keyboard reports. Selector `1–255` = press, `0` = release.
+Matches ZMK's default VID/PID (`0x1D50`/`0x615E`), admits only the device
+whose USB product string is `Imprint Dongle` (every ZMK-built device shares
+that VID/PID; the product string is what identifies the dongle — the code's
+`productName`), and reads **only** the 1-byte selector of report ID `0x20`
+(canon's vendor usage page `0xFF31`) — never ordinary keyboard reports. One
+input-report buffer per armed dongle, at least the device's
+`MaxInputReportSize` long. Selector `1–255` = press, `0` = release.
 **Does not conform to `EventSource`** (vendor reports never ride the tap, so
 a consume/pass return value would be meaningless). The edge detection
 (press/release latch math) lives in ChordCore's pure type
