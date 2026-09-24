@@ -96,10 +96,12 @@ design choice, not a technical impossibility:
 - Either one forfeits the single-tap consume/pass contract and the core's
   **"runs on one AX grant" lightness**
 
-**How the v-key differs (important)**: chord does VID/PID-match the dongle
-(`0x1D50`/`0x615E`) with IOHIDManager for v-keys, but it reads **only** the
-1-byte selector on canon's self-defined vendor usage page (`0xFF31` /
-report ID `0x20`) and never reads ordinary keyboard reports. So it is not
+**How the v-key differs (important)**: chord does match the dongle with
+IOHIDManager for v-keys (ZMK's default VID/PID `0x1D50`/`0x615E`, narrowed
+to the USB product string `Imprint Dongle` — the VID/PID alone is every
+ZMK-built device), but it reads **only** the 1-byte selector on canon's
+self-defined vendor usage page (`0xFF31` / report ID `0x20`) and never
+reads ordinary keyboard reports. So it is not
 per-device routing of ordinary keys and needs no HID/CGEvent correlation.
 The v-key is a narrow window — "one self-owned page from one device" — not
 the per-device branching described here (the §USP exception).
