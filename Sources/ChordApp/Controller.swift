@@ -8,11 +8,11 @@ import Foundation
 @MainActor
 public final class Controller {
     private let source: any EventSource
-    /// Vendor-HID "original key" source (canon `&vkey`). Reads selectors
-    /// off the Imprint dongle via IOHIDManager; started lazily in
-    /// `loadConfig` only when the config declares a v-key trigger
-    /// (`input = "<v-key-alias>"`), so non-vkey users are never prompted
-    /// for Input Monitoring.
+    /// Vendor-HID source (canon `&vkey` selectors and, chord 3.1.0+, the
+    /// split battery level). Reads the Imprint dongle via IOHIDManager;
+    /// started lazily in `loadConfig` only when the config declares a v-key
+    /// trigger (`input = "<v-key-alias>"`) or a `[battery]` table, so other
+    /// users are never prompted for Input Monitoring.
     private let vkeySource: VKeyHIDSource
     /// Relative-pointer-motion source for `action-drag-scroll`. Like
     /// [vkeySource] it is started lazily in `loadConfig`, only when the
@@ -489,6 +489,56 @@ public final class Controller {
         }
     }
 
+    /// A split peripheral battery level arrived from [VKeyHIDSource] (on
+    /// the main run loop). The threshold / re-arm decision is the pure
+    /// `BatteryThresholdTracker`; a crossing runs `[battery] action-shell`
+    /// with the source and level in its environment, under the name
+    /// `battery` (`CHORD_BINDING_NAME`). Not gated by `daemon --pause`: pause
+    /// suspends input handling, and a half running flat is worth hearing
+    /// about while chord is paused.
+    nonisolated private func handleBattery(source: UInt8, level: UInt8) {
+        batteryLock.lock()
+        guard var watch = batteryWatch else {
+            batteryLock.unlock()
+            return
+        }
+        let crossed = watch.tracker.observe(source: source, level: level)
+        batteryWatch = watch
+        batteryLock.unlock()
+        guard crossed else { return }
+        Log.line(
+            "battery: source=\(source) at \(level)% ≤ \(watch.tracker.threshold)% — "
+                + "running action-shell")
+        ActionDispatcher.dispatchShell(
+            watch.actionShell, name: "battery",
+            environment: [
+                "CHORD_BATTERY_SOURCE": String(source),
+                "CHORD_BATTERY_PERCENT": String(level)
+            ])
+    }
+
+    /// Publish the `[battery]` watch from the loaded config. The file
+    /// watcher reloads on every save of config.toml, so the per-source
+    /// latches are carried over whenever the threshold is unchanged — an
+    /// unrelated binding edit must not re-announce a half that is still
+    /// low. A moved threshold starts clean; a removed table drops the watch.
+    private func publishBatteryWatch(_ battery: ChordConfig.Battery?) {
+        batteryLock.lock()
+        let carried = batteryWatch?.tracker
+        batteryWatch = battery.map {
+            BatteryWatch(
+                tracker: carried?.retuned(to: $0.threshold)
+                    ?? BatteryThresholdTracker(threshold: $0.threshold),
+                actionShell: $0.actionShell)
+        }
+        batteryLock.unlock()
+        if let battery {
+            Log.line(
+                "battery: watching — threshold=\(battery.threshold)%, re-arms at "
+                    + "\(battery.threshold + BatteryThresholdTracker.rearmMargin)%")
+        }
+    }
+
     /// Record a binding so its `.up` half can implicitly consume the
     /// release event and dispatch any `onUpAction`. Keyed by Trigger
     /// alone — modifiers may transition between the down and up
@@ -566,6 +616,7 @@ public final class Controller {
             // stale entry no one can clear would silently keep a
             // condition-gated binding alive.
             resetState()
+            publishBatteryWatch(result.config.battery)
             let undef = result.warnings.lazy
                 .filter { $0.kind == .undefinedActionAlias }
                 .count
@@ -584,9 +635,10 @@ public final class Controller {
             // shows everything as "added" until the next reload.
             saveLoadedSnapshot(result: result)
             // Bring the vendor-HID source up if (and only if) this config
-            // declares a vkey-triggered binding. Idempotent — safe to call
-            // on startup and every reload; the first config that adds a
-            // vkey installs it, later reloads are no-ops.
+            // declares a vkey-triggered binding or a [battery] table.
+            // Idempotent — safe to call on startup and every reload; the
+            // first config that needs it installs it, later reloads only
+            // refresh its sinks.
             maybeStartVKeySource()
             // Same gate for the motion tap: installed only by a config
             // that declares `action-drag-scroll`, so a keyboard-only
@@ -613,21 +665,26 @@ public final class Controller {
     }
 
     /// Start the vendor-HID source on the first reload that declares a
-    /// vkey trigger. Failure is non-fatal: the core CGEventTap daemon keeps
-    /// running, vkeys are simply disabled until Input Monitoring is granted.
+    /// vkey trigger or a `[battery]` table. Failure is non-fatal: the core
+    /// CGEventTap daemon keeps running, vkeys and the battery watch are
+    /// simply disabled until Input Monitoring is granted.
     private func maybeStartVKeySource() {
-        guard configDeclaresVKeys() else { return }
+        guard configDeclaresVKeys() || config.battery != nil else { return }
         let weakSelf = WeakWrap(self)
         do {
-            try vkeySource.start { selector in
-                weakSelf.value?.handleVKey(selector: selector)
-            }
+            try vkeySource.start(
+                handler: { selector in
+                    weakSelf.value?.handleVKey(selector: selector)
+                },
+                battery: { source, level in
+                    weakSelf.value?.handleBattery(source: source, level: level)
+                })
         } catch {
             Log.line(
                 "vkey: Input Monitoring unavailable — \(error). Vendor-HID "
-                    + "keys disabled (grant chord under System Settings → Privacy "
-                    + "& Security → Input Monitoring, then `chord daemon --reload`). "
-                    + "Daemon continues.")
+                    + "keys and the [battery] watch disabled (grant chord under "
+                    + "System Settings → Privacy & Security → Input Monitoring, "
+                    + "then `chord daemon --reload`). Daemon continues.")
             // Surface the system prompt so the user can act on it.
             Permissions.promptForInputMonitoring()
         }
@@ -860,6 +917,19 @@ let pendingUpsLock = NSLock()
 // Touched by the HID callback (main run loop) and reset on reload.
 nonisolated(unsafe) private var vkeyTracker = VKeyEdgeTracker()
 private let vkeyLock = NSLock()
+
+// [battery] watch (chord 3.1.0+): the threshold tracker for the split
+// peripheral battery report plus the command it runs. Rebuilt from the
+// config on every load (nil without a `[battery]` table) and read by the
+// HID callback on the main run loop — the same nonisolated(unsafe)+NSLock
+// idiom as vkeyTracker.
+nonisolated(unsafe) private var batteryWatch: BatteryWatch?
+private let batteryLock = NSLock()
+
+private struct BatteryWatch {
+    var tracker: BatteryThresholdTracker
+    let actionShell: String
+}
 
 #if DEBUG
 

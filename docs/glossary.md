@@ -185,7 +185,8 @@ ChordConfig
 ├── bindings         [Binding]
 ├── fallbacks        [Binding]   ← the one place .anyKey triggers are allowed
 ├── actionAliases    [String: String]
-└── inputAliases     [String: String]
+├── inputAliases     [String: String]
+└── battery          Battery?   ← the [battery] table (chord 3.1.0+); nil = no watch
 ```
 
 `fnAutoArrows` (chord 0.8.0+): when true (the default), matching skips the
@@ -215,6 +216,7 @@ major bump = v4).
 | `[action-aliases]` | the `@name → shell command` substitution table |
 | `[input-aliases]` | the `$name → "mod1 + mod2"` substitution table |
 | `[v-key-aliases]` | the `NAME → vendor-HID id (1–255)` substitution table (chord 0.10.0+). Bindings reference it by bare `input = "NAME"` (no `$`). Names are case-insensitive, first-wins; shadowing a builtin key/modifier/`v-key` wildcard is rejected |
+| `[battery]` | the split-keyboard **battery watch** (chord 3.1.0+): `threshold` (percent, 1–100) + `action-shell` (runs once per keyboard half when its reported level first reaches the threshold, with `CHORD_BATTERY_SOURCE` / `CHORD_BATTERY_PERCENT` in its env; `@name` resolves like a binding's). Both keys required — any defect disables the table (`battery-invalid`). Arms the same vendor-HID source v-keys use, so it needs Input Monitoring. See §5 [BatteryThresholdTracker](#batterythresholdtracker) / §6 [split battery report](#split-battery-report-vendor-hid) |
 
 ### Per-binding fields
 
@@ -338,6 +340,7 @@ strict-side: `"lcmd"`, `"rcmd"`, `"lopt"`, `"ropt"`, `"lctrl"`, `"rctrl"`, `"lsh
 | `"unknown-key"` | a key unknown to the descriptor on a `[[bindings]]` / `[[fallbacks]]` / `[[sequence]]` / `[[remap]]` (and nested `per-app` / `sequence.bindings`) line (typos like `actoin-shell`), **or a typo in a top-level section header itself (`[[bindigs]]` / `[optoins]`)**. Either way the runtime silently ignores it; `--strict` exits 1. The known catalog (section names + each section's keys) is the same `ChordConfigSchema` descriptor that drives `--emit-schema` (#52-bounded) |
 | `"duplicate-binding-name"` | multiple user-named `[[bindings]]` lines share a name (synthetic `binding-N` names excluded) |
 | `"v-key-alias-invalid"` | a `[v-key-aliases]` value is non-integer / out of range (outside 1–255) / a name shadows a builtin key, modifier, or the `v-key` wildcard (chord 0.10.0+) |
+| `"battery-invalid"` | the `[battery]` table cannot run: `threshold` missing or outside 1–100, `action-shell` missing or empty — the whole watch is disabled. A wrong TOML type on either key is `field-type-mismatch`, an unresolvable `@name` is `undefined-action-alias` / `action-alias-call-error`, an unknown key is `unknown-key` (chord 3.1.0+) |
 | `"field-type-mismatch"` | an optional `[options]` / `[[bindings]]` field **exists but has the wrong TOML type** (e.g. `passthrough = "true"`, `input-source = 3`). The loader reads via `?.asBool` / `?.asArray`, so a mistyped field silently skips → the default stays and the field "does nothing". A non-string element in an array field (silently dropped by compactMap) reports one entry under the same kind. `--strict` exits 1 (chord 0.10.0+) |
 | `"other"` | future catch-all |
 
@@ -545,12 +548,14 @@ creates a persistent cert as the fix).
 
 ### Input Monitoring (kTCCServiceListenEvent)
 
-The permission the v-key vendor-HID read (IOHIDManager) requires
-(chord 0.10.0+). **A separate TCC grant from AX permission**: System
+The permission the vendor-HID read (IOHIDManager: v-keys, chord 0.10.0+,
+and the `[battery]` watch, chord 3.1.0+) requires. **A separate TCC grant
+from AX permission**: System
 Settings → Privacy & Security → Input Monitoring. Checked with
 `IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)`, prompted with
-`IOHIDRequestAccess(...)`. **Requested only when a v-key binding exists**
-(`Controller.maybeStartVKeySource`); non-v-key users are never asked.
+`IOHIDRequestAccess(...)`. **Requested only when a v-key binding or a
+`[battery]` table exists** (`Controller.maybeStartVKeySource`); other users
+are never asked.
 Surfaced by `config --doctor`'s `input monitoring:` line and
 `query --status`'s `input_monitoring_granted`. Holding AX does not cover it.
 
@@ -560,19 +565,21 @@ Surfaced by `config --doctor`'s `input monitoring:` line and
 
 ### VKeyHIDSource
 
-The **IOHIDManager**-based input source that reads v-keys (chord 0.10.0+).
-Matches ZMK's default VID/PID (`0x1D50`/`0x615E`), admits only the device
-whose USB product string is `Imprint Dongle` (every ZMK-built device shares
-that VID/PID; the product string is what identifies the dongle — the code's
-`productName`), and reads **only** the 1-byte selector of report ID `0x20`
-(canon's vendor usage page `0xFF31`) — never ordinary keyboard reports. One
-input-report buffer per armed dongle, at least the device's
-`MaxInputReportSize` long. Selector `1–255` = press, `0` = release.
-**Does not conform to `EventSource`** (vendor reports never ride the tap, so
-a consume/pass return value would be meaningless). The edge detection
-(press/release latch math) lives in ChordCore's pure type
-[VKeyEdgeTracker](#vkeyedgetracker); `VKeyHIDSource` just streams raw
-selectors.
+The **IOHIDManager**-based input source that reads the dongle's vendor
+reports (chord 0.10.0+). Matches ZMK's default VID/PID (`0x1D50`/`0x615E`),
+admits only the device whose USB product string is `Imprint Dongle` (every
+ZMK-built device shares that VID/PID; the product string is what identifies
+the dongle — the code's `productName`), and reads **only** canon's vendor
+usage page `0xFF31` — never ordinary keyboard reports — routing by report
+ID: `0x20`, the 1-byte v-key selector (`1–255` = press, `0` = release), and
+`0x21` (chord 3.1.0+), the [split battery report](#split-battery-report-vendor-hid)
+`{source, level}`, each to its own sink. One input-report buffer per armed
+dongle, at least the device's `MaxInputReportSize` long. **Does not conform
+to `EventSource`** (vendor reports never ride the tap, so a consume/pass
+return value would be meaningless). The decisions live in ChordCore's pure
+types — [VKeyEdgeTracker](#vkeyedgetracker) for the press/release latch,
+[BatteryThresholdTracker](#batterythresholdtracker) for the threshold —
+`VKeyHIDSource` just streams raw bytes.
 
 - code: [Sources/ChordAdapterMacOS/VKeyHIDSource.swift](../Sources/ChordAdapterMacOS/VKeyHIDSource.swift)
 - schema: `trigger.kind = "vkey"` / `"anyVKey"` (§3)
@@ -642,6 +649,23 @@ selectors to `events(for:)`; no HID-dependent code here.
 - code: [Sources/ChordCore/VKeyEdgeTracker.swift](../Sources/ChordCore/VKeyEdgeTracker.swift) `VKeyEdgeTracker`
 - **Don't call it**: vkey-state-machine
 
+### BatteryThresholdTracker
+
+The pure ChordCore type holding the `[battery]` watch's **threshold /
+re-arm math** (chord 3.1.0+, unit-tested). Per keyboard half (the report's
+`source`): a reading at or below `threshold` announces once and **latches**;
+the latch clears only when a reading climbs to `threshold + 5` (a charge,
+not jitter). A level of `0` is a disconnected half — ZMK's central pushes
+it on every peripheral disconnect, the dongle's own boot included — and is
+never a reading: it neither announces nor re-arms. Carried across config
+loads (`retuned(to:)`): only a changed threshold clears the latches, since
+the file watcher reloads on every save. The Controller feeds it
+`(source, level)` and runs `action-shell` when it says so; no HID-dependent
+code here.
+
+- code: [Sources/ChordCore/BatteryThresholdTracker.swift](../Sources/ChordCore/BatteryThresholdTracker.swift) `BatteryThresholdTracker`
+- **Don't call it**: battery-state-machine, low-battery-detector, hysteresis (the mechanism, not the name)
+
 ### VariableStore
 
 The state-var store proper (extracted from the Controller's file-private
@@ -705,6 +729,25 @@ chord it is an input source; the names (`TU_LL_C` etc.) are canon's.
 
 - **Don't call it**: original key (descriptive phrase; the concept name is
   v-key), custom keycode
+
+### split battery report (vendor-HID)
+
+canon's second vendor report (chord 3.1.0+): the dongle, as the split
+central, subscribes to each half's Battery Level over BLE
+(`CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING`) and forwards every
+change over USB as report ID `0x21` on usage page `0xFF31`, body
+`{source, level}` — `source` = the dongle's peripheral slot index (which
+physical half a slot is must be established on the hardware), `level` =
+percent as ZMK reports it, `0` = that half disconnected. Sent on change
+only; a half stops sampling after 30 s idle, so a threshold crossing shows
+up at the next change, not on a schedule. chord receives it via §5's
+[VKeyHIDSource](#vkeyhidsource) and judges it with
+[BatteryThresholdTracker](#batterythresholdtracker); the `[battery]` table
+(§2) is the user's side.
+
+- **Don't call it**: BAS report / GATT battery (that is the BLE hop between
+  the halves and the dongle, not what reaches the host), battery event,
+  power report
 
 ### ULTRA_LL / MIRACLE_LM / MEGA_RM / WONDER_RR
 
@@ -810,6 +853,13 @@ with a nearest-match hint; `-h`/`-V` carve-out). chord-side policy:
 - **`CHORD_DEBUG`** — when set, `Log.debugMode = true`: writes to
   `/tmp/chord.log` plus a stderr mirror. `run.sh` sets it to `=1`; brew /
   raw launches leave it unset and quiet.
+- **`CHORD_BINDING_NAME`** / **`CHORD_FRONTMOST_BUNDLE_ID`** — set in every
+  `action-shell` child's environment: the firing binding's `name` (the
+  `[battery]` watch fires as `battery`) and the frontmost app's bundle id
+  when one is known.
+- **`CHORD_BATTERY_SOURCE`** / **`CHORD_BATTERY_PERCENT`** — set in the
+  `[battery]` `action-shell` child only (chord 3.1.0+): the report's
+  peripheral slot index and the level that crossed the threshold.
 
 ### File paths
 

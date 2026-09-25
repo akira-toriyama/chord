@@ -333,8 +333,8 @@ public enum BindingsSchema {
 
     public struct WireDropped: Codable, Sendable {
         /// `"[[bindings]]"` | `"[[fallbacks]]"` | `"[action-aliases]"` |
-        /// `"[input-aliases]"` | `"[v-key-aliases]"` — matches the literal
-        /// section header the warning fired in.
+        /// `"[input-aliases]"` | `"[v-key-aliases]"` | `"[battery]"` — matches
+        /// the literal section header the warning fired in.
         public let section: String
         public let name: String?
         /// The offending FIELD's location — a malformed value points at
@@ -768,6 +768,8 @@ public enum BindingsSchema {
             section = "[input-aliases]"
         case .vkeyAliasInvalid:
             section = "[v-key-aliases]"
+        case .batteryInvalid:
+            section = "[battery]"
         default:
             // missing-input / missing-action / unknown-input-token /
             // action-keys-parse-error / undefined-alias — and the #52

@@ -504,6 +504,11 @@ enum ChordApp {
                 print("  @\(k) → \(res.config.actionAliases[k] ?? "")")
             }
         }
+        if let battery = res.config.battery {
+            print("battery:")
+            print("  threshold: \(battery.threshold)%")
+            print("  action-shell: \(battery.actionShell)")
+        }
         printBindingSection("bindings", rows: res.config.bindings)
         if !res.config.fallbacks.isEmpty {
             printBindingSection("fallbacks", rows: res.config.fallbacks)
@@ -642,7 +647,9 @@ enum ChordApp {
         // Accessibility alone. Don't flip `bad` (would break installs
         // that never use v-key bindings).
         let im = Permissions.isInputMonitoringTrusted()
-        print("input monitoring: " + (im ? "ok" : "not granted (only needed for v-key bindings)"))
+        print(
+            "input monitoring: "
+                + (im ? "ok" : "not granted (only needed for v-key bindings and [battery])"))
 
         let cfgPath = ChordConfig.path
         let cfgPresent = FileManager.default.fileExists(atPath: cfgPath)

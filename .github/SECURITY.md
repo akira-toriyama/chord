@@ -14,18 +14,21 @@ session produces. Its security posture is dominated by these facts:
    the source of truth for what runs; chord trusts its contents
    verbatim. Treat it the same way you treat `.zshrc` or
    `Brewfile`.
-3. **Input Monitoring (conditional, v-key only)** — only when the
-   config declares v-key bindings does chord open the canon dongle
-   (matched by VID/PID) via `IOHIDManager` under the Input
-   Monitoring grant (`kTCCServiceListenEvent`) and read one vendor
-   usage page (`0xFF31`, report `0x20`). It subscribes to no other
-   device and reads no general keyboard HID; non-v-key users are
-   never prompted for it.
+3. **Input Monitoring (conditional: v-keys and `[battery]` only)** —
+   only when the config declares v-key bindings or a `[battery]`
+   table does chord open the canon dongle (matched by VID/PID and
+   the `Imprint Dongle` product string) via `IOHIDManager` under the
+   Input Monitoring grant (`kTCCServiceListenEvent`) and read one
+   vendor usage page (`0xFF31`: report `0x20`, the v-key selector,
+   and report `0x21`, the split keyboard's battery level). It
+   subscribes to no other device and reads no general keyboard HID;
+   other users are never prompted for it.
 
 ## What chord does NOT do
 
 - It does not log keystrokes anywhere (only matched-binding names
-  go to `/tmp/chord.log`).
+  and, with `[battery]`, the keyboard halves' battery levels go to
+  `/tmp/chord.log`).
 - It does not phone home, fetch updates, or contact any network.
 - It does not bypass the TCC accessibility prompt. If the prompt
   was suppressed by a third-party tool, chord still runs the

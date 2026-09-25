@@ -11,6 +11,27 @@
       "description" : "name → shell command. Open vocabulary.",
       "type" : "object"
     },
+    "battery" : {
+      "additionalProperties" : false,
+      "description" : "Split-keyboard battery watch (chord 3.1.0+): threshold + action-shell.",
+      "properties" : {
+        "action-shell" : {
+          "description" : "Shell command (\/bin\/zsh -l -c) run with CHORD_BATTERY_SOURCE (the dongle's peripheral slot index) and CHORD_BATTERY_PERCENT in its environment. @name references an [action-aliases] entry.",
+          "type" : "string"
+        },
+        "threshold" : {
+          "description" : "Percent (1–100). action-shell runs once per keyboard half when its reported level first drops to this or below; it re-arms once the level climbs back to threshold + 5.",
+          "maximum" : 100,
+          "minimum" : 1,
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "threshold",
+        "action-shell"
+      ],
+      "type" : "object"
+    },
     "bindings" : {
       "description" : "The primary key→action bindings.",
       "items" : {

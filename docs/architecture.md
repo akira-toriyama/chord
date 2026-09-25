@@ -55,9 +55,11 @@ module, there's a missing protocol — add it to `ChordCore` and
 have the adapter conform.
 
 That OS surface includes `IOKit.hid`: `VKeyHIDSource` (chord 0.10.0+)
-reads the canon dongle's vendor-HID v-key reports via `IOHIDManager`.
-`ChordCore` still must not `import IOKit` — the v-key selector
-crosses the seam only as an abstract `Trigger.vkey(UInt8)`, so the
+reads the canon dongle's vendor-HID reports via `IOHIDManager` — the
+v-key selector and, since chord 3.1.0, the split battery level.
+`ChordCore` still must not `import IOKit` — the v-key selector crosses
+the seam only as an abstract `Trigger.vkey(UInt8)`, the battery level
+as two bytes handed to the pure `BatteryThresholdTracker`, so the
 layer rule holds.
 
 `ChordAdapterTest` exists so the matcher pipeline can be driven
@@ -120,10 +122,11 @@ notification latency, which in practice is sub-millisecond.
 
 - HID-level remapping **of ordinary keys**. Use Karabiner-Elements
   for that; chord taps the CGEvent result. (Exception: chord *reads*
-  one self-defined vendor HID report — canon's v-key selector, usage
-  page `0xFF31` — via `IOHIDManager`; a bounded read of one vendor
-  page on one matched device, not general HID interception or
-  remapping. See [docs/non-goals.md](non-goals.md) §USP / §2.)
+  two self-defined vendor HID reports on canon's usage page `0xFF31` —
+  the v-key selector and the split battery level — via `IOHIDManager`;
+  a bounded read of one vendor page on one matched device, not general
+  HID interception or remapping. See [docs/non-goals.md](non-goals.md)
+  §USP / §2.)
 - Click-and-drag **gestures** or path-based input. Use
   [wand](https://github.com/akira-toriyama/wand) for that. (Exception:
   `action-drag-scroll` reads relative pointer motion while its trigger
