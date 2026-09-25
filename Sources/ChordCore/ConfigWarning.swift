@@ -73,6 +73,13 @@ public struct ConfigWarning: Sendable, Hashable, CustomStringConvertible {
         /// id out of 1–255, name shadows a real key / modifier / the
         /// `v-key` wildcard, or a duplicate name. The entry is ignored.
         case vkeyAliasInvalid = "v-key-alias-invalid"
+        /// chord 3.1.0+: the `[battery]` table cannot run — `threshold`
+        /// missing or outside 1–100, `action-shell` missing or empty. There
+        /// is no partial battery watch, so the whole table is disabled. A
+        /// wrong TOML type on either key reports as `field-type-mismatch`
+        /// and an unresolvable `@name` as `undefined-action-alias` /
+        /// `action-alias-call-error`, each disabling it the same way.
+        case batteryInvalid = "battery-invalid"
         /// v2: `when-var` / `when-var-value` malformed or orphan.
         case conditionParseError = "condition-parse-error"
         /// v2: `hold-while = "…"` fails to parse as a modifier mask.

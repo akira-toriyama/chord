@@ -30,6 +30,10 @@ import Testing
         .perAppParseError,  // [[bindings.per-app]] parse
         .actionAliasCallError,  // @name(args) call parse
         .unknownOptionKey,  // [options] typo — schema additionalProperties:false
+        // [battery] table-level, not a binding hover: the required keys and
+        // the 1–100 range are in the schema (taplo squiggles); the empty
+        // command and the wrong table shape are the daemon parser's.
+        .batteryInvalid,
         .unknownKey,  // schema additionalProperties:false
         .fieldTypeMismatch,  // field type — schema declares each field's `type` (taplo squiggles)
         .other  // catch-all

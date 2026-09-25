@@ -25,7 +25,7 @@ import Testing
         #expect(
             Set(props.keys) == [
                 "options", "action-aliases", "input-aliases",
-                "v-key-aliases", "bindings", "fallbacks",
+                "v-key-aliases", "battery", "bindings", "fallbacks",
                 "sequence", "remap"
             ])
     }

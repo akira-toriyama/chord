@@ -28,6 +28,11 @@ Triggers:
   it can't clash with real keys); name ids in `[v-key-aliases]`
   and bind with a bare `input = "NAME"`. Needs Input Monitoring
   (see Install). (chord 0.10.0+)
+- **Split-keyboard battery watch** — a `[battery]` table runs a
+  command once per keyboard half when the level the Imprint dongle
+  reports first reaches a threshold; see
+  [Battery level](#battery-level-split-keyboard-over-the-imprint-dongle).
+  (chord 3.1.0+)
 
 Actions:
 
@@ -137,16 +142,18 @@ For a Dock-less always-on daemon, run `./package.sh` to assemble
 will prompt for Accessibility — grant it in **System Settings →
 Privacy & Security → Accessibility**, then relaunch.
 
-**Input Monitoring (v-keys only).** If your config uses
-[v-key](#v-keys-vendor-hid-from-zmk) bindings — vendor-HID keys a ZMK
-keymap emits — chord additionally needs the **Input Monitoring**
-grant, a *separate* TCC permission from Accessibility, in **System
-Settings → Privacy & Security → Input Monitoring**. `Chord.app`
-carries its own signing identity (distinct from your terminal), so
-the GUI daemon needs its own grant even when the CLI already has
-Accessibility. chord asks for it only when a v-key binding is
-configured — non-v-key users are never prompted. `chord config
---doctor` reports it on the `input monitoring:` line.
+**Input Monitoring (v-keys and `[battery]` only).** If your config
+uses [v-key](#v-keys-vendor-hid-from-zmk) bindings — vendor-HID keys
+a ZMK keymap emits — or the
+[battery watch](#battery-level-split-keyboard-over-the-imprint-dongle),
+chord additionally needs the **Input Monitoring** grant, a *separate*
+TCC permission from Accessibility, in **System Settings → Privacy &
+Security → Input Monitoring**. `Chord.app` carries its own signing
+identity (distinct from your terminal), so the GUI daemon needs its
+own grant even when the CLI already has Accessibility. chord asks for
+it only when a v-key binding or a `[battery]` table is configured —
+other users are never prompted. `chord config --doctor` reports it on
+the `input monitoring:` line.
 
 ## Configure
 
@@ -281,6 +288,61 @@ product string canon's dongle shield sets. Every ZMK-built device shares
 ZMK's default VID/PID, so another ZMK dongle on the same Mac is matched
 but skipped; `/tmp/chord.log` shows `vkey-hid: ignoring ZMK device …` for
 it and `vkey-hid: matched Imprint Dongle (serial …)` for the one armed.
+
+### Battery level (split keyboard over the Imprint dongle)
+
+canon's dongle forwards each half's battery level to the host as a
+second vendor-HID report (report ID `0x21`, `{source, level}`; firmware
+side `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_HID=y`). A `[battery]`
+table makes chord watch it and run a command once per half when the
+level first reaches the threshold:
+
+```toml
+[battery]
+threshold = 10                            # percent, 1–100
+action-shell = "imprint-battery-notify"   # @name works here too
+```
+
+The command runs like any `action-shell` (`/bin/zsh -l -c`,
+`CHORD_BINDING_NAME=battery`) with two extra variables:
+`CHORD_BATTERY_SOURCE`, the dongle's peripheral slot index (`0` / `1`
+— which physical half is which is a property of your hardware), and
+`CHORD_BATTERY_PERCENT`. chord draws nothing itself, so the
+notification is the command's job, for example:
+
+```sh
+#!/bin/sh
+# ~/.local/bin/imprint-battery-notify
+case "$CHORD_BATTERY_SOURCE" in
+  0) side=left ;;
+  1) side=right ;;
+  *) side="half $CHORD_BATTERY_SOURCE" ;;
+esac
+terminal-notifier -title Imprint -subtitle "$side" \
+  -message "battery ${CHORD_BATTERY_PERCENT}%" -sound default
+```
+
+Two properties of the report shape what you will see:
+
+- **One announcement per discharge.** After firing for a half, chord
+  stays quiet for that half until its level climbs back to
+  `threshold + 5` (a charge, not the jitter around the threshold); the
+  other half is tracked separately. Changing the threshold clears the
+  latches; any other config edit keeps them.
+- **Levels arrive on change, not on a schedule.** A half reports only
+  when its level changes and stops sampling after 30 s idle, so a
+  crossing shows up at the next change — a keyboard left to drain
+  unused is announced when it is used again. A level of `0` means
+  "that half disconnected" (every replug and the dongle's own boot
+  produce one) and is never treated as 0 %.
+
+Both keys are required; a table chord cannot run is reported by
+`chord config --validate` and disabled as a whole. `[battery]` arms the
+same vendor-HID read as v-keys, so it needs the **Input Monitoring**
+grant (see [Install](#install)) even in a config with no v-key binding.
+Every level the dongle reports is logged to `/tmp/chord.log`
+(`vkey-hid: battery source=0 level=77% …`), which is where to look when
+nothing fires.
 
 ### Drag-scroll
 

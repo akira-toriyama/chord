@@ -154,7 +154,20 @@ public enum ActionDispatcher {
         return CGEventFlags(rawValue: raw)
     }
 
-    static func runShell(_ command: String, name: String) {
+    /// Run a shell command that belongs to no binding — the `[battery]`
+    /// watch (chord 3.1.0+) — with `extra` laid over the environment
+    /// `runShell` already builds (`CHORD_BINDING_NAME` = `name`, the
+    /// frontmost bundle id). Same detached execution as `.shell` above.
+    public static func dispatchShell(
+        _ command: String, name: String, environment extra: [String: String]
+    ) {
+        Log.debug("dispatch.shell: \(name) → \(command)")
+        Task.detached(priority: .userInitiated) {
+            ActionDispatcher.runShell(command, name: name, extraEnv: extra)
+        }
+    }
+
+    static func runShell(_ command: String, name: String, extraEnv: [String: String] = [:]) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
         proc.arguments = ["-l", "-c", command]
@@ -165,6 +178,7 @@ public enum ActionDispatcher {
         if let id = FrontmostTracker.shared.bundleID {
             env["CHORD_FRONTMOST_BUNDLE_ID"] = id
         }
+        for (key, value) in extraEnv { env[key] = value }
         proc.environment = env
         do {
             try proc.run()

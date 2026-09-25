@@ -3,14 +3,16 @@ import Foundation
 import IOKit
 import IOKit.hid
 
-/// Vendor-defined HID "original key" (vkey) source.
+/// Vendor-defined HID source: v-keys and the split battery level.
 ///
-/// Reads the canon firmware's vendor report (Usage Page `0xFF31`, Report
-/// ID `0x20`) straight off the Imprint USB dongle via `IOHIDManager` and
-/// hands the 1-byte selector to the Controller. Deliberately NOT an
+/// Reads the canon firmware's vendor reports (Usage Page `0xFF31`) straight
+/// off the Imprint USB dongle via `IOHIDManager` and routes each by report
+/// ID to its own sink: `0x20`, the 1-byte v-key selector, to the Controller's
+/// v-key path; `0x21` (chord 3.1.0+), the split peripheral battery level
+/// `{source, level}`, to the `[battery]` watch. Deliberately NOT an
 /// [EventSource] conformer: vendor reports never reach the CGEventTap, so
-/// there is no consume / passthrough decision to make — the callback just
-/// surfaces the selector and the Controller maps `id → action`.
+/// there is no consume / passthrough decision to make — the callbacks just
+/// surface the bytes and the Controller decides what they mean.
 ///
 /// Wire contract (verified on real hardware, vkey Phase 2): macOS exposes
 /// the dongle as ONE device (primary usage = keyboard) carrying every
@@ -52,12 +54,20 @@ public final class VKeyHIDSource: @unchecked Sendable {
     public static let productName = "Imprint Dongle"
     /// Vendor "original key" report (canon `ZMK_HID_REPORT_ID_VKEY`).
     public static let reportID: UInt8 = 0x20
+    /// Split peripheral battery level report (canon
+    /// `ZMK_HID_REPORT_ID_SPLIT_BATTERY`, chord 3.1.0+): wire
+    /// `[0x21, source, level]`, `source` = the dongle's peripheral slot
+    /// index, `level` = percent as ZMK reports it — `0` is a disconnected
+    /// half, not an empty one (the tracker in ChordCore knows).
+    public static let batteryReportID: UInt8 = 0x21
 
     private var manager: IOHIDManager?
 
-    /// Strongly-held selector sink, shared with the C callbacks via an
-    /// unretained `self` pointer.
+    /// Strongly-held sinks, shared with the C callbacks via an unretained
+    /// `self` pointer. `handler` takes the v-key selector; `batteryHandler`
+    /// the battery report's `(source, level)`.
     private var handler: (@Sendable (UInt8) -> Void)?
+    private var batteryHandler: (@Sendable (UInt8, UInt8) -> Void)?
 
     /// One armed dongle: the device, the input-report buffer registered on
     /// it, and a label for the log. Keyed by the device's object identity,
@@ -91,13 +101,21 @@ public final class VKeyHIDSource: @unchecked Sendable {
 
     public init() {}
 
+    /// Install the manager (once) and set the sinks. The Controller calls
+    /// this on every config load, so the sinks are replaced even when the
+    /// manager is already installed — every field is main-thread only (see
+    /// the type doc), so a callback never observes a half-set pair.
     @MainActor
-    public func start(handler: @escaping @Sendable (UInt8) -> Void) throws {
+    public func start(
+        handler: @escaping @Sendable (UInt8) -> Void,
+        battery: (@Sendable (_ source: UInt8, _ level: UInt8) -> Void)? = nil
+    ) throws {
+        self.handler = handler
+        self.batteryHandler = battery
         if manager != nil {
             Log.line("vkey-hid: already installed")
             return
         }
-        self.handler = handler
 
         let mgr = IOHIDManagerCreate(
             kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -140,6 +158,7 @@ public final class VKeyHIDSource: @unchecked Sendable {
             IOHIDManagerClose(mgr, IOOptionBits(kIOHIDOptionsTypeNone))
             releaseBuffers()
             self.handler = nil
+            self.batteryHandler = nil
             Log.line(
                 String(
                     format: "vkey-hid: IOHIDManagerOpen failed (0x%08X) — "
@@ -157,9 +176,10 @@ public final class VKeyHIDSource: @unchecked Sendable {
         Log.line(
             String(
                 format: "vkey-hid: installed (matching VID=0x%04X PID=0x%04X "
-                    + "product=\"%@\", reportID=0x%02X)",
+                    + "product=\"%@\", reportIDs=0x%02X/0x%02X)",
                 VKeyHIDSource.vendorID, VKeyHIDSource.productID,
-                VKeyHIDSource.productName, Int(VKeyHIDSource.reportID)))
+                VKeyHIDSource.productName, Int(VKeyHIDSource.reportID),
+                Int(VKeyHIDSource.batteryReportID)))
     }
 
     @MainActor
@@ -171,6 +191,7 @@ public final class VKeyHIDSource: @unchecked Sendable {
         releaseBuffers()
         manager = nil
         handler = nil
+        batteryHandler = nil
         Log.line("vkey-hid: stopped")
     }
 
@@ -226,11 +247,11 @@ public final class VKeyHIDSource: @unchecked Sendable {
         if let reported, reported > 0 {
             maxLength = reported
         } else {
-            // Never observed (both ZMK dongles report 13). The vkey report is
-            // two bytes with its ID, so v-keys still work off a minimal
-            // buffer; longer reports would be clamped, and are ignored anyway.
-            maxLength = 2
-            Log.line("vkey-hid: \(label) reports no MaxInputReportSize — arming a 2-byte buffer")
+            // Never observed (both ZMK dongles report 13). The longer vendor
+            // report is the 3-byte battery one, so both still work off a
+            // minimal buffer; anything longer is clamped, and ignored anyway.
+            maxLength = 3
+            Log.line("vkey-hid: \(label) reports no MaxInputReportSize — arming a 3-byte buffer")
         }
         let buffer = takeBuffer(capacity: maxLength)
         slots[key] = Slot(device: device, buffer: buffer, label: label)
@@ -266,9 +287,17 @@ public final class VKeyHIDSource: @unchecked Sendable {
         return buffer
     }
 
-    /// A report landed in an armed device's buffer. Only the vkey report is
-    /// read; the dongle's keyboard / consumer / mouse reports share the
-    /// callback (one per device, not per report ID) and are skipped here.
+    /// A report landed in an armed device's buffer. Only the two vendor
+    /// reports are read; the dongle's keyboard / consumer / mouse reports
+    /// share the callback (one per device, not per report ID) and are
+    /// skipped here.
+    ///
+    /// IOHIDDeviceRegisterInputReportCallback delivers the report-ID byte at
+    /// report[0], so the payload starts at report[1] (verified on hardware:
+    /// wire = [0x20, selector] / [0x21, source, level]). Anything shorter
+    /// than its report can only be a copy clamped by an undersized buffer —
+    /// IOKit never strips the ID on this path — and is dropped rather than
+    /// misread.
     private func inputReport(
         from device: IOHIDDevice, reportID: UInt32, report: UnsafeBufferPointer<UInt8>
     ) {
@@ -278,15 +307,24 @@ public final class VKeyHIDSource: @unchecked Sendable {
             Log.debug("vkey-hid: report from a device that is not armed — dropped")
             return
         }
-        // IOHIDDeviceRegisterInputReportCallback delivers the report-ID
-        // byte at report[0], so the 1-byte selector is report[1] (verified
-        // on hardware: wire = [0x20, selector]). Anything shorter can only be
-        // a copy clamped by an undersized buffer — IOKit never strips the ID
-        // on this path — and is dropped rather than misread as a selector.
-        guard reportID == UInt32(VKeyHIDSource.reportID), report.count >= 2 else { return }
-        let selector = report[1]
-        Log.debug("vkey-hid: selector=\(selector) from \(slot.label)")
-        handler?(selector)
+        switch reportID {
+        case UInt32(VKeyHIDSource.reportID):
+            guard report.count >= 2 else { return }
+            let selector = report[1]
+            Log.debug("vkey-hid: selector=\(selector) from \(slot.label)")
+            handler?(selector)
+        case UInt32(VKeyHIDSource.batteryReportID):
+            guard report.count >= 3 else { return }
+            let source = report[1]
+            let level = report[2]
+            // Always logged, not debug-gated: a half's level changes a few
+            // times an hour at most, and the log is the only place the
+            // levels are visible (chord draws nothing).
+            Log.line("vkey-hid: battery source=\(source) level=\(level)% from \(slot.label)")
+            batteryHandler?(source, level)
+        default:
+            return
+        }
     }
 
     private static func property<T>(_ device: IOHIDDevice, _ key: String) -> T? {

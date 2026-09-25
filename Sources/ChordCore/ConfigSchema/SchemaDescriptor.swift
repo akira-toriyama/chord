@@ -453,6 +453,29 @@ public enum ChordConfigSchema {
             doc: "Global options. All keys optional.")
     }
 
+    /// `[battery]` (chord 3.1.0+): the split peripheral battery watch. Both
+    /// keys required — `Config.parseBattery` disables the table on any
+    /// defect. Its `keySet` is the parser's known-key inventory.
+    static func batteryShape() -> ObjectShape {
+        ObjectShape(
+            fields: [
+                SchemaField(
+                    "threshold", .integer,
+                    doc:
+                        "Percent (1–100). action-shell runs once per keyboard half when its reported level first drops to this or below; it re-arms once the level climbs back to threshold + 5.",
+                    minimum: 1, maximum: 100),
+                SchemaField(
+                    "action-shell", .string,
+                    doc:
+                        "Shell command (/bin/zsh -l -c) run with CHORD_BATTERY_SOURCE (the dongle's peripheral slot index) and CHORD_BATTERY_PERCENT in its environment. @name references an [action-aliases] entry."
+                )
+            ],
+            required: ["threshold", "action-shell"],
+            doc:
+                "Split-keyboard battery watch over the Imprint dongle's vendor-HID battery report. Needs the Input Monitoring grant like v-keys. A level of 0 is a disconnected half, never a reading."
+        )
+    }
+
     /// The single source of truth: every config.toml section.
     public static var sections: [SchemaSection] {
         [
@@ -476,6 +499,9 @@ public enum ChordConfigSchema {
                 doc:
                     "name → vendor-HID v-key id. Reference via a bare `input = \"<name>\"` (no $ sigil — a complete trigger like `f13`). Names must not shadow built-in keys / modifiers."
             ),
+            SchemaSection(
+                "battery", .table(batteryShape()),
+                doc: "Split-keyboard battery watch (chord 3.1.0+): threshold + action-shell."),
             SchemaSection(
                 "bindings", .arrayOfTables(bindingShape()), doc: "The primary key→action bindings."),
             SchemaSection(

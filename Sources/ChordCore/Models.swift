@@ -463,6 +463,24 @@ public struct ChordConfig: Sendable {
         }
     }
 
+    /// The `[battery]` table (chord 3.1.0+): the split peripheral battery
+    /// watch. The Imprint dongle forwards each half's state of charge as a
+    /// vendor-HID report (report ID `0x21`, `{source, level}`); when a
+    /// half's level first reaches `threshold`, `actionShell` runs once with
+    /// `CHORD_BATTERY_SOURCE` / `CHORD_BATTERY_PERCENT` in its environment
+    /// and stays quiet until that half has charged back past the threshold.
+    public struct Battery: Sendable, Equatable {
+        /// Percent, 1–100. A reading at or below it announces.
+        public var threshold: Int
+        /// Shell command, `@name` already resolved.
+        public var actionShell: String
+
+        public init(threshold: Int, actionShell: String) {
+            self.threshold = threshold
+            self.actionShell = actionShell
+        }
+    }
+
     public var options: Options
     public var bindings: [Binding]
     /// Document-ordered fallbacks evaluated AFTER every `[[bindings]]`
@@ -491,19 +509,24 @@ public struct ChordConfig: Sendable {
     /// readable + searchable while the literal modifier composition
     /// stays a single source of truth.
     public var inputAliases: [String: String]
+    /// `nil` = no `[battery]` table. On its own the table arms the same
+    /// vendor-HID source v-keys use, so it needs the Input Monitoring grant.
+    public var battery: Battery?
 
     public init(
         options: Options = .init(),
         bindings: [Binding] = [],
         fallbacks: [Binding] = [],
         actionAliases: [String: String] = [:],
-        inputAliases: [String: String] = [:]
+        inputAliases: [String: String] = [:],
+        battery: Battery? = nil
     ) {
         self.options = options
         self.bindings = bindings
         self.fallbacks = fallbacks
         self.actionAliases = actionAliases
         self.inputAliases = inputAliases
+        self.battery = battery
     }
 
     /// Conventional config path: `$XDG_CONFIG_HOME/chord/config.toml`

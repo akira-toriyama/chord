@@ -134,6 +134,24 @@ fn-auto-arrows = true
 
 
 # =====================================================================
+# Battery watch — split keyboard over the Imprint dongle (chord 3.1.0+)
+# =====================================================================
+# canon's dongle forwards each half's battery level as a vendor-HID
+# report. Run a command once per half when its level first reaches
+# `threshold`; chord then stays quiet for that half until it has
+# charged back to threshold + 5. The command gets
+# CHORD_BATTERY_SOURCE (the dongle's peripheral slot, 0 / 1) and
+# CHORD_BATTERY_PERCENT on top of the usual env vars. Levels arrive
+# on change only (a half stops sampling after 30 s idle), and a level
+# of 0 is a disconnected half, never 0 %. Needs the Input Monitoring
+# grant like v-keys. Both keys required.
+#
+# [battery]
+# threshold = 10                           # percent, 1–100
+# action-shell = "imprint-battery-notify"  # @name works here too
+
+
+# =====================================================================
 # Pattern 1 — F13-F24 as launcher keys
 # =====================================================================
 # Useful if you have a programmable keyboard (ZSA Moonlander, custom

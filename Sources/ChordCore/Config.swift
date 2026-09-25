@@ -305,6 +305,43 @@ public enum Config {
             }
         }
 
+        // [battery] (chord 3.1.0+) — the split peripheral battery watch, a
+        // single table parsed like [options] (Config+Battery.swift). It
+        // needs the resolved [action-aliases] for its `action-shell`.
+        // An empty `[battery]` header survives only in the span index (the
+        // DOM drops a table with no entries), and must still report its
+        // two missing keys — a bare header is the one shape that would
+        // otherwise be a silent no-op.
+        var battery: ChordConfig.Battery?
+        if case .table(let raw)? = root["battery"] {
+            battery = parseBattery(
+                raw,
+                spans: tableSpans(keys: raw.keys, at: [.key("battery")], in: spanned),
+                actionAliases: actionAliases,
+                warnings: &warnings)
+        } else if let header = spanned.headerSpans[[.key("battery")]] {
+            battery = parseBattery(
+                [:], spans: RowSpans(header: header, fields: [:]),
+                actionAliases: actionAliases, warnings: &warnings)
+        } else if let value = root["battery"] {
+            // `[[battery]]` or `battery = …`: the name is known to the
+            // structural check, so nothing else would say why the watch
+            // never runs.
+            let span: TOML.SourceSpan?
+            if case .arrayOfTables(let rows) = value {
+                span = rows.first?.span
+            } else {
+                span = spanned.entrySpans[[.key("battery")]]?.key
+            }
+            warnings.append(
+                ConfigWarning(
+                    kind: .batteryInvalid,
+                    message:
+                        "[battery]\(sourceTag(span)): must be a [battery] table, got "
+                        + "\(tomlTypeName(value)) — battery watch disabled",
+                    source: span))
+        }
+
         // v0.7.0 sequence sugar: parse `[[sequence]]` rows first and
         // expand them into prefix + child bindings. The expansion
         // produces ordinary Binding values (no new runtime concepts),
@@ -464,7 +501,7 @@ public enum Config {
         let cfg = ChordConfig(
             options: options, bindings: bindings,
             fallbacks: fallbacks, actionAliases: actionAliases,
-            inputAliases: inputAliasesRaw)
+            inputAliases: inputAliasesRaw, battery: battery)
         return ParseResult(
             config: cfg, warnings: warnings,
             droppedBindings: dropped, sourcePath: nil)
@@ -488,6 +525,7 @@ public enum Config {
     //   Config+Remap.swift     — parseRemaps (`[[remap]]` table sugar).
     //   Config+Expansion.swift — expandBindingPerApp / expandFallbackRow
     //                            + RowExpansion / FallbackExpansion.
+    //   Config+Battery.swift   — parseBattery (the `[battery]` table).
 
     /// Render the `(config.toml:N:C)` suffix attached to warnings —
     /// `(config.toml:N)` when the span carries no column, the empty

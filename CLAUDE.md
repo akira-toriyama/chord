@@ -517,6 +517,66 @@ a duration**, which is where all its constraints come from.
   it is already receiving into one immediate effect; the moment two
   deltas must be compared, it belongs to wand.
 
+### `[battery]` (chord 3.1.0+ — the split battery watch)
+
+One table, no bindings: run `action-shell` once per keyboard half when
+the level the Imprint dongle reports first reaches `threshold`. The
+user-facing shape is in the README; what follows is what must not
+regress.
+
+- **The wire is canon's, not ours.** Report ID `0x21` on usage page
+  `0xFF31`, body `{source, level}` (canon `patches/zmk/vkey-report.patch`,
+  `zmk_hid_split_battery_report`; measured on the USB line 2026-09-24).
+  `source` is the dongle's peripheral slot index — which physical half
+  it is must be established on the hardware, which is why chord passes
+  it through as `CHORD_BATTERY_SOURCE` and names no side. `level == 0`
+  is a disconnected half: ZMK's central pushes it on every peripheral
+  disconnect (`split/bluetooth/central.c`), the dongle's own boot
+  produces one per half, and it reaches the host as an ordinary report.
+- **`VKeyHIDSource` routes by report ID; it decides nothing.** `0x20`
+  → the v-key sink, `0x21` → the battery sink, both bytes-only. The sinks
+  are (re)set on every `start()` — the Controller calls it on every
+  config load — so a `[battery]` table added by a reload after the
+  source was installed for v-keys still gets its sink. Every level is
+  `Log.line`d (not debug-gated): it changes a few times an hour and the
+  log is the only place the levels are visible.
+- **The decision is `BatteryThresholdTracker` (ChordCore, pure,
+  tested).** One announcement per source per discharge: latch on the
+  crossing, re-arm only at `threshold + rearmMargin` (5). `0` and
+  `> 100` are not readings — they neither announce nor re-arm.
+  Carried across config loads (`retuned(to:)`): the file watcher
+  reloads on every save, so the latches survive unless the threshold
+  moved — an unrelated edit must not re-announce a half that is still
+  low.
+- **Reports arrive on change only.** A half notifies only when its
+  level changes and stops sampling after 30 s idle
+  (`CONFIG_ZMK_IDLE_TIMEOUT`), so a crossing surfaces at the next
+  change — a keyboard draining unused is silent until it is used.
+  Don't add a poll: there is nothing on the host side to poll.
+- **The source is armed when the config declares v-keys OR
+  `[battery]`** (`maybeStartVKeySource`), so a battery-only config is
+  prompted for Input Monitoring exactly like a v-key one.
+- **Not gated by `daemon --pause`.** Pause suspends input handling; a
+  half running flat is worth hearing about while paused.
+- **chord draws nothing** ([docs/non-goals.md](docs/non-goals.md) §6):
+  the notification is `action-shell`'s job (`terminal-notifier` in the
+  README), fired through `ActionDispatcher.dispatchShell` with
+  `CHORD_BATTERY_SOURCE` / `CHORD_BATTERY_PERCENT` laid over the usual
+  env. `@name` resolves against `[action-aliases]` with the binding
+  resolver — one resolver, one table.
+- **Parse is all-or-nothing** (`Config.parseBattery`): `threshold`
+  (1–100) and `action-shell` (non-empty) are both required; any defect
+  is a `battery-invalid` (or the existing type / alias kinds) and the
+  whole table is `nil`; a wrong shape (`[[battery]]`, `battery = 5`)
+  is the same kind. Bindings are never affected. `[battery]` is not
+  part of the `chord.bindings.v4` document (bindings only), so
+  `daemon --reload --dry-run` does not diff it; `config --show` (text)
+  prints it. In `dropped[]` only `battery-invalid` carries
+  `section = "[battery]"` — the shared kinds raised from the table
+  (`unknown-key`, `field-type-mismatch`, `undefined-action-alias`)
+  come out as `"[[bindings]]"`, the hand-coded map's pre-existing gap
+  that `[options]` shares; the message names the section.
+
 ### Configuration
 
 - **`config.toml` at the repo root is the source-of-truth

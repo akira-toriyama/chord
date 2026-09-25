@@ -15,14 +15,15 @@ reigniting periodically.
 
 - **Core lightness — one AX grant (the core)**: the core features run on the
   Accessibility permission alone. No DriverKit, no virtual HID device, no root
-  daemon. **The single exception is the opt-in v-key**: to read the 1-byte
-  selector canon firmware sends via `&vkey <id>` on vendor usage page
-  `0xFF31` / report ID `0x20`, chord uses IOHIDManager + Input Monitoring
-  (`kTCCServiceListenEvent`). The path starts only for users who write a
-  v-key binding in their config (`Controller.maybeStartVKeySource` gates on
-  `configDeclaresVKeys()`); non-v-key users never open IOHIDManager and are
-  never prompted for Input Monitoring. **General HID interception /
-  per-device routing / DriverKit remain non-goals.**
+  daemon. **The single exception is the opt-in vendor-HID read**: to read
+  canon firmware's vendor usage page `0xFF31` — the 1-byte v-key selector
+  `&vkey <id>` sends (report ID `0x20`) and, chord 3.1.0+, the split
+  battery level (report ID `0x21`) — chord uses IOHIDManager + Input
+  Monitoring (`kTCCServiceListenEvent`). The path starts only for users who
+  write a v-key binding or a `[battery]` table in their config
+  (`Controller.maybeStartVKeySource`); everyone else never opens
+  IOHIDManager and is never prompted for Input Monitoring. **General HID
+  interception / per-device routing / DriverKit remain non-goals.**
 - **Single-CGEventTap simplicity for the consume / pass spine**: synchronous
   first-match-wins. The contract is deciding consume / pass right inside the
   tap callback. **The single exception is the opt-in drag-scroll motion
