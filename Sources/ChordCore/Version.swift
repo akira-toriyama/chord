@@ -27,5 +27,5 @@ import Foundation
 public enum ChordVersion {
     /// The version the next release will carry — glyph's rolling draft
     /// is the authority for what that is (`gh release list`).
-    public static let current = "3.0.0"
+    public static let current = "3.1.0"
 }
