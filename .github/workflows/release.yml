@@ -24,11 +24,12 @@ concurrency:
   group: release
   cancel-in-progress: false
 
-permissions:
-  contents: write
-
 jobs:
   release:
+    # Job-level, not workflow-level: zizmor reads a workflow-wide
+    # `contents: write` as overly broad once version-sync (read-only) exists.
+    permissions:
+      contents: write
     uses: akira-toriyama/glyph/.github/workflows/release.yml@v4.0.0
     with:
       app: Chord
@@ -74,3 +75,42 @@ jobs:
         curl --create-dirs -o ~/.config/chord/config.toml \
           https://raw.githubusercontent.com/akira-toriyama/chord/main/config.toml
         ```
+
+  # The tag glyph cuts lands on a commit that ALREADY EXISTS, so nothing in
+  # the release flow rewrites `ChordVersion.current`; the PR that moves the
+  # verdict bumps it by hand, with Info.plist. scripts/check-version-sync.sh
+  # holds those two together and nothing else — both standing still is
+  # invisible to it, and that happened: the constant said 0.10.0 through
+  # v0.11.0, v1.0.0 and v2.0.0 (measured against the tags, 2026-08-13). This
+  # job compares the constant with the tag the rolling draft targets, so a
+  # forgotten bump is a red Release run on main instead of a `chord
+  # --version` that under-reports the release it came from. Same shape as
+  # glance's version-sync. Skipped when no release is due (`next` is empty
+  # on a none verdict).
+  version-sync:
+    needs: release
+    if: needs.release.outputs.next != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Compare ChordVersion.current with the rolling draft's tag
+        env:
+          NEXT: ${{ needs.release.outputs.next }}
+        run: |
+          set -euo pipefail
+          current="$(sed -n 's/^ *public static let current = "\(.*\)"$/\1/p' Sources/ChordCore/Version.swift)"
+          if [ -z "$current" ]; then
+            echo "::error::Sources/ChordCore/Version.swift no longer declares 'public static let current = \"…\"' on one line — this job reads exactly that."
+            exit 1
+          fi
+          if [ "v$current" != "$NEXT" ]; then
+            echo "::error::ChordVersion.current is $current but the rolling draft targets $NEXT — set it to ${NEXT#v} in Sources/ChordCore/Version.swift and Info.plist (scripts/check-version-sync.sh keeps those two together) before publishing; a ':bookmark:(version)= …' commit keeps the verdict where it is."
+            exit 1
+          fi
+          echo "ChordVersion.current $current matches the draft's $NEXT"
