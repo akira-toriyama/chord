@@ -30,7 +30,7 @@ jobs:
     # `contents: write` as overly broad once version-sync (read-only) exists.
     permissions:
       contents: write
-    uses: akira-toriyama/glyph/.github/workflows/release.yml@v4.1.1
+    uses: akira-toriyama/glyph/.github/workflows/release.yml@v4.2.0
     with:
       app: Chord
       # chord is yabai-style: `chord config --validate` is the post-build smoke.
