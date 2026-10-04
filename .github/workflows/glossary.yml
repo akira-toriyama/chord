@@ -33,4 +33,6 @@ concurrency:
 
 jobs:
   deploy:
-    uses: akira-toriyama/glossary-site/.github/workflows/deploy.yml@main
+    uses: akira-toriyama/glossary-site/.github/workflows/deploy.yml@dependabot/npm_and_yarn/npm-6eba6c8ce6
+    with:
+      builder-ref: dependabot/npm_and_yarn/npm-6eba6c8ce6
