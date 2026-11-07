@@ -743,6 +743,21 @@ stray instances before relaunching.
   `Chord-dev.app` / `com.chord.chord.dev` to co-exist with a
   Homebrew install without TCC collision). Same pattern as wand
   / facet.
+- **`setup-signing-cert.sh` widens the key's partition list** to
+  `apple-tool:,apple:,codesign:`, on every run, password asked on
+  the terminal. `security import -A` leaves it at `apple-tool:`,
+  which keeps `codesign` out: `errSecInternalComponent` over ssh, a
+  SecurityAgent dialog in a GUI session, a LaunchAgent's rebuild
+  hanging there. `-l chord-dev` matters: without it every signing
+  key in the keychain gets the list. A wrong password exits 1 and
+  changes nothing, which is why the identity-present path sets it
+  too. Read it back with `security dump-keychain -a` in a session
+  with the keychain unlocked (a locked one shows no `partition_id`
+  entry); a keychain from `security create-keychain` shows none
+  either, set or not, and takes a wrong password with exit 0, so it
+  cannot stand in for the login keychain. Measured 2026-11-07 on
+  macOS 26: a Tart VM's login keychain, and that throwaway keychain
+  on the host (canon t-35cd).
 - **`LSUIElement = true`** — no Dock icon, no menubar item. The
   daemon is intentionally invisible.
 

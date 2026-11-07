@@ -114,7 +114,7 @@ Requires macOS 26+ — the latest macOS is recommended.
 brew install akira-toriyama/tap/chord
 
 # One-time setup so the Accessibility grant persists across upgrades
-$(brew --prefix)/share/chord/setup-signing-cert.sh   # create chord-dev identity
+$(brew --prefix)/share/chord/setup-signing-cert.sh   # create chord-dev identity (asks for your login password once)
 chord daemon --resign                                 # re-sign + restart
 
 brew services start chord
