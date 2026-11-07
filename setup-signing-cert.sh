@@ -17,6 +17,22 @@ cd "$(dirname "$0")"
 CN="chord-dev"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
+# `security import` leaves the key's partition list at `apple-tool:`, which keeps
+# codesign out: the first signature fails with errSecInternalComponent over ssh
+# and stops at a SecurityAgent dialog in a GUI session, so a LaunchAgent's rebuild
+# hangs (Tart VM, macOS 26.5, 2026-11-07). The list takes the keychain's password,
+# which security(1) reads from the terminal (its -k is deprecated). -l because
+# without it the list of every signing key in the keychain is replaced. A wrong
+# password exits 1 and changes nothing, so a run that finds the identity present
+# still has to come through here.
+allow_codesign() {
+  echo "macOS asks for your login password once, so that codesign can use the \"$CN\" key without a dialog."
+  if ! security set-key-partition-list -S apple-tool:,apple:,codesign: -s -l "$CN" "$KEYCHAIN" >/dev/null; then
+    echo "codesign cannot use the \"$CN\" key yet: run this script again with your login password." >&2
+    exit 1
+  fi
+}
+
 # Idempotency: an untrusted self-signed cert does NOT appear in
 # `find-identity -p codesigning` (that lists trusted identities
 # only), so a naive guard there never trips and every re-run adds a
@@ -39,6 +55,7 @@ if [[ "$hash_count" -ge 1 ]]; then
     done <<<"$hashes"
   fi
   echo "identity already present: $CN"
+  allow_codesign
   echo -n "$CN" > .signing-id
   exit 0
 fi
@@ -73,9 +90,9 @@ openssl pkcs12 -export -legacy -macalg sha1 \
   -inkey "$TMP/key.pem" -in "$TMP/cert.pem" \
   -out "$TMP/id.p12" -passout "pass:$P12PW" -name "$CN" >/dev/null 2>&1
 
-# -A: usable by any app (so /usr/bin/codesign can use the key
-# non-interactively without further prompting).
+# -A opens the key's ACL to any app; codesign still needs allow_codesign.
 security import "$TMP/id.p12" -k "$KEYCHAIN" -P "$P12PW" -A >/dev/null
+allow_codesign
 
 echo -n "$CN" > .signing-id
 echo "created identity: $CN"
