@@ -8,8 +8,8 @@
 # stable self-signed cert keeps the same identity across rebuilds
 # and `package.sh` runs.
 #
-# Same approach as facet/wand — including the specific OpenSSL 3
-# .p12 export options security(1) requires.
+# Same approach as facet/wand — including the specific .p12 export
+# options security(1) requires.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -102,16 +102,19 @@ keyUsage = critical,digitalSignature
 extendedKeyUsage = critical,codeSigning
 EOF
 
-openssl req -x509 -newkey rsa:2048 -nodes \
+# /usr/bin's, a LibreSSL every Mac has, never PATH's: an OpenSSL 3+ takes -legacy
+# for these options and a LibreSSL refuses it, with this script's output hidden
+# (macOS 26.5, LibreSSL 3.3.6, Tart VM, 2026-11-07).
+/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout "$TMP/key.pem" -out "$TMP/cert.pem" \
   -days 3650 -config "$TMP/cert.cnf" >/dev/null 2>&1
 
-# Legacy PKCS12 (SHA-1 MAC / 3DES) + a password: required for
-# Apple's `security` to import OpenSSL 3 output without "MAC
-# verification failed". Weak crypto but irrelevant — the .p12 lives
-# in a per-run /tmp dir and is removed on exit.
+# SHA-1 MAC / 3DES + a password: required for Apple's `security` to
+# import the .p12 without "MAC verification failed". Weak crypto but
+# irrelevant — the .p12 lives in a per-run /tmp dir and is removed on
+# exit.
 P12PW="chord"
-openssl pkcs12 -export -legacy -macalg sha1 \
+/usr/bin/openssl pkcs12 -export -macalg sha1 \
   -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES \
   -inkey "$TMP/key.pem" -in "$TMP/cert.pem" \
   -out "$TMP/id.p12" -passout "pass:$P12PW" -name "$CN" >/dev/null 2>&1
