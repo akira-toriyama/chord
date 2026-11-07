@@ -744,14 +744,19 @@ stray instances before relaunching.
   Homebrew install without TCC collision). Same pattern as wand
   / facet.
 - **`setup-signing-cert.sh` widens the key's partition list** to
-  `apple-tool:,apple:,codesign:`, on every run, password asked on
-  the terminal. `security import -A` leaves it at `apple-tool:`,
-  which keeps `codesign` out: `errSecInternalComponent` over ssh, a
-  SecurityAgent dialog in a GUI session, a LaunchAgent's rebuild
-  hanging there. `-l chord-dev` matters: without it every signing
-  key in the keychain gets the list. A wrong password exits 1 and
-  changes nothing, which is why the identity-present path sets it
-  too. Read it back with `security dump-keychain -a` in a session
+  `apple-tool:,apple:,codesign:`, password asked on the terminal,
+  only when the key lacks `apple:`. `security import -A` leaves it
+  at `apple-tool:`, which keeps `codesign` out:
+  `errSecInternalComponent` over ssh, a SecurityAgent dialog in a
+  GUI session, a LaunchAgent's rebuild hanging there. A usable key
+  must stay a silent exit 0, because capsule's `verify.sh` runs the
+  script on every verify of the chord profile, unattended, output
+  in a log, and a failure stops the run; without a terminal a key
+  that needs the list is exit 1 with a message. `-l chord-dev`
+  matters: without it every signing key in the keychain gets the
+  list. A wrong password exits 1 and changes nothing, which is why
+  the identity-present path checks too. Read it back with
+  `security dump-keychain -a` in a session
   with the keychain unlocked (a locked one shows no `partition_id`
   entry); a keychain from `security create-keychain` shows none
   either, set or not, and takes a wrong password with exit 0, so it
